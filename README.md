@@ -75,7 +75,7 @@ The isolated consumer smoke test validates transitive dependencies from packaged
 
 ## Measured quality
 
-The clean local coverage gate measures **8,137/8,137 statements and 445/445 branches**,
+The clean local coverage gate measures **8,907/8,907 statements and 486/486 branches**,
 with 100% in every production module. It includes generator logic, generated bindings,
 and examples, and rejects missing, stale, or inconsistent evidence. It does not establish
 real OBS compatibility or certify a public CI run.

@@ -119,7 +119,12 @@ object Generate:
         scalaType,
         codec,
         field.valueOptional,
-        overrides.nullableFields.contains(s"$owner.$kind.${field.valueName}")
+        overrides.nullableFields.contains(s"$owner.$kind.${field.valueName}"),
+        List(
+          Some(field.valueDescription),
+          field.valueRestrictions.map("Restrictions: " + _),
+          field.valueOptionalBehavior.map("When omitted: " + _)
+        ).flatten.filter(_.nonEmpty).mkString(" ")
       )
 
   private def identifier(field: Field): String =
@@ -194,7 +199,8 @@ object Generate:
       initialVersion: String,
       rpcVersion: String,
       deprecated: Boolean,
-      provenance: Provenance
+      provenance: Provenance,
+      fields: List[Field]
   ): String =
     val versions = List(
       Option.when(initialVersion.nonEmpty)(s"initial version $initialVersion"),
@@ -206,15 +212,24 @@ object Generate:
     s"""/** $title
        |  *
        |  * Upstream: [[${provenance.upstreamDocs}#${anchor(name)} $name]]$since.$deprecation
-       |  */
+       |${parameterDocs(fields)}  */
        |""".stripMargin
 
-  /** Fixed two-line Scaladoc pointing at the owning entry's upstream anchor. */
-  private def seeDoc(summary: String, name: String, anchorTarget: String, provenance: Provenance): String =
+  private def parameterDocs(fields: List[Field]): String =
+    fields.map(field => s"  * @param ${identifier(field)} ${collapse(field.description)}\n").mkString
+
+  /** Scaladoc pointing at the owning entry's upstream anchor, with optional field semantics. */
+  private def seeDoc(
+      summary: String,
+      name: String,
+      anchorTarget: String,
+      provenance: Provenance,
+      fields: List[Field] = Nil
+  ): String =
     s"""/** $summary
        |  *
        |  * Upstream: [[${provenance.upstreamDocs}#${anchor(anchorTarget)} $name]]
-       |  */
+       |${parameterDocs(fields)}  */
        |""".stripMargin
 
   private def header(pkg: String, provenance: Provenance, withImport: Boolean): String =
@@ -235,7 +250,8 @@ object Generate:
         request.initialVersion,
         request.rpcVersion,
         request.deprecated,
-        provenance
+        provenance,
+        requestFields
       ) +
       s"final case class $name(${parameters(requestFields)}) extends Request[${name}Response]:\n" +
       s"  def requestType: String = ${quote(name)}\n" +
@@ -247,7 +263,7 @@ object Generate:
       s"  private[protocol] def minimal: $name = $name(" +
       requestFields.filter(!_.optional).map(f => s"`${identifier(f)}` = ${placeholder(f)}").mkString(", ") +
       s")\n  def decode(data: JsonObject): Either[ProtocolError, $name] = ${decode(name, requestFields)}\n\n" +
-      seeDoc(s"Response payload for [[$name]].", s"${name}Response", name, provenance) +
+      seeDoc(s"Response payload for [[$name]].", s"${name}Response", name, provenance, responseFields) +
       s"final case class ${name}Response(${parameters(responseFields)}):\n  def toJson: JsonObject = ${encode(responseFields)}\n\n" +
       seeDoc(s"JSON decoder for [[${name}Response]].", s"${name}Response", name, provenance) +
       s"object ${name}Response:\n  def decode(data: JsonObject): Either[ProtocolError, ${name}Response] = ${decode(name + "Response", responseFields)}\n"
@@ -255,7 +271,15 @@ object Generate:
   private def emitEvent(event: SchemaEvent, fields: List[Field], provenance: Provenance): String =
     val name = event.eventType
     header(s"$base.events", provenance, withImport = true) +
-      documentation(event.description, name, event.initialVersion, event.rpcVersion, event.deprecated, provenance) +
+      documentation(
+        event.description,
+        name,
+        event.initialVersion,
+        event.rpcVersion,
+        event.deprecated,
+        provenance,
+        fields
+      ) +
       s"final case class $name(${parameters(fields)}) extends Event:\n" +
       s"  def eventType: String = ${quote(name)}\n" +
       s"  def eventData: JsonObject = ${encode(fields)}\n\n" +
@@ -371,5 +395,6 @@ private[codegen] final case class Field(
     scalaType: String,
     codec: String,
     optional: Boolean,
-    nullable: Boolean
+    nullable: Boolean,
+    description: String
 )

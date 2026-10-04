@@ -218,6 +218,23 @@ class GenerateSuite extends FunSuite:
     assertEquals(writeToString(SchemaEnumValue("future")), "\"future\"")
     assertEquals(summon[JsonValueCodec[SchemaEnumValue]].nullValue, SchemaEnumValue(""))
 
+  test("field documentation preserves descriptions, restrictions, omission semantics and escaped comments"):
+    val field = SchemaField(
+      "requestType",
+      "Number",
+      valueOptional = true,
+      valueDescription = "Volume in dB. */",
+      valueRestrictions = Some(">= -100, <= 26"),
+      valueOptionalBehavior = Some("Specify inputVolumeMul")
+    )
+    val described =
+      Schema(List(SchemaRequest("Volume", List(field), List(field))), List(SchemaEvent("VolumeChanged", List(field))))
+    val generated = Generate.generate(described, Overrides(Nil), provenance).toMap
+    val expected =
+      "@param payloadRequestType Volume in dB. * / Restrictions: >= -100, <= 26 When omitted: Specify inputVolumeMul"
+    assertEquals(generated("requests/Volume.scala").sliding(expected.length).count(_ == expected), 2)
+    assert(generated("events/VolumeChanged.scala").contains(expected))
+
   private def snapshot(directory: Path): Map[String, String] =
     val stream = Files.walk(directory)
     try
