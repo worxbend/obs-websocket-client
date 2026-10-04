@@ -25,6 +25,7 @@ class SttpClientSuite extends FunSuite:
         s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"availableRequests":["GetVersion"]}}}"""
       )
       assertEquals(LocalWebSocketPeer.receive(socket)._1, 8)
+      assertEquals(socket.getInputStream.read(), -1, "An unacknowledged Close must still release TCP")
     val result = LocalWebSocketPeer.run(serve): uri =>
       SttpObsClient.connect(ObsConfig(uri = uri))(_.metadata.availableRequests)
     assertEquals(result, Right(Set("GetVersion")))
@@ -46,6 +47,7 @@ class SttpClientSuite extends FunSuite:
     def serve(socket: java.net.Socket): Unit =
       LocalWebSocketPeer.upgrade(socket)
       assertEquals(LocalWebSocketPeer.receive(socket)._1, 8)
+      assertEquals(socket.getInputStream.read(), -1, "An unacknowledged Close must still release TCP")
     val result = LocalWebSocketPeer.run(serve): uri =>
       SttpObsClient.connect(ObsConfig(uri = uri, handshakeTimeout = 100.millis))(_ => ())
     assertEquals(result, Left(ObsError.Timeout("handshake")))
@@ -54,7 +56,11 @@ class SttpClientSuite extends FunSuite:
     assert(SttpObsClient.connect(ObsConfig(uri = "https://localhost"))(_ => ()).isLeft)
 
   test("injected backend entrypoint rejects malformed URI as configuration"):
-    val result = SttpObsClient.withBackend(WebSocketSyncBackendStub, ObsConfig(uri = "ws://localhost:invalid"))(_ => ())
+    val result = SttpObsClient.withBackend(
+      WebSocketSyncBackendStub,
+      ObsConfig(uri = "ws://localhost:invalid"),
+      () => fail("No connection acquired")
+    )(_ => ())
     assertEquals(
       result,
       Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials or fragment"))
@@ -71,12 +77,16 @@ class SttpClientSuite extends FunSuite:
     val backend = WebSocketSyncBackendStub.whenAnyRequest.thenRespondF: (_: _root_.sttp.client4.GenericRequest[?, ?]) =>
       ox.sleep(50.millis)
       _root_.sttp.client4.testing.ResponseStub.exact(Left("late rejection"))
-    val result = SttpObsClient.withBackend(backend, ObsConfig(connectionTimeout = 10.millis))(_ => ())
+    val result = SttpObsClient.withBackend(
+      backend,
+      ObsConfig(connectionTimeout = 10.millis),
+      () => fail("No connection acquired")
+    )(_ => ())
     assertEquals(result, Left(ObsError.Timeout("connection")))
 
   test("non-handshake connection errors are typed and redacted"):
     val backend = WebSocketSyncBackendStub.whenAnyRequest.thenThrow(new java.net.ConnectException("secret"))
-    val result = SttpObsClient.withBackend(backend, ObsConfig())(_ => ())
+    val result = SttpObsClient.withBackend(backend, ObsConfig(), () => fail("No connection acquired"))(_ => ())
     assertEquals(result, Left(ObsError.Transport("WebSocket connection failed")))
 
   test("injected backend remains usable after a rejected connection"):
@@ -91,5 +101,9 @@ class SttpClientSuite extends FunSuite:
         socket.getOutputStream.flush()
       for _ <- 1 to 2 do
         val result = LocalWebSocketPeer.run(reject): uri =>
-          SttpObsClient.withBackend(backend, ObsConfig(uri = uri))(_ => ())
+          SttpObsClient.withBackend(backend, ObsConfig(uri = uri), () => fail("No connection acquired"))(_ => ())
         assertEquals(result, Left(ObsError.Transport("WebSocket upgrade rejected")))
+
+  test("positive submillisecond deadlines construct the real backend without truncation errors"):
+    val result = SttpObsClient.connect(ObsConfig(uri = "ws://127.0.0.1:1", connectionTimeout = 1.nanosecond))(_ => ())
+    assert(result.isLeft)

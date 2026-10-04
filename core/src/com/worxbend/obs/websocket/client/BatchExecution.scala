@@ -5,6 +5,8 @@ import com.worxbend.obs.websocket.client.protocol.JsonObject
 enum BatchExecution(val wireValue: Int):
   case SerialRealtime extends BatchExecution(0)
   case SerialFrame extends BatchExecution(1)
+
+  /** Retained as a wire value; nonempty parallel batches are rejected because OBS cannot reliably correlate results. */
   case Parallel extends BatchExecution(2)
 
 enum BatchFailurePolicy:

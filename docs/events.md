@@ -10,7 +10,7 @@ The default `OverflowPolicy.Fail` terminates only the affected subscription with
 
 `session.withEvents` decodes known event types into their generated classes; an event type the pinned catalog does not know arrives as `UnknownEvent(eventType, eventData)`. `session.withRawEvents` delivers every matching event — known or not — as `UnknownEvent` with the complete wire payload, preserving fields newer than the catalog. Known events are still validated on arrival; a malformed known event fails the session regardless of representation.
 
-Normal-volume event categories are enabled by default. High-volume meter events require an explicit `EventSubscriptions.fromLong` mask. `session.reidentify(mask)` changes the server mask without waiting for a nonexistent acknowledgement.
+Normal-volume event categories are enabled by default. High-volume meter events require an explicit `EventSubscriptions.fromLong` mask. `session.reidentify(mask)` queues a server mask change. Success means queued; the uncorrelated `Identified` acknowledgement is validated asynchronously.
 
 ## Flows
 
@@ -18,7 +18,7 @@ Normal-volume event categories are enabled by default. High-volume meter events 
 
 ## Cleanup
 
-The sttp entrypoint closes its own backend. `withBackend` leaves an injected backend owned by its caller. The session closes the socket in the scope body before joining the reader. The sttp receive path is interruptible, including when a peer never acknowledges close.
+The sttp entrypoint closes its own backend. `withBackend(backend, config, abortConnection)` leaves an injected backend owned by its caller. Its required, prompt, idempotent callback must force-close the individual connection without closing a shared backend. The session closes the socket in the scope body before joining the reader. The default entrypoint force-shuts down its owned JDK client after a bounded Close attempt, including when a peer never acknowledges close.
 
 A session or subscription must not escape its callback. Cancellation of one request removes that pending request; it must not close another caller's connection.
 

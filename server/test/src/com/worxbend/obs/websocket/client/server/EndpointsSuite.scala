@@ -15,33 +15,16 @@ class EndpointsSuite extends munit.FunSuite:
     try use(_root_.sttp.client4.httpclient.HttpClientSyncBackend.usingClient(jdk))
     finally jdk.close()
 
-  private def awaitHealth(): Unit =
-    import scala.concurrent.duration.*
-    import ox.either.catching
+  private def assertHealth(port: Int): Unit =
     withOwnedClient: client =>
-      var response = basicRequest
-        .get(uri"http://127.0.0.1:8080/health")
+      val response = SttpClientInterpreter()
+        .toRequestThrowDecodeFailures(Endpoints.health, Some(uri"http://127.0.0.1:$port"))
+        .apply(())
         .send(client)
-        .catching[_root_.sttp.client4.SttpClientException]
-      while response.isLeft do
-        ox.sleep(10.millis)
-        response = basicRequest
-          .get(uri"http://127.0.0.1:8080/health")
-          .send(client)
-          .catching[_root_.sttp.client4.SttpClientException]
-      assertEquals(response.toOption.get.body, Right("{\"status\":\"ok\"}"))
+      assertEquals(response.body, Right(Health("ok")))
 
-  private def healthRequestFailsAfterStop(): Boolean =
-    import ox.either.catching
-    withOwnedClient: client =>
-      basicRequest
-        .get(uri"http://127.0.0.1:8080/health")
-        .send(client)
-        .catching[_root_.sttp.client4.SttpClientException]
-        .isLeft
-
-  private def portReleased: Boolean = scala.util
-    .Try(new java.net.ServerSocket(8080, 50, java.net.InetAddress.getByName("127.0.0.1")).close())
+  private def portReleased(port: Int): Boolean = scala.util
+    .Try(new java.net.ServerSocket(port, 50, java.net.InetAddress.getByName("127.0.0.1")).close())
     .isSuccess
 
   private def backend(result: Either[ObsError, VersionInformation]): SyncBackend =
@@ -111,23 +94,38 @@ class EndpointsSuite extends munit.FunSuite:
     val service = ObsReadService.live(com.worxbend.obs.websocket.client.ObsConfig(uri = "https://localhost"))
     assert(service.version().isLeft)
 
-  test("application entrypoint starts, serves health, and releases its port on cancellation"):
+  test("application entrypoint uses an assigned port and releases it on cancellation"):
     import scala.concurrent.duration.*
-    ox.timeout(12.seconds):
-      ox.supervised:
-        val application = ox.forkCancellable:
-          ox.supervised:
-            Main.run
-        try awaitHealth()
-        finally
-          val _ = application.cancel()
-        assert(healthRequestFailsAfterStop(), "health must be unreachable after cancellation")
-        var released = portReleased
-        val deadline = System.nanoTime() + 4.seconds.toNanos
-        while !released && System.nanoTime() < deadline do
-          ox.sleep(20.millis)
-          released = portReleased
-        assert(released, "port 8080 must be rebindable after the application is cancelled")
+    import java.nio.file.Files
+    import com.typesafe.config.ConfigFactory
+    val source = Files.createTempFile("obs-server-test", ".conf")
+    val previous = Option(System.getProperty("config.file"))
+    try
+      val _ = Files.writeString(source, """http { host = "127.0.0.1", port = 0 }, obs { url = "ws://127.0.0.1:1" }""")
+      val _ = System.setProperty("config.file", source.toString)
+      ConfigFactory.invalidateCaches()
+      ox.timeout(12.seconds):
+        ox.supervised:
+          val started = ox.channels.Channel.buffered[Int](1)
+          val output = new java.io.PrintStream(java.io.OutputStream.nullOutputStream()):
+            override def println(message: Object): Unit =
+              started.send(java.net.URI.create(message.toString.stripPrefix("Swagger UI: ")).getPort)
+          val application = ox.forkCancellable:
+            Console.withOut(output):
+              ox.supervised:
+                Main.run
+          val port = started.receive()
+          try assertHealth(port)
+          finally
+            val _ = application.cancel()
+            output.close()
+          assert(portReleased(port), s"Assigned port $port must be rebindable after cancellation")
+    finally
+      previous match
+        case Some(value) => val _ = System.setProperty("config.file", value)
+        case None        => val _ = System.clearProperty("config.file")
+      ConfigFactory.invalidateCaches()
+      Files.delete(source)
 
   test("live service discovers and reads the version through an actual WebSocket"):
     import com.worxbend.obs.websocket.client.{ObsConfig, protocol}

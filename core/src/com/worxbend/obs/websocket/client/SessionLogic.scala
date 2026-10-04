@@ -23,6 +23,7 @@ private[client] final class SessionLogic(
   private case class State(
       phase: ConnectionState = ConnectionState.AwaitingHello,
       version: String = "",
+      reidentifyAcks: Int = 0,
       failure: Option[ObsError] = None,
       pending: Map[String, Pending] = Map.empty,
       subscribers: Map[String, Subscriber] = Map.empty,
@@ -106,7 +107,10 @@ private[client] final class SessionLogic(
 
   def reidentify(mask: EventSubscriptions): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
-    else queue(WireMessage(3, JsonObject(Map("eventSubscriptions" -> JsonValue.Num(BigDecimal(mask.value))))))
+    else if state.reidentifyAcks >= config.maxInFlight then Left(ObsError.Overflow("reidentify acknowledgements"))
+    else
+      queue(WireMessage(3, JsonObject(Map("eventSubscriptions" -> JsonValue.Num(BigDecimal(mask.value)))))).map: _ =>
+        state = state.copy(reidentifyAcks = state.reidentifyAcks + 1)
 
   def subscribe(
       id: String,
@@ -133,8 +137,11 @@ private[client] final class SessionLogic(
   /** Returns whether the reader should keep consuming frames. */
   def incoming(message: WireMessage): Boolean =
     val handled = (state.phase, message.op) match
-      case (ConnectionState.AwaitingHello, 0)                   => hello(message.data)
-      case (ConnectionState.Identifying, 2)                     => ready(message.data)
+      case (ConnectionState.AwaitingHello, 0)                     => hello(message.data)
+      case (ConnectionState.Identifying, 2)                       => ready(message.data)
+      case (ConnectionState.Ready, 2) if state.reidentifyAcks > 0 =>
+        negotiatedRpc(message.data).map: _ =>
+          state = state.copy(reidentifyAcks = state.reidentifyAcks - 1)
       case (ConnectionState.Ready, 5)                           => event(message.data)
       case (ConnectionState.Ready, 7 | 9)                       => response(message)
       case (ConnectionState.Failed | ConnectionState.Closed, _) => Right(())
@@ -171,17 +178,18 @@ private[client] final class SessionLogic(
       state = state.copy(version = version)
       transition(ConnectionState.Identifying)
 
-  private def ready(data: JsonObject): Either[ObsError, Unit] =
+  private def negotiatedRpc(data: JsonObject): Either[ObsError, Int] =
     data
       .int("negotiatedRpcVersion")
       .left
       .map(malformed)
       .flatMap: rpc =>
-        if rpc != 1 then Left(ObsError.IncompatibleProtocol(rpc))
-        else
-          transition(ConnectionState.Ready)
-          identified.trySend(Right(ConnectionMetadata(state.version, rpc, Set.empty))).discard
-          Right(())
+        if rpc == 1 then Right(rpc) else Left(ObsError.IncompatibleProtocol(rpc))
+
+  private def ready(data: JsonObject): Either[ObsError, Unit] =
+    negotiatedRpc(data).map: rpc =>
+      transition(ConnectionState.Ready)
+      identified.trySend(Right(ConnectionMetadata(state.version, rpc, Set.empty))).discard
 
   private def response(message: WireMessage): Either[ObsError, Unit] =
     message.data

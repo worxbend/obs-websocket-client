@@ -16,7 +16,7 @@ private[server] object Configuration:
       .map(_ => ConfigurationError.MissingOrMalformed)
       .flatMap: config =>
         if config.http.host.trim.isEmpty then Left(ConfigurationError.InvalidHttpHost)
-        else if config.http.port < 1 || config.http.port > 65535 then Left(ConfigurationError.InvalidHttpPort)
+        else if config.http.port < 0 || config.http.port > 65535 then Left(ConfigurationError.InvalidHttpPort)
         else config.obs.clientConfig.validate.left.map(_ => ConfigurationError.InvalidObsSettings).map(_ => config)
 
   /** Invalid startup configuration is terminal; diagnostics never render the source or secret values. */

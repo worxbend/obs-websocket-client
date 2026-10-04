@@ -16,7 +16,7 @@ final class ObsSession private[client] (
     logic.ask(f).catching[ChannelClosedException].left.map(_ => ObsError.Closed).flatten
 
   /** Typed catalog request. A request type absent from the discovered capability set is rejected locally with
-    * [[ObsError.UnsupportedRequest]]; an empty capability set therefore rejects every typed request. [[RawRequest]]
+    * [[ObsError.UnsupportedRequest]]; an empty capability set therefore rejects every typed request. `RawRequest`
     * bypasses this check so vendor extensions and requests newer than the pinned catalog can reach the server.
     */
   def request[A](request: Request[A]): Either[ObsError, A] =
@@ -57,7 +57,9 @@ final class ObsSession private[client] (
         timeoutOption(config.requestTimeout)(reply.receive()).getOrElse(Left(ObsError.Timeout(requestType)))
     finally uninterruptible(logic.tell(_.cancel(id, reply)).catching[ChannelClosedException].discard)
 
-  /** Reidentify changes the server mask; OBS does not send an acknowledgement. */
+  /** Queue a server subscription change. Success means queued; the uncorrelated Identified acknowledgement is validated
+    * asynchronously while the session remains ready.
+    */
   def reidentify(subscriptions: EventSubscriptions): Either[ObsError, Unit] = ask(_.reidentify(subscriptions))
 
   /** Each subscriber receives future matching events independently. User code runs on its caller. */
@@ -67,7 +69,7 @@ final class ObsSession private[client] (
     subscribe(eventTypes, policy, EventRepresentation.Typed)(use)
 
   /** Preserve all event payload fields, including unknown additions to a known event type. Events arrive as
-    * [[UnknownEvent]], the same representation unknown event types receive under [[withEvents]].
+    * `UnknownEvent`, the same representation unknown event types receive under [[withEvents]].
     */
   def withRawEvents[A](eventTypes: Set[String] = Set.empty, policy: OverflowPolicy = OverflowPolicy.Fail)(
       use: ObsSubscription => A
@@ -85,7 +87,7 @@ final class ObsSession private[client] (
     finally uninterruptible(logic.tell(_.unsubscribe(id, channel)).catching[ChannelClosedException].discard)
 
   /** Execute heterogeneous requests, preserving raw response data and each submitted position. Typed entries are
-    * capability-checked like [[request]]; [[RawRequest]] entries bypass that check.
+    * capability-checked like [[request]]; `RawRequest` entries bypass that check.
     */
   def batch(
       requests: Vector[Request[?]],
@@ -93,6 +95,8 @@ final class ObsSession private[client] (
       failurePolicy: BatchFailurePolicy = BatchFailurePolicy.Continue
   ): Either[ObsError, Vector[BatchResult]] =
     if requests.isEmpty then Right(Vector.empty)
+    else if execution == BatchExecution.Parallel then
+      Left(ObsError.InvalidConfiguration("Parallel batches cannot safely correlate results on supported OBS servers"))
     else
       val validated = requests.foldLeft[Either[ObsError, Unit]](Right(()))((acc, request) =>
         acc.flatMap: _ =>

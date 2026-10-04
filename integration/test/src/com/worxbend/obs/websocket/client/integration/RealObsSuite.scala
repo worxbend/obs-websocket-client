@@ -1,6 +1,6 @@
 package com.worxbend.obs.websocket.client.integration
 
-import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, PasswordProvider}
+import com.worxbend.obs.websocket.client.{EventSubscriptions, ObsConfig, ObsError, PasswordProvider}
 import com.worxbend.obs.websocket.client.protocol.requests.{GetSceneList, GetVersion}
 import com.worxbend.obs.websocket.client.protocol.requests.{
   CreateScene,
@@ -46,6 +46,18 @@ class RealObsSuite extends FunSuite:
       yield (version.obsVersion, version.obsWebSocketVersion, scenes.scenes.size)
     val actual = result.flatten.fold(error => fail(s"OBS verification failed: $error"), identity)
     println(s"Verified read-only OBS ${actual._1}, WebSocket ${actual._2}, ${actual._3} scenes")
+
+  test("disposable real OBS acknowledges subscription updates without disconnecting"):
+    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")
+    val result = SttpObsClient.connect(disposableConfig()): session =>
+      for
+        _ <- session.reidentify(EventSubscriptions.none)
+        _ <- session.request(GetVersion())
+        _ <- session.reidentify(EventSubscriptions.normal)
+        version <- session.request(GetVersion())
+      yield version.obsWebSocketVersion
+    assert(result.flatten.isRight, s"Reidentify verification failed: $result")
+    println("Verified Reidentify acknowledgements preserve the live OBS session")
 
   test("empty disposable OBS scene switching broadcasts a typed event and cleans up"):
     assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")

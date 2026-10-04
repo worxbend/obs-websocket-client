@@ -1,7 +1,7 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
 import com.worxbend.obs.websocket.client.{ObsClient, ObsConfig, ObsError, ObsSession}
-import _root_.sttp.client4.{BackendOptions, SttpClientException, WebSocketSyncBackend, basicRequest}
+import _root_.sttp.client4.{SttpClientException, WebSocketSyncBackend, basicRequest}
 import _root_.sttp.client4.httpclient.HttpClientSyncBackend
 import _root_.sttp.client4.ws.sync.asWebSocketUnsafe
 import _root_.sttp.model.Uri
@@ -14,20 +14,27 @@ object SttpObsClient:
   def connect[A](config: ObsConfig)(use: ObsSession => A): Either[ObsError, A] =
     config.validate.flatMap: valid =>
       resourceScope:
-        val backend =
-          useInScope(HttpClientSyncBackend(BackendOptions.connectionTimeout(valid.connectionTimeout)))(_.close())
-        withBackend(backend, valid)(use)
+        val client = useInScope(
+          java.net.http.HttpClient
+            .newBuilder()
+            .connectTimeout(java.time.Duration.ofNanos(valid.connectionTimeout.toNanos))
+            .build()
+        )(_.shutdownNow())
+        withBackend(HttpClientSyncBackend.usingClient(client), valid, () => client.shutdownNow())(use)
 
   /** The caller retains ownership of the injected backend, including on failure. The backend must enforce its own
     * finite connection/upgrade timeout. Acquisition is shielded because JDK sttp may otherwise leave a late upgrade
-    * future alive.
+    * future alive. `abortConnection` must promptly and idempotently force-close this connection, without closing a
+    * shared backend. It runs after the bounded Close attempt, including late acquisition and callback failure.
     */
-  def withBackend[A](backend: WebSocketSyncBackend, config: ObsConfig)(use: ObsSession => A): Either[ObsError, A] =
+  def withBackend[A](backend: WebSocketSyncBackend, config: ObsConfig, abortConnection: () => Unit)(
+      use: ObsSession => A
+  ): Either[ObsError, A] =
     resourceScope:
       for
         valid <- config.validate
         uri <- websocketUri(valid)
-        transport <- open(backend, uri, valid)
+        transport <- open(backend, uri, valid, abortConnection)
         result <- ObsClient.withTransport(transport, valid)(use)
       yield result
 
@@ -37,7 +44,7 @@ object SttpObsClient:
   private[sttp] def websocketUri(config: ObsConfig): Either[ObsError, Uri] =
     Uri.parse(config.uri).left.map(_ => ObsError.InvalidConfiguration("Invalid WebSocket URI"))
 
-  private def open(backend: WebSocketSyncBackend, uri: Uri, config: ObsConfig)(using
+  private def open(backend: WebSocketSyncBackend, uri: Uri, config: ObsConfig, abortConnection: () => Unit)(using
       ResourceScope
   ): Either[ObsError, SttpTransport] =
     timeoutOption(config.connectionTimeout):
@@ -60,7 +67,9 @@ object SttpObsClient:
           .map: socket =>
             // Registration happens inside acquisition, before the timeout can discard
             // its result. The outer resource scope outlives both acquisition and use.
-            useInScope(new SttpTransport(socket, config.maxMessageBytes, config.shutdownTimeout))(_.close())
+            useInScope(new SttpTransport(socket, config.maxMessageBytes, config.shutdownTimeout, abortConnection))(
+              _.close()
+            )
     .getOrElse(Left(ObsError.Timeout("connection")))
 
   private def connectionError(error: SttpClientException): ObsError =

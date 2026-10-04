@@ -50,6 +50,8 @@ final case class ObsConfig(
         if !Set("ws", "wss").contains(parsed.getScheme) || Option(parsed.getHost).isEmpty ||
           Option(parsed.getUserInfo).nonEmpty || Option(parsed.getFragment).nonEmpty
         then Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials or fragment"))
+        else if parsed.getPort != -1 && (parsed.getPort < 1 || parsed.getPort > 65535) then
+          Left(ObsError.InvalidConfiguration("Explicit WebSocket port must be between 1 and 65535"))
         else if List(connectionTimeout, handshakeTimeout, requestTimeout, shutdownTimeout).exists(_ <= Duration.Zero)
         then Left(ObsError.InvalidConfiguration("All deadlines must be positive"))
         else if List(maxInFlight, outgoingCapacity, subscriptionCapacity, maxMessageBytes).exists(_ <= 0) then
@@ -57,4 +59,4 @@ final case class ObsConfig(
         else Right(this)
 
   override def toString: String =
-    s"ObsConfig(uri=$uri, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"
+    s"ObsConfig(uri=<redacted>, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"

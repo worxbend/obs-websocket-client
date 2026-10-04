@@ -29,7 +29,7 @@ class SttpTransportSuite extends FunSuite:
     override implicit val monad: MonadError[Identity] = IdentityMonad
 
   private def transport(peer: Peer, limit: Int = 1024): SttpTransport =
-    new SttpTransport(new SyncWebSocket(peer), limit, 1.second)
+    new SttpTransport(new SyncWebSocket(peer), limit, 1.second, () => ())
 
   test("fragmented text is reassembled across ping and pong control frames"):
     val ping = Array[Byte](1, 2, 3)
@@ -113,8 +113,23 @@ class SttpTransportSuite extends FunSuite:
         // Models a finite backend upgrade deadline exceeding the caller deadline.
         ox.sleep(50.millis)
         _root_.sttp.client4.testing.ResponseStub.exact(Right(new SyncWebSocket(peer)))
+    var aborted = false
     assertEquals(
-      SttpObsClient.withBackend(backend, ObsConfig(connectionTimeout = 5.millis))(_ => ()),
+      SttpObsClient.withBackend(
+        backend,
+        ObsConfig(connectionTimeout = 5.millis),
+        () =>
+          assertEquals(peer.sent, List(WebSocketFrame.close))
+          aborted = true
+      )(_ => ()),
       Left(ObsError.Timeout("connection"))
     )
     assertEquals(peer.sent, List(WebSocketFrame.close))
+    assert(aborted)
+
+  test("forced cleanup runs even when close fails"):
+    var aborted = false
+    val peer = new Peer(Nil, Some(new IOException("close failed")))
+    val socket = new SttpTransport(new SyncWebSocket(peer), 1024, 1.second, () => aborted = true)
+    socket.close()
+    assert(aborted)

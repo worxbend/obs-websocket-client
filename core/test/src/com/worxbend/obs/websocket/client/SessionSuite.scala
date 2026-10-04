@@ -263,8 +263,7 @@ class SessionSuite extends FunSuite:
       val cfg = config.copy(passwordProvider = PasswordProvider.fixed(Some(password)))
       assert(!cfg.toString.contains(password))
       assert(!cfg.passwordProvider.toString.contains(password))
-      // The URI cannot carry credentials (userInfo is rejected), so rendering shows it.
-      assert(cfg.toString.contains(cfg.uri))
+      assert(!cfg.toString.contains(cfg.uri))
       assertEquals(ObsClient.withTransport(peer, cfg)(_ => ()), Right(()))
 
   test("callback defects close the transport before returning"):
@@ -322,7 +321,7 @@ class SessionSuite extends FunSuite:
     val result = connected() { peer =>
       val request = peer.sent.receive()
       assertEquals(request.op, 8)
-      assertEquals(request.data.int("executionType"), Right(2))
+      assertEquals(request.data.int("executionType"), Right(1))
       peer.emit(
         9,
         JsonObject(
@@ -340,7 +339,7 @@ class SessionSuite extends FunSuite:
         def decodeResponse(data: JsonObject): Either[ProtocolError, String] = data.string("value")
       val result = session.typedBatch(
         (BatchCall(RawRequest("First", empty)), BatchCall(second)),
-        BatchExecution.Parallel
+        BatchExecution.SerialFrame
       )
       val typed: Either[ObsError, (TypedBatchResult[JsonObject], TypedBatchResult[String])] = result
       assert(typed.exists:
@@ -412,11 +411,12 @@ class SessionSuite extends FunSuite:
     }
     assertEquals(result, Right(()))
 
-  test("reidentify has no acknowledgement and closed or escaped sessions reject operations"):
+  test("reidentify acknowledgement preserves the session and closed or escaped sessions reject operations"):
     val escaped = connected() { peer =>
       val reidentify = peer.sent.receive()
       assertEquals(reidentify.op, 3)
       assertEquals(reidentify.data.int("eventSubscriptions"), Right(0))
+      peer.emit(2, JsonObject(Map("negotiatedRpcVersion" -> JsonValue.Num(BigDecimal(1)))))
       peer.respond(peer.sent.receive())
     } { (session, _) =>
       assertEquals(session.reidentify(EventSubscriptions.none), Right(()))
@@ -606,3 +606,26 @@ class SessionSuite extends FunSuite:
       }
     }
     assertEquals(result, Right(Right(())))
+
+  test("parallel batches fail locally before sending any application request"):
+    val result = connected()(_ => ()) { (session, peer) =>
+      for policy <- BatchFailurePolicy.values do
+        assert(
+          session
+            .batch(Vector(RawRequest("Echo")), BatchExecution.Parallel, policy)
+            .left
+            .exists(_.isInstanceOf[ObsError.InvalidConfiguration])
+        )
+      assert(session.typedBatch(Tuple1(BatchCall(RawRequest("Echo"))), BatchExecution.Parallel).isLeft)
+      assertEquals(peer.sent.tryReceive(), None)
+    }
+    assertEquals(result, Right(()))
+
+  test("explicit WebSocket ports must be within the TCP range"):
+    for port <- Vector(0, 65536) do assert(config.copy(uri = s"ws://localhost:$port").validate.isLeft)
+    for uri <- Vector("ws://localhost", "ws://localhost:1", "ws://localhost:65535") do
+      assert(config.copy(uri = uri).validate.isRight)
+
+  test("configuration rendering redacts invalid userinfo and query credentials"):
+    for uri <- Vector("ws://user:secret@localhost", "ws://localhost?token=secret") do
+      assert(!config.copy(uri = uri).toString.contains("secret"))

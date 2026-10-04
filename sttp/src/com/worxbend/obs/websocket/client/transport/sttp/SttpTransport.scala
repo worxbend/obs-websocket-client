@@ -14,7 +14,8 @@ import scala.concurrent.duration.FiniteDuration
 private[sttp] final class SttpTransport(
     socket: SyncWebSocket,
     maxMessageBytes: Int,
-    shutdownTimeout: FiniteDuration
+    shutdownTimeout: FiniteDuration,
+    abortConnection: () => Unit
 ) extends ObsTransport:
   override def receive(): Either[ObsError, String] =
     socketBoundary(readMessage()).flatten
@@ -25,9 +26,9 @@ private[sttp] final class SttpTransport(
     else socketBoundary(socket.sendText(text))
 
   override def close(): Unit =
-    // Sending Close does not await peer acknowledgement. The core scope also
-    // interrupts the backend's queue receive before joining its reader.
-    val _ = timeoutOption(shutdownTimeout)(socketBoundary(socket.close()))
+    try
+      val _ = timeoutOption(shutdownTimeout)(socketBoundary(socket.close()))
+    finally abortConnection()
 
   private def readMessage(): Either[ObsError, String] =
     val text = new java.lang.StringBuilder

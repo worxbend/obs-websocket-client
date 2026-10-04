@@ -56,3 +56,5 @@ Adopt Tapir generated a temporary starter with `OxStack`, `Netty`, `Jsoniter`,
 Scala 3, documentation enabled and metrics disabled. Its supported builders
 were sbt and Scala CLI, so the sbt archive was inspected and migrated to the sole
 Mill build. `server/generator-provenance.json` records settings and archive hash.
+
+Set `HTTP_PORT=0` to let the OS assign a free listening port; the startup message reports the actual port.

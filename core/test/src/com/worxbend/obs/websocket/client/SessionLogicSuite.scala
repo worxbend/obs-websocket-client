@@ -15,10 +15,10 @@ class SessionLogicSuite extends FunSuite:
     "requestStatus" -> obj("result" -> JsonValue.Bool(true), "code" -> number(100))
   )
 
-  private class Harness(capacity: Int = 1):
+  private class Harness(capacity: Int = 1, config: ObsConfig = ObsConfig()):
     val outgoing = Channel.buffered[WireMessage](capacity)
     val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
-    val logic = new SessionLogic(ObsConfig(), None, outgoing, identified)
+    val logic = new SessionLogic(config, None, outgoing, identified)
     def ready(): Unit =
       logic
         .incoming(WireMessage(0, obj("rpcVersion" -> number(1), "obsWebSocketVersion" -> JsonValue.Str("5.6"))))
@@ -312,3 +312,29 @@ class SessionLogicSuite extends FunSuite:
             case ObsError.MalformedPayload("eventIntent", _) => true
             case _                                           => false
       )
+
+  test("multiple reidentify acknowledgements preserve readiness and reject unsolicited duplicates"):
+    val h = new Harness(capacity = 2)
+    h.ready()
+    assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
+    assertEquals(h.logic.reidentify(EventSubscriptions.normal), Right(()))
+    assert(h.logic.reidentify(EventSubscriptions.none).isLeft)
+    val ack = WireMessage(2, obj("negotiatedRpcVersion" -> number(1)))
+    assert(h.logic.incoming(ack))
+    assert(h.logic.incoming(ack))
+    assertEquals(h.logic.phase, ConnectionState.Ready)
+    assert(!h.logic.incoming(ack))
+
+  test("reidentify acknowledgement backlog is bounded independently of the writer"):
+    val h = new Harness(config = ObsConfig(maxInFlight = 1))
+    h.ready()
+    assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
+    h.outgoing.receive().discard
+    assertEquals(h.logic.reidentify(EventSubscriptions.normal), Left(ObsError.Overflow("reidentify acknowledgements")))
+
+  test("malformed and incompatible reidentify acknowledgements fail the session"):
+    for data <- Vector(empty, obj("negotiatedRpcVersion" -> number(2))) do
+      val h = new Harness
+      h.ready()
+      assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
+      assert(!h.logic.incoming(WireMessage(2, data)))
