@@ -291,6 +291,60 @@ class GenerateSuite extends FunSuite:
     assert(generated("enums/Combo.scala").contains("Combo((`One`.value & `Type`.value))"))
     assert(generated("enums/Combo.scala").contains("Combo((`One`.value))"))
 
+  test("bitmasks with hex literals, suffixed numerics, or unknown identifiers fail naming the enum and mask"):
+    val hex = SchemaEnum("Hexed", List(SchemaEnumEntry("Bits", SchemaEnumValue("(0x1F)"))))
+    val hexError = intercept[IllegalArgumentException]:
+      Generate.generate(schema.copy(enums = List(hex)), overrides, provenance)
+    assert(hexError.getMessage.contains("Hexed"))
+    assert(hexError.getMessage.contains("(0x1F)"))
+    val suffixed = SchemaEnum("Suffixed", List(SchemaEnumEntry("Bits", SchemaEnumValue("(1L << 0)"))))
+    val suffixedError = intercept[IllegalArgumentException]:
+      Generate.generate(schema.copy(enums = List(suffixed)), overrides, provenance)
+    assert(suffixedError.getMessage.contains("Suffixed"))
+    assert(suffixedError.getMessage.contains("(1L << 0)"))
+    val unknown = SchemaEnum(
+      "UnknownRef",
+      List(
+        SchemaEnumEntry("One", SchemaEnumValue("(1 << 0)")),
+        SchemaEnumEntry("All", SchemaEnumValue("(One | Two)"))
+      )
+    )
+    val unknownError = intercept[IllegalArgumentException]:
+      Generate.generate(schema.copy(enums = List(unknown)), overrides, provenance)
+    assert(unknownError.getMessage.contains("UnknownRef"))
+    assert(unknownError.getMessage.contains("(One | Two)"))
+    assert(unknownError.getMessage.contains("Two"))
+
+  test("a schema field named after a renamed payload field fails generation"):
+    val request = Schema(
+      List(
+        SchemaRequest(
+          "Collision",
+          List(SchemaField("requestType", "String"), SchemaField("payloadRequestType", "String")),
+          Nil
+        )
+      ),
+      Nil
+    )
+    val requestError = intercept[IllegalArgumentException](Generate.generate(request, Overrides(Nil), provenance))
+    assert(requestError.getMessage.contains("payloadRequestType"))
+    val event = Schema(
+      Nil,
+      List(
+        SchemaEvent("Collision", List(SchemaField("eventType", "String"), SchemaField("payloadEventType", "String")))
+      )
+    )
+    val eventError = intercept[IllegalArgumentException](Generate.generate(event, Overrides(Nil), provenance))
+    assert(eventError.getMessage.contains("payloadEventType"))
+
+  test("the response round-trip dispatch is generated package-private while request decode stays public"):
+    val generated = Generate.generate(schema, overrides, provenance).toMap
+    val catalog = generated("Catalog.scala")
+    assert(catalog.contains("private[protocol] def roundTripResponse("))
+    assert(!catalog.contains("\n  def roundTripResponse("))
+    assert(catalog.contains("\n  def decodeRequest("))
+    assert(!catalog.contains("private[protocol] def decodeRequest("))
+
   test("genuinely mixed enum values are rejected instead of guessed"):
     val mixed = SchemaEnum(
       "Mixed",

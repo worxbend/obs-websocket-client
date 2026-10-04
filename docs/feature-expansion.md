@@ -25,7 +25,7 @@ The existing raw request and event APIs remain available. There is no new mandat
 
 ## Design and review workflow
 
-Three agents first explored alternatives and agreed on contracts across protocol, core, and transport. They implemented separate modules, then reviewed one another's code. The coordinating agent owns workflow helpers, integration, documentation, and final validation. Builds are serialized to avoid competing generated outputs.
+The expansion was designed and reviewed across protocol, core, and transport boundaries, with contracts agreed before implementation and central validation at the end. Builds are serialized to avoid competing generated outputs.
 
 The review focuses on cancellation, bounded memory, privacy, version compatibility, and source compatibility. In particular, interrupting a timeout wait is insufficient for a non-interruptible foreign write: the transport must abort the connection before its scope joins that writer.
 

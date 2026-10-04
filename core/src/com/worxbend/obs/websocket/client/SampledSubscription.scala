@@ -1,13 +1,17 @@
 package com.worxbend.obs.websocket.client
 
 import com.worxbend.obs.websocket.client.protocol.Event
+import com.worxbend.obs.websocket.client.util.Defect
 import ox.*
 import ox.channels.{Channel, ChannelClosed}
 import ox.flow.Flow
 import scala.concurrent.duration.*
+import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 
-/** A bounded stream of latest-value windows. Intermediate windows may be replaced if the consumer is slow. */
+/** A bounded stream of latest-value windows. Intermediate windows may be replaced if the consumer is slow. A defect
+  * thrown by the key function terminates the stream with `Next.Failed(ObsError.InternalError)` carrying the cause.
+  */
 final class SampledSubscription[K] private[client] (
     channel: Channel[EventWindow[K]],
     drops: AtomicLong,
@@ -19,15 +23,7 @@ final class SampledSubscription[K] private[client] (
     case _                                             => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
-  def flow: Flow[Either[ObsError, EventWindow[K]]] = Flow.usingEmit: emit =>
-    var running = true
-    while running do
-      next() match
-        case Next.Ended         => running = false
-        case Next.Failed(error) =>
-          emit(Left(error))
-          running = false
-        case Next.Item(window) => emit(Right(window))
+  def flow: Flow[Either[ObsError, EventWindow[K]]] = Next.drain(() => next())
 
   def droppedWindows: Long = drops.get()
   def droppedEvents: Long = source.droppedEvents
@@ -63,7 +59,20 @@ private[client] object SampledSubscription:
         val remaining = deadline - nanoTime()
         val event = if remaining <= 0 then None else timeoutOption(remaining.nanos)(source.next())
         event match
-          case Some(Next.Item(value))   => window = window.add(key(value), value, maxKeys)
+          case Some(Next.Item(value)) =>
+            try window = window.add(key(value), value, maxKeys)
+            catch
+              // A key-function defect must not escape withLatestBy raw or kill the scope: the stream
+              // terminates with the documented InternalError instead.
+              case NonFatal(cause) =>
+                output
+                  .errorOrClosed(
+                    new SessionTerminated(
+                      ObsError.InternalError(s"Sampling key function failed: ${Defect.describe(cause)}")
+                    )
+                  )
+                  .discard
+                running = false
           case Some(Next.Failed(error)) =>
             output.errorOrClosed(new SessionTerminated(error)).discard
             running = false

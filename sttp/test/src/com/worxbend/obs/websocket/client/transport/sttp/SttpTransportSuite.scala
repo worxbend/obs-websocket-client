@@ -148,10 +148,36 @@ class SttpTransportSuite extends FunSuite:
     val peer = new Peer(List(WebSocketFrame.Text(fragment, false, None), WebSocketFrame.text("é")))
     assertEquals(transport(peer, 6002).receive(), Right(fragment + "é"))
 
-  test("unpaired surrogates count their replacement byte exactly like getBytes"):
+  test("unpaired surrogates count three bytes like the U+FFFD an encoder emits"):
     val lone = "a\uD800"
-    assertEquals(lone.getBytes(java.nio.charset.StandardCharsets.UTF_8).length, 2)
-    assertEquals(transport(new Peer(List(WebSocketFrame.text(lone))), 2).receive(), Right(lone))
+    assertEquals(transport(new Peer(List(WebSocketFrame.text(lone))), 4).receive(), Right(lone))
+    assertEquals(
+      transport(new Peer(List(WebSocketFrame.text(lone))), 3).receive(),
+      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+    )
+
+  test("multi-byte characters at the exact limit pass while one byte over fails"):
+    val threeBytes = "€" // U+20AC
+    val fourBytes = "\uD83D\uDE00" // U+1F600, a surrogate pair
+    assertEquals(transport(new Peer(List(WebSocketFrame.text(threeBytes))), 3).receive(), Right(threeBytes))
+    assertEquals(
+      transport(new Peer(List(WebSocketFrame.text(threeBytes))), 2).receive(),
+      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+    )
+    assertEquals(transport(new Peer(List(WebSocketFrame.text(fourBytes))), 4).receive(), Right(fourBytes))
+    assertEquals(
+      transport(new Peer(List(WebSocketFrame.text(fourBytes))), 3).receive(),
+      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+    )
+
+  test("outgoing byte limit accepts multi-byte text exactly at the limit"):
+    val peer = new Peer(Nil)
+    assertEquals(transport(peer, 2).send("é"), Right(()))
+    assertEquals(peer.sent, List(WebSocketFrame.text("é")))
+    assertEquals(
+      transport(new Peer(Nil), 2).send("€"),
+      Left(ObsError.MessageTooLarge("Outgoing message exceeds configured byte limit"))
+    )
 
   /** Models a foreign backend whose write ignores interruption but unblocks when its socket is aborted. */
   private final class BlockedPeer(frames: List[WebSocketFrame]) extends WebSocket[Identity]:
@@ -199,3 +225,71 @@ class SttpTransportSuite extends FunSuite:
       peer.awaitWrite()
       val _ = sending.cancel()
       assert(peer.finished.get())
+
+  /** Models a foreign backend whose read blocks indefinitely until its socket is aborted. */
+  private final class SilentPeer(frames: List[WebSocketFrame] = Nil) extends WebSocket[Identity]:
+    private val started = ox.channels.Channel.buffered[Unit](1)
+    private val gate = new java.util.concurrent.Semaphore(0)
+    private var remaining = frames
+    var aborted = false
+    override def receive(): WebSocketFrame =
+      if remaining.nonEmpty then
+        val frame = remaining.head
+        remaining = remaining.tail
+        frame
+      else
+        val _ = started.trySendOrClosed(())
+        gate.acquireUninterruptibly()
+        throw new IOException("read aborted")
+    override def send(frame: WebSocketFrame, isContinuation: Boolean): Unit = ()
+    def awaitRead(): Unit = started.receive()
+    def abort(): Unit =
+      aborted = true
+      gate.release(10)
+    override def isOpen(): Boolean = true
+    override val upgradeHeaders: Headers = Headers(Nil)
+    override implicit val monad: MonadError[Identity] = IdentityMonad
+
+  private def idleTransport(
+      peer: SilentPeer,
+      deadline: FiniteDuration,
+      shutdownTimeout: FiniteDuration = 1.second
+  ): SttpTransport =
+    new SttpTransport(new SyncWebSocket(peer), 1024, shutdownTimeout, () => peer.abort(), 1.second, Some(deadline))
+
+  test("read idle deadline aborts a silent peer and surfaces a retryable timeout"):
+    val peer = new SilentPeer
+    val result = ox.timeout(2.seconds)(idleTransport(peer, 40.millis).receive())
+    assertEquals(result, Left(ObsError.Timeout("read")))
+    result.left.foreach(error => assert(ReconnectPolicy.retryable(error)))
+    assert(peer.aborted)
+
+  test("traffic within the idle deadline receives normally"):
+    val peer = new SilentPeer(List(WebSocketFrame.Text("{", false, None), WebSocketFrame.text("}")))
+    assertEquals(idleTransport(peer, 5.seconds).receive(), Right("{}"))
+    assert(!peer.aborted)
+
+  test("a stall between fragments trips the idle deadline"):
+    val peer = new SilentPeer(List(WebSocketFrame.Text("{", false, None)))
+    assertEquals(ox.timeout(2.seconds)(idleTransport(peer, 40.millis).receive()), Left(ObsError.Timeout("read")))
+    assert(peer.aborted)
+
+  test("close unblocks a receive waiting inside the idle deadline"):
+    val peer = new SilentPeer
+    val transport = idleTransport(peer, 10.seconds, 40.millis)
+    ox.timeout(2.seconds):
+      ox.supervised:
+        val receiving = ox.fork(transport.receive())
+        peer.awaitRead()
+        transport.close()
+        assertEquals(receiving.join(), Left(ObsError.Transport("WebSocket I/O failed")))
+    assert(peer.aborted)
+
+  test("caller interruption aborts a receive waiting inside the idle deadline"):
+    val peer = new SilentPeer
+    val transport = idleTransport(peer, 10.seconds)
+    ox.supervised:
+      val receiving = ox.forkCancellable(transport.receive())
+      peer.awaitRead()
+      val _ = receiving.cancel()
+    assert(peer.aborted)

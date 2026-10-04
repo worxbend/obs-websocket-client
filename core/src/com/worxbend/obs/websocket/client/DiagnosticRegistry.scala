@@ -15,4 +15,9 @@ private[client] final case class DiagnosticRegistry(
         case false => id -> (channel, dropped + 1)
         case _     => id -> entry)
 
+  /** Clean termination: observers complete silently. */
   def close(): Unit = entries.values.foreach(_._1.doneOrClosed().discard)
+
+  /** Session failure: observers learn the concrete error, terminated exactly like event subscriptions. */
+  def fail(error: ObsError): Unit =
+    entries.values.foreach(_._1.errorOrClosed(SessionTerminated(error)).discard)

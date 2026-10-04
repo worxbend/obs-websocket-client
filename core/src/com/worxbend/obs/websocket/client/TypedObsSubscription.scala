@@ -15,14 +15,6 @@ final class TypedObsSubscription[E <: Event] private[client] (source: ObsSubscri
     case Next.Ended         => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
-  def flow: Flow[Either[ObsError, E]] = Flow.usingEmit: emit =>
-    var running = true
-    while running do
-      next() match
-        case Next.Ended         => running = false
-        case Next.Failed(error) =>
-          emit(Left(error))
-          running = false
-        case Next.Item(event) => emit(Right(event))
+  def flow: Flow[Either[ObsError, E]] = Next.drain(() => next())
 
   def droppedEvents: Long = source.droppedEvents

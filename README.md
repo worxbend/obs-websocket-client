@@ -78,14 +78,16 @@ The isolated consumer smoke test validates transitive dependencies from packaged
 
 ## Measured quality
 
-The clean local coverage gate measures **8,907/8,907 statements and 486/486 branches**,
-with 100% in every production module. It includes generator logic, generated bindings,
-and examples, and rejects missing, stale, or inconsistent evidence. It does not establish
-real OBS compatibility or certify a public CI run.
+The clean local coverage gate enforces exactly 100% statements and 100% branches in
+every production module — six modules checked by `tools/check_coverage.py`, including
+generator logic, generated bindings, and examples. It rejects missing, stale, or
+inconsistent evidence. It does not establish real OBS compatibility or certify a public
+CI run. Current measurements are recorded in the
+[verification report](IMPLEMENTATION.md) and in CI artifacts.
 
-The [verification report](IMPLEMENTATION.md) records executed checks, remote workflow
+The verification report also records executed checks, remote workflow
 evidence, and open release gates. CI workflows cover validation, documentation,
-disposable OBS checks, and explicit release preflight/publication.
+compatibility checks, disposable OBS checks, and explicit release preflight/publication.
 
 ## Contributing and licensing
 

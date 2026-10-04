@@ -1,7 +1,7 @@
 //| mill-version: 1.1.10
 //| mill-jvm-index-version: 0.0.4-198-293bcc
 //| mill-jvm-version: temurin:25.0.3
-//| mvnDeps: ["com.lihaoyi::mill-contrib-scoverage:$MILL_VERSION"]
+//| mvnDeps: ["com.lihaoyi::mill-contrib-scoverage:$MILL_VERSION", "com.lihaoyi::mill-contrib-jmh:$MILL_VERSION"]
 package build
 
 import mill.*
@@ -9,6 +9,7 @@ import mill.scalalib.*
 import mill.scalalib.publish.*
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.contrib.scoverage.{ScoverageModule, ScoverageReport}
+import mill.contrib.jmh.JmhModule
 
 object Versions:
   val scala = "3.9.0"
@@ -19,7 +20,7 @@ object Versions:
   val munit = "1.3.6"
   val scoverage = "2.5.2"
   val pureconfig = "0.17.10"
-  val logback = "1.6.4"
+  val logback = "1.6.5"
   def release(environment: Map[String, String]): String =
     val version = environment.getOrElse("OBS_RELEASE_VERSION", "0.1.0-SNAPSHOT")
     require(
@@ -34,11 +35,24 @@ object Deps:
     mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}"
   )
 
-trait ProjectModule extends ScalaModule with ScoverageModule with ScalafmtModule:
+/** Shared toolchain contract: pinned Scala and the Java 25 assertion every module compiles/tests/runs with.
+  * The requirement fails fast with an actionable message when Mill itself runs on a different JDK.
+  */
+trait Java25Module extends ScalaModule:
   def scalaVersion = Versions.scala
   // All compiler, test and run forks use the same Java 25 as the Mill process.
-  def javaHome = Some(PathRef(os.Path(sys.props("java.home"))))
+  def javaHome = Task:
+    val home = os.Path(sys.props("java.home"))
+    val feature = sys.props("java.specification.version")
+    require(
+      feature == "25",
+      s"Mill is running on Java $feature ($home) but this build requires Java 25. " +
+        "Launch Mill through the ./mill wrapper, which provisions temurin:25.0.3 from the mill-jvm-version header."
+    )
+    Some(PathRef(home))
   def scalacOptions = Seq("-release:25", "-Wunused:all", "-Wvalue-discard", "-Wnonunit-statement", "-Werror")
+
+trait ProjectModule extends Java25Module with ScoverageModule with ScalafmtModule:
   def scoverageVersion = Versions.scoverage
   // Exact 100% coverage enforcement lives in tools/check_coverage.py per PLAN §23, not Mill percentage minimums.
   trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule:
@@ -126,6 +140,13 @@ object server extends ProjectModule:
       mvn"com.softwaremill.sttp.tapir::tapir-sttp-stub4-server:${Versions.tapir}",
       mvn"com.softwaremill.sttp.tapir::tapir-sttp-client4:${Versions.tapir}"
     )
+
+// Benchmarks are development-only: not published, not in coverage.measured, not in CI compile lists.
+// Mixin order matters: JmhModule alone extends only JavaModule, whose sourceFileExtensions filter
+// would silently drop every .scala file from `sources`.
+object bench extends Java25Module with JmhModule with ScalafmtModule:
+  def jmhCoreVersion = "1.37"
+  def moduleDeps = Seq(sttp)
 
 object integration extends ProjectModule:
   def moduleDeps = Seq(sttp)

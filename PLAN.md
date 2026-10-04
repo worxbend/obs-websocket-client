@@ -272,7 +272,7 @@ Run local/fake-peer tests in ordinary CI without OBS or external credentials. Ru
 
 ### Phase 0 — Skills and build bootstrap
 
-- [ ] Confirm project name and install all skills supplied by the requested VirtusLab repository.
+- [x] Confirm project name and install all skills supplied by the requested VirtusLab repository.
 - [x] Author and validate the Mill skill; reference it from project `AGENTS.md`.
 - [x] Generate the Adopt Tapir starter and migrate to Mill if necessary.
 - [x] Pin toolchain/dependencies and add source formatting and README instructions.
@@ -465,17 +465,19 @@ Initialize local Git and attach the verified remote only when the metadata direc
 | Pages deploy | Successful main validation; release documentation updates | Verified Pages deployment and URL smoke test. |
 | Real OBS | Manual and scheduled isolated runs | Supported OBS matrix with deterministic disposable scene fixtures and captured diagnostics. |
 | Release | Maintainer-triggered semantic version tag | Revalidated source/docs/JAR artifacts, checksums, signatures/provenance as supported, Maven publication, GitHub release notes. |
-| Dependency updates | Scheduled update PRs | Reviewed dependency/schema updates that pass the same required checks. |
+| Dependency currency | Manual check before each release | Every pinned version compared against upstream Maven metadata; deliberate updates that pass the same required checks. |
 
 Pin third-party actions by commit and tool versions explicitly. Use minimal workflow permissions, bounded execution times, concurrency cancellation for superseded PR jobs, and caches keyed by OS/toolchain/dependency inputs. Never run untrusted PR code with release credentials. Keep test output and coverage reports available on failure without leaking secrets.
 
 Protect the default branch with required checks after the workflows exist. Use environment-scoped credentials for Maven publication and the Pages deployment job. Release automation must verify the tag/version match, consume artifacts from the tested revision, fail before publication if checks fail, and avoid overwriting an existing version. Document recovery from partial publication.
 
-Add a release checklist covering compatibility, changelog, coordinates, license, 100% coverage reports, documentation links, consumer smoke test, and Pages health. The release pipeline is a planned deliverable; no release or documentation deployment has occurred yet.
+Add a release checklist covering compatibility, changelog, coordinates, license, 100% coverage reports, documentation links, consumer smoke test, and Pages health. The release pipeline is now wired end-to-end — tag-gated Sonatype publication plus a GitHub Release job — though no release or documentation deployment has occurred yet.
+
+Status as of 2026-10-04: CI caching is delivered — `validate.yml` and `compatibility.yml` use `actions/cache` keyed by OS and dependency/toolchain inputs (`build.mill`, `.mill-version`). A successful publish now creates the GitHub Release with generated notes for the maintainer-triggered tag. Dependabot has no Mill ecosystem, so dependency currency is a manual per-release check against Maven metadata instead of scheduled update PRs; the 2026-10-04 check found every pin current except logback-classic, updated from 1.6.4 to 1.6.5.
 
 ## 25. Peer-inspired expansion agreed on 2026-10-04
 
-The requested agent swarm compares goobs, tinodo/obsclient, and the legacy Java client, agrees module contracts, implements additions, and cross-reviews them before central validation. The [feature comparison](docs/feature-expansion.md) and [ADR-004](docs/decisions/004-additive-peer-features.md) record the scope and trade-offs.
+A structured peer comparison of goobs, tinodo/obsclient, and the legacy Java client agreed module contracts before implementation and cross-reviewed protocol, core, and transport before central validation. The [feature comparison](docs/feature-expansion.md) and [ADR-004](docs/decisions/004-additive-peer-features.md) record the scope and trade-offs.
 
 Add generated request-category facades, typed nested model views, typed event selectors, per-call budgets, raw-plus-typed response envelopes, bounded diagnostics and optional event sampling, read-only NotReady recovery, validated references, transport write deadlines/headers/TLS/proxy configuration, and pure workflow helpers. Preserve raw extension APIs, unknown fields, scoped ownership, bounded queues, and no replay of uncertain operations. Correct wire-format defects discovered through the peer comparison, including nested hotkey modifiers.
 

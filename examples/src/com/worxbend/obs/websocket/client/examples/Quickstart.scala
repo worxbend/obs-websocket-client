@@ -23,7 +23,8 @@ object Quickstart:
   def configuration(args: Array[String], environment: Map[String, String]): ObsConfig =
     ObsConfig(
       uri = args.headOption.getOrElse("ws://localhost:4455"),
-      passwordProvider = PasswordProvider.fixed(environment.get("OBS_WS_PASSWORD"))
+      // A blank password (e.g. an empty OBS_WS_PASSWORD) means no authentication, matching ObsSettings.
+      passwordProvider = PasswordProvider.fixed(environment.get("OBS_WS_PASSWORD").filter(_.trim.nonEmpty))
     )
 
   /** Execute the CLI without terminating its process, so embedders and tests can inspect the status. */

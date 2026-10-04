@@ -14,17 +14,17 @@ val result = session.withEvents(CurrentProgramSceneChanged.selector): events =>
     case _                => "stream ended"
 ```
 
-The callback waits for a future matching event. Configure the corresponding server event intent before subscribing; a local selector does not change OBS's subscription mask. Typed payload projection and selection run on consumers, with no user handler on the session dispatcher. `next()` is tri-state: `Next.Item(event)` delivers a value, failures surface as `Next.Failed` with their concrete error, and `Next.Ended` is clean termination. Event and diagnostic `flow` streams complete cleanly without a trailing failure; event failures emit their concrete error once before completion.
+The callback waits for a future matching event. Configure the corresponding server event intent before subscribing; a local selector does not change OBS's subscription mask. Typed payload projection and selection run on consumers, with no user handler on the session dispatcher. `next()` is tri-state: `Next.Item(event)` delivers a value, failures surface as `Next.Failed` with their concrete error, and `Next.Ended` is clean termination. On clean closure, event and diagnostic `flow` streams complete silently without a trailing failure. When the session itself fails, both event and diagnostic subscriptions receive the concrete session failure once — as `Next.Failed(error)`, or as `Left(error)` from diagnostics `next()` — before their streams complete.
 
 ## Optional sampling and diagnostics
 
-`ObsSubscription.withLatestBy(interval, maxKeys)(key)(use)` provides explicit latest-per-key windows for telemetry. The sampler owns a worker inside the callback scope. It retains at most `maxKeys` keys and one queued output window. Each `EventWindow` reports coalesced events and evicted keys; `droppedWindows` reports replaced output windows and `droppedEvents` reports source-queue loss. Source termination discards the unfinished window and ends the sampled stream. Keep ordinary ordered subscriptions for control events that must all be observed.
+`ObsSubscription.withLatestBy(interval, maxKeys)(key)(use)` provides explicit latest-per-key windows for telemetry. The sampler owns a worker inside the callback scope. It retains at most `maxKeys` keys and one queued output window. Each `EventWindow` reports coalesced events and evicted keys; `droppedWindows` reports replaced output windows and `droppedEvents` reports source-queue loss. Source termination discards the unfinished window and ends the sampled stream. An exception thrown by the user key function terminates the sampled stream with `Next.Failed(ObsError.InternalError)` carrying the cause. Keep ordinary ordered subscriptions for control events that must all be observed.
 
 `session.withDiagnostics(capacity)(use)` exposes metadata through `next` or `flow`: logical JSON byte traffic, request duration/outcome, and connection state transitions. It excludes request/response payloads, URI, credentials, and server rejection comments. Slow observers drop new diagnostic records, counted by `droppedDiagnostics`, without blocking the session. Wire counters remain available through `session.statistics`; request success means a successful wire exchange and can still be followed by a typed payload decode failure.
 
 Traffic counts measure encoded UTF-8 JSON at the session boundary, including handshake/discovery traffic handled by the session. They exclude WebSocket framing, Ping/Pong, HTTP headers, TLS overhead, and TCP retransmissions. They are application metrics rather than network-interface byte counters. Diagnostic subscriptions observe future transitions; use `session.state` for a snapshot.
 
-`completedRequests` counts finished exchange attempts, including startup discovery, rejected registrations, timeouts, and cancellation; `failedRequests` counts their nonsuccessful outcomes. Capability or typed request validation refusals made before an exchange are excluded. Raw request validation performed during registration is included. Sent byte counts include successful transport sends; received byte counts are recorded before protocol decoding.
+`completedRequests` counts finished exchange attempts, including startup discovery, timeouts, and cancellation; `failedRequests` counts their nonsuccessful outcomes. Requests rejected at registration — capability or typed validation refusals, a saturated pending-request budget — never reached the writer and are excluded from both counters. Raw request validation performed during registration is included. Sent byte counts include successful transport sends; received byte counts are recorded before protocol decoding.
 
 Use `session.withEvents(eventTypes)(use)` to register an independent broadcast subscription. An empty set accepts every event. Each subscriber observes future matching events in receive order; subscriptions do not replay history.
 
@@ -101,8 +101,10 @@ actually follows, immediately before its `RetryScheduled`. A notice callback
 that throws surfaces as `Left(ObsError.InternalError)`; interruption still
 propagates so cancellation stays responsive.
 Generation numbers identify attempts within one `run`, including unsuccessful
-attempts. The retry budget applies to the complete run and does not reset after
-a successful handshake.
+attempts. The retry budget and backoff delay progression restart whenever a
+generation's callback completes: a completed callback means the connection was
+healthy, so only consecutive attempts that fail before reaching the callback
+consume the cumulative budget.
 
 Authentication errors, incompatible protocols, malformed known messages, and
 OBS application close codes are terminal. In particular, `SessionInvalidated`
@@ -113,7 +115,10 @@ violations (`InternalError`) recur identically after reconnect. Transient
 transport failures, timeouts, and selected standard WebSocket shutdown/restart
 codes (1001, 1006, 1011, 1012, 1013) can retry. Ordinary normal closure
 (1000), explicit application `Stop`, exhausted retry budgets, and interruption
-terminate the run.
+terminate the run. With `SttpOptions.readIdleTimeout` set, a half-open
+connection that stops delivering wire traffic fails with a retryable timeout
+instead of letting subscriptions stall silently, so this classification
+engages; see [requests](requests.md#deadlines-and-backpressure).
 
 For `withBackend`, configure a finite connection/upgrade deadline on the injected
 backend itself. The client shields acquisition from interruption until that backend

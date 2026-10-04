@@ -64,6 +64,10 @@ class QuickstartSuite extends FunSuite:
     assertEquals(config.uri, "ws://localhost:4455")
     assertEquals(config.passwordProvider.password(), Right(None))
 
+  test("configuration treats a blank password as absent"):
+    val config = Quickstart.configuration(Array.empty, Map("OBS_WS_PASSWORD" -> "  "))
+    assertEquals(config.passwordProvider.password(), Right(None))
+
   test("CLI process exits unsuccessfully when configuration is invalid"):
     import java.nio.file.{Files, Paths}
     import java.util.concurrent.TimeUnit

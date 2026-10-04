@@ -20,27 +20,30 @@ object JsonValue:
       if depth > 64 then in.decodeError("JSON nesting exceeds 64")
       in.nextToken() match
         case '{' =>
-          var fields = Map.empty[String, JsonValue]
+          val fields = Map.newBuilder[String, JsonValue]
           if !in.isNextToken('}') then
             in.rollbackToken()
+            // Duplicate detection shares one mutable set: HashSet.add hashes once per key and
+            // allocates nothing per key, unlike rebuilding an immutable Set per entry.
+            val keys = scala.collection.mutable.HashSet.empty[String]
             var more = true
             while more do
               val key = in.readKeyAsString()
-              if fields.contains(key) then in.decodeError("duplicate JSON key")
-              fields = fields.updated(key, read(in, depth + 1))
+              if !keys.add(key) then in.decodeError("duplicate JSON key")
+              val _ = fields += key -> read(in, depth + 1)
               more = in.isNextToken(',')
             if !in.isCurrentToken('}') then in.decodeError("expected object end")
-          JsonObject(fields)
+          JsonObject(fields.result())
         case '[' =>
-          var values = Vector.empty[JsonValue]
+          val values = Vector.newBuilder[JsonValue]
           if !in.isNextToken(']') then
             in.rollbackToken()
             var more = true
             while more do
-              values = values :+ read(in, depth + 1)
+              val _ = values += read(in, depth + 1)
               more = in.isNextToken(',')
             if !in.isCurrentToken(']') then in.decodeError("expected array end")
-          Arr(values)
+          Arr(values.result())
         case '"' =>
           in.rollbackToken()
           Str(in.readString(null))
@@ -55,6 +58,7 @@ object JsonValue:
     def encodeValue(value: JsonValue, out: JsonWriter): Unit = value match
       case JsonObject(fields) =>
         out.writeObjectStart()
+        // Per-object key sorting (O(k log k)) buys canonical, test-deterministic output; accepted at OBS message rates.
         val ordered = if fields.size < 2 then fields.toVector else fields.toVector.sortBy(_._1)
         ordered.foreach: (key, entry) =>
           out.writeKey(key)
@@ -73,8 +77,9 @@ object JsonValue:
     * every message, so only whitelisted fixed reasons may surface; everything else stays "Malformed JSON".
     */
   def parse(text: String, maxBytes: Int = Protocol.defaultMaxBytes): Either[ProtocolError, JsonValue] =
+    // The UTF-8 byte count subsumes the char count: every char encodes to at least one byte.
     val bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8)
-    if maxBytes < 1 || text.length > maxBytes || bytes.length > maxBytes then Left(ProtocolError.SizeLimit)
+    if maxBytes < 1 || bytes.length > maxBytes then Left(ProtocolError.SizeLimit)
     else Try(readFromArray[JsonValue](bytes)).toEither.left.map(decodeFailure)
 
   /** Fixed structural reasons from this codec and jsoniter's numeric limits; they describe shape, never content. */
@@ -85,10 +90,14 @@ object JsonValue:
     "value exceeds limit for scale"
   )
 
-  private def decodeFailure(error: Throwable): ProtocolError =
+  // Package-visible for tests: a non-jsoniter throwable may carry a null message and must still
+  // collapse to "Malformed JSON" instead of NPEing.
+  private[protocol] def decodeFailure(error: Throwable): ProtocolError =
     ProtocolError(
       "$",
-      structuralReasons.find(reason => error.getMessage.startsWith(s"$reason, offset:")).getOrElse("Malformed JSON")
+      structuralReasons
+        .find(reason => Option(error.getMessage).exists(_.startsWith(s"$reason, offset:")))
+        .getOrElse("Malformed JSON")
     )
 
   def render(value: JsonValue): String = writeToString(value)

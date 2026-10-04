@@ -57,7 +57,7 @@ yield volume.set(input)
 val result = command.map(request => session.request(request))
 ```
 
-Smart constructors report `ProtocolError` before any network operation. `VolumeMultiplier` supports the protocol's linear range, with amplitude conversion using 20 log10. Silence has no finite decibel value; conversions outside the supported dB range return an error. Scene and input references select exactly one name or UUID. UUID constructors require a nonblank server identifier, rather than assuming every OBS source identifier is a Java UUID.
+Smart constructors report `ProtocolError` before any network operation. `VolumeMultiplier` supports the protocol's inclusive [0, 20] linear range, with amplitude conversion using 20·log10. Silence has no finite decibel value, and multipliers below the −100 dB floor return an error; conversion saturates at the documented 26 dB ceiling, so every valid multiplier — including values near 20 — converts to a valid decibel value. Scene and input references select exactly one name or UUID. UUID constructors require a nonblank server identifier, rather than assuming every OBS source identifier is a Java UUID.
 
 ## Decode a screenshot in memory
 

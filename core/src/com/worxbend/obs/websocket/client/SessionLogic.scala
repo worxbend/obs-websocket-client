@@ -49,7 +49,9 @@ private[client] final class SessionLogic(
     if state.failure.isEmpty then
       val terminal = if error == ObsError.Closed then ConnectionState.Closed else ConnectionState.Failed
       publish(SessionDiagnostic.StateChanged(terminal))
-      state.diagnostics.close()
+      // Observers learn the concrete failure exactly like event subscribers do; a clean close completes them silently.
+      if error == ObsError.Closed then state.diagnostics.close()
+      else state.diagnostics.fail(error)
       state.pending.values.foreach(_.reply.trySend(Left(error)).discard)
       state.subscribers.values.foreach(_.channel.errorOrClosed(SessionTerminated(error)).discard)
       identified.trySendOrClosed(Left(error)).discard
@@ -82,6 +84,34 @@ private[client] final class SessionLogic(
         )
     state = state.copy(stats = stats)
     publish(SessionDiagnostic.Traffic(direction, bytes))
+
+  /** A transport-level receive failure carries no frame bytes: classify the close code, then fail the session. */
+  def transportFailed(error: ObsError): Unit = fail(classifyClose(error))
+
+  /** One inbound frame in a single invocation: account its bytes, then process the decode outcome. Returns whether the
+    * reader should keep consuming frames.
+    */
+  def received(bytes: Int, decoded: Either[ObsError, WireMessage]): Boolean =
+    traffic(TrafficDirection.Received, bytes)
+    decoded match
+      case Right(message) => incoming(message)
+      case Left(error)    =>
+        fail(classifyClose(error))
+        false
+
+  /** obs-websocket close codes with a typed meaning are only legitimate before the session is ready: during Identify
+    * the server rejects with 4009 (AuthenticationFailed), 4010 (UnsupportedRpcVersion — the client always requests RPC
+    * version 1) or 4011 (SessionInvalidated). Once ready, the same codes keep their transport classification so retry
+    * logic can still treat them as transient.
+    */
+  private def classifyClose(error: ObsError): ObsError = error match
+    case ObsError.Transport(_, Some(code)) if state.phase != ConnectionState.Ready =>
+      code match
+        case 4009 => ObsError.Authentication("Server rejected authentication", Some(4009))
+        case 4010 => ObsError.IncompatibleProtocol(1)
+        case 4011 => ObsError.Authentication("Session invalidated by the server", Some(4011))
+        case _    => error
+    case other => other
 
   def requestFinished(requestType: String, id: String, elapsedNanos: Long, outcome: DiagnosticOutcome): Unit =
     val failed = if outcome == DiagnosticOutcome.Succeeded then 0L else 1L

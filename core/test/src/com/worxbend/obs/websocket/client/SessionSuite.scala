@@ -4,12 +4,14 @@ import com.worxbend.obs.websocket.client.protocol.*
 import com.worxbend.obs.websocket.client.protocol.requests.GetSceneList
 import munit.FunSuite
 import ox.*
-import ox.channels.{Channel, ChannelClosed}
+import ox.channels.{Actor, Channel, ChannelClosed}
 import scala.concurrent.duration.*
 
 class SessionSuite extends FunSuite:
   private val empty = JsonObject.empty
-  private val config = ObsConfig(handshakeTimeout = 300.millis, requestTimeout = 300.millis)
+  // Production-default budgets: fork scheduling under instrumented, saturated machines needs headroom.
+  // Only tests that exercise deadline behavior tighten budgets explicitly via config.copy.
+  private val config = ObsConfig()
 
   private class Peer extends ObsTransport:
     val inbound = Channel.buffered[Either[ObsError, String]](64)
@@ -264,7 +266,8 @@ class SessionSuite extends FunSuite:
       val cfg = config.copy(passwordProvider = PasswordProvider.fixed(Some(password)))
       assert(!cfg.toString.contains(password))
       assert(!cfg.passwordProvider.toString.contains(password))
-      assert(!cfg.toString.contains(cfg.uri))
+      // Validation rejects credential-carrying URIs, so the URI itself is not secret and renders.
+      assert(cfg.toString.contains(cfg.uri))
       assertEquals(ObsClient.withTransport(peer, cfg)(_ => ()), Right(()))
 
   test("callback defects close the transport before returning"):
@@ -516,7 +519,7 @@ class SessionSuite extends FunSuite:
       override def receive(): Either[ObsError, String] = throw new IllegalStateException("reader defect")
     assertEquals(
       ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Transport("Transport receive failed unexpectedly"))
+      Left(ObsError.InternalError("Transport receive defect: reader defect"))
     )
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -526,7 +529,7 @@ class SessionSuite extends FunSuite:
     peer.hello()
     assertEquals(
       ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Transport("Transport send failed unexpectedly"))
+      Left(ObsError.InternalError("Transport send defect: writer defect"))
     )
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -639,6 +642,28 @@ class SessionSuite extends FunSuite:
   test("configuration rendering redacts invalid userinfo and query credentials"):
     for uri <- Vector("ws://user:secret@localhost", "ws://localhost?token=secret") do
       assert(!config.copy(uri = uri).toString.contains("secret"))
+    assert(config.copy(uri = "not a uri").toString.contains("<invalid>"))
+
+  test("close code 4010 during identification maps to incompatible protocol"):
+    val peer = new Peer
+    peer.inbound.send(Left(ObsError.Transport("Unsupported RPC version", Some(4010))))
+    assertEquals(ObsClient.withTransport(peer, config)(_ => ()), Left(ObsError.IncompatibleProtocol(1)))
+
+  test("close code 4011 during identification maps to the authentication family"):
+    val peer = new Peer
+    peer.inbound.send(Left(ObsError.Transport("Session invalidated", Some(4011))))
+    assertEquals(
+      ObsClient.withTransport(peer, config)(_ => ()),
+      Left(ObsError.Authentication("Session invalidated by the server", Some(4011)))
+    )
+
+  test("other close codes during the handshake keep their transport classification"):
+    val peer = new Peer
+    peer.inbound.send(Left(ObsError.Transport("WebSocket closed", Some(4000))))
+    assertEquals(
+      ObsClient.withTransport(peer, config)(_ => ()),
+      Left(ObsError.Transport("WebSocket closed", Some(4000)))
+    )
 
   private val versionRead: Request[JsonObject] = new Request[JsonObject]:
     def requestType: String = "GetVersion"
@@ -728,7 +753,15 @@ class SessionSuite extends FunSuite:
     } { (session, _) =>
       assert(session.withDiagnostics(0)(_ => ()).isLeft)
       val observed = session.withDiagnostics(1): diagnostics =>
-        assertEquals(session.rawRequest("Echo"), Right(empty))
+        // The writer fork's traffic accounting trails the wire send and races the statistics read
+        // below. This observer receives each Echo record exactly as it lands — send traffic, receive
+        // traffic, request completion — so draining all three makes every counter deterministic.
+        val drained = session.withDiagnostics(16): echo =>
+          assertEquals(session.rawRequest("Echo"), Right(empty))
+          assert(echo.next().isRight)
+          assert(echo.next().isRight)
+          assert(echo.next().isRight)
+        assert(drained.isRight)
         val stats = session.statistics.toOption.get
         assertEquals(stats.completedRequests, 2L)
         assertEquals(stats.failedRequests, 0L)
@@ -862,3 +895,129 @@ class SessionSuite extends FunSuite:
         subscription
     }.toOption.get.toOption.get
     assertEquals(escaped.droppedEvents, 1L)
+
+  test("diagnostics subscribers observe the concrete session failure once before completion"):
+    val failure = ObsError.Transport("Peer closed", Some(1006))
+    val result = connected()(_ => ()) { (session, peer) =>
+      session.withDiagnostics(): diagnostics =>
+        peer.inbound.send(Left(failure))
+        val observed = diagnostics.flow.runToList()
+        assertEquals(observed.count(_ == Left(failure)), 1)
+        assertEquals(observed.last, Left(failure))
+    }
+    assertEquals(result, Right(Right(())))
+
+  test("diagnostics flows complete silently when the session closes cleanly"):
+    val result = connected()(_ => ()) { (session, _) =>
+      session.withDiagnostics(): diagnostics =>
+        session.close()
+        assert(diagnostics.flow.runToList().forall(_.isRight))
+    }
+    assertEquals(result, Right(Right(())))
+
+  test("requests rejected at registration do not move session statistics"):
+    val observed = Channel.buffered[Unit](1)
+    val release = Channel.buffered[Unit](1)
+    val result = connected(config.copy(maxInFlight = 1)) { peer =>
+      val first = peer.sent.receive()
+      observed.send(())
+      release.receive()
+      peer.respond(first)
+    } { (session, _) =>
+      supervised:
+        val drained = session.withDiagnostics(16): settled =>
+          val pending = fork(session.rawRequest("First"))
+          observed.receive()
+          val before = session.statistics.toOption.get
+          assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow("in-flight requests")))
+          val after = session.statistics.toOption.get
+          // The peer observing the frame does not imply the writer fork's traffic(Sent) ask has landed:
+          // that accounting races these snapshots, so only the request-finish counters are compared
+          // here — exactly the counters a registration rejection must not move.
+          assertEquals(after.completedRequests, before.completedRequests)
+          assertEquals(after.failedRequests, before.failedRequests)
+          assertEquals(after.requestElapsedNanos, before.requestElapsedNanos)
+          release.send(())
+          assertEquals(pending.join(), Right(empty))
+          session.close()
+          // Exactly four records reach this observer: First's send and receive traffic, its
+          // RequestFinished, and the Closed state change. Draining them bounds the writer fork's
+          // trailing accounting, so every counter is settled below this line.
+          assert(settled.next().isRight)
+          assert(settled.next().isRight)
+          assert(settled.next().isRight)
+          assert(settled.next().isRight)
+          val closed = session.statistics.toOption.get
+          assertEquals(closed.completedRequests, before.completedRequests + 1)
+          assertEquals(session.rawRequest("Echo"), Left(ObsError.Closed))
+          assertEquals(session.statistics.toOption.get, closed)
+        assert(drained.isRight)
+    }
+    assertEquals(result, Right(()))
+
+  test("a defective bookkeeping tell does not kill the session"):
+    supervised:
+      val logic = Actor.create(
+        new SessionLogic(
+          config,
+          None,
+          Channel.buffered[WireMessage](1),
+          Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+        )
+      )
+      val session =
+        new ObsSession(ConnectionMetadata("5.6.3", 1, Set.empty), config, SessionDependencies.live, logic)
+      session.tellSafely(_ => throw new IllegalStateException("bookkeeping defect"))
+      assertEquals(session.state, Right(ConnectionState.AwaitingHello))
+
+  test("an interrupted registration cannot orphan a pending request entry"):
+    supervised:
+      val outgoing = Channel.buffered[WireMessage](4)
+      val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+      val logic = Actor.create(new SessionLogic(config, None, outgoing, identified))
+      val session = new ObsSession(
+        ConnectionMetadata("5.6.3", 1, Set.empty),
+        config,
+        SessionDependencies(nextRequestId = () => "interrupted-registration"),
+        logic
+      )
+      // Drive the handshake so a registration can succeed.
+      logic
+        .ask(
+          _.incoming(
+            WireMessage(
+              0,
+              JsonObject(
+                Map(
+                  "rpcVersion" -> JsonValue.Num(BigDecimal(1)),
+                  "obsWebSocketVersion" -> JsonValue.Str("5.6.3")
+                )
+              )
+            )
+          )
+        )
+        .discard
+      outgoing.receive().discard // Identify
+      logic
+        .ask(_.incoming(WireMessage(2, JsonObject(Map("negotiatedRpcVersion" -> JsonValue.Num(BigDecimal(1)))))))
+        .discard
+      identified.receive().discard
+      // Stall the actor so the register invocation queues behind the blocked one.
+      val entered = Channel.buffered[Unit](1)
+      val release = Channel.buffered[Unit](1)
+      val stalled = fork:
+        logic.ask: _ =>
+          entered.send(())
+          release.receive()
+      entered.receive()
+      // The register ask is enqueued but still unprocessed when the timeout interrupts the caller.
+      assertEquals(timeoutOption(500.millis)(session.rawRequest("Probe")), None)
+      release.send(())
+      stalled.join()
+      // The queued register ran and the unconditional cancel removed the pending entry again: the
+      // request id is unknown to the writer guard, nothing was accounted, yet the message did queue —
+      // proving the enqueue-then-interrupt path (not a registration that never landed) was exercised.
+      val orphaned = WireMessage(6, JsonObject(Map("requestId" -> JsonValue.Str("interrupted-registration"))))
+      assertEquals(logic.ask(_.canSend(orphaned)), false)
+      assertEquals(logic.ask(_.statistics), SessionStats())
+      assert(outgoing.tryReceive().exists(_.data.string("requestId").contains("interrupted-registration")))

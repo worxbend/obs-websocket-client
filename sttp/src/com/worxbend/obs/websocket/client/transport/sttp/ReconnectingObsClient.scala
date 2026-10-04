@@ -1,11 +1,13 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
+import scala.annotation.tailrec
 import scala.util.control.NonFatal
 
 /** Opt-in reconnect. Each successful attempt invokes a fresh, explicitly identified callback. Requests from old
   * generations are never retained or resubmitted. Applications must recreate their local event subscriptions inside
-  * every generation callback.
+  * every generation callback. The retry budget and backoff restart whenever a generation's callback completes; only
+  * attempts that fail before reaching the callback consume the cumulative budget.
   */
 object ReconnectingObsClient:
   def run[A](
@@ -31,10 +33,9 @@ object ReconnectingObsClient:
   )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
     config.validate.flatMap: valid =>
       try
-        var state = State(valid, 0, None)
-        var result = Option.empty[Either[ObsError, A]]
-        while result.isEmpty do
-          val generation = ConnectionGeneration(state.retries.toLong + 1L)
+        @tailrec
+        def loop(state: State): Either[ObsError, A] =
+          val generation = ConnectionGeneration(state.generations + 1L)
           val attempt = connector.connect(state.config): session =>
             state.previous match
               case None           => notify(onNotice, ReconnectNotice.Connected(generation))
@@ -45,18 +46,24 @@ object ReconnectingObsClient:
             case Right(ReconnectDecision.Complete(value))       => Step.Done(Right(value))
             case Right(ReconnectDecision.Stop(error))           => Step.Done(Left(error))
             case Right(ReconnectDecision.Retry(error, desired)) =>
+              // The use callback completed, so the connection was healthy: restart both the retry budget and the
+              // delay progression. Only attempts that never reached the callback consume the cumulative budget.
               retry(
                 error,
-                state.copy(config = state.config.copy(eventSubscriptions = desired), previous = Some(generation)),
+                state.copy(
+                  config = state.config.copy(eventSubscriptions = desired),
+                  retries = 0,
+                  previous = Some(generation)
+                ),
                 policy,
                 timing,
                 onNotice,
                 Some(ReconnectNotice.EventGap(generation, error))
               )
           step match
-            case Step.Done(value) => result = Some(value)
-            case Step.Again(next) => state = next
-        result.get
+            case Step.Done(value) => value
+            case Step.Again(next) => loop(next)
+        loop(State(valid, 0, None, 0L))
       catch
         case NoticeFailure(cause) =>
           Left(ObsError.InternalError(s"Reconnect notice callback failed: ${cause.getMessage}"))
@@ -77,7 +84,7 @@ object ReconnectingObsClient:
       policy.delay(state.retries, timing.nextJitter()) match
         case Left(invalid) => Step.Done(Left(invalid))
         case Right(delay)  =>
-          val next = state.copy(retries = state.retries + 1)
+          val next = state.copy(retries = state.retries + 1, generations = state.generations + 1L)
           gap.foreach(notify(onNotice, _))
           notify(onNotice, ReconnectNotice.RetryScheduled(next.retries, delay, error))
           timing.sleep(delay)
@@ -93,7 +100,12 @@ object ReconnectingObsClient:
 
   private final case class NoticeFailure(cause: Throwable) extends RuntimeException(cause)
 
-  private final case class State(config: ObsConfig, retries: Int, previous: Option[ConnectionGeneration])
+  private final case class State(
+      config: ObsConfig,
+      retries: Int,
+      previous: Option[ConnectionGeneration],
+      generations: Long
+  )
   private enum Step[+A]:
     case Done(result: Either[ObsError, A])
     case Again(state: State)

@@ -38,7 +38,7 @@ class SttpOptionsSuite extends FunSuite:
   test("write deadline validates before backend acquisition and renders no header values"):
     val options = SttpOptions(headers = HandshakeHeaders.create(Vector("Authorization" -> "secret")).toOption.get)
     assertEquals(options.validate, Right(options))
-    assertEquals(options.toString, "SttpOptions(writeTimeout=10 seconds, headers=<redacted>)")
+    assertEquals(options.toString, "SttpOptions(writeTimeout=10 seconds, headers=<redacted>, readIdleTimeout=None)")
     val invalid = SttpOptions(writeTimeout = Duration.Zero)
     val error = Left(ObsError.InvalidConfiguration("Write deadline must be positive"))
     assertEquals(invalid.validate, error)
@@ -55,6 +55,15 @@ class SttpOptionsSuite extends FunSuite:
       ),
       error
     )
+
+  test("read idle deadline is opt-in and validates positivity"):
+    assertEquals(SttpOptions().readIdleTimeout, None)
+    val liveness = SttpOptions(readIdleTimeout = Some(30.seconds))
+    assertEquals(liveness.validate, Right(liveness))
+    assert(liveness.toString.contains("readIdleTimeout=Some(30 seconds)"))
+    val invalid = Left(ObsError.InvalidConfiguration("Read idle deadline must be positive"))
+    assertEquals(SttpOptions(readIdleTimeout = Some(Duration.Zero)).validate, invalid)
+    assertEquals(SttpOptions(readIdleTimeout = Some((-1).second)).validate, invalid)
 
   test("private JDK client applies proxy trust context and precise connection deadline"):
     val proxy = ProxySelector.of(new InetSocketAddress("127.0.0.1", 8080))

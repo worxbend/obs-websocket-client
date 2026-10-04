@@ -81,7 +81,18 @@ class WorkflowSuite extends FunSuite:
     assert(Decibels(BigDecimal(26)).toOption.get.multiplier.value < 20)
     assert(VolumeMultiplier(BigDecimal(0)).toOption.get.decibels.isLeft)
     assert(VolumeMultiplier(BigDecimal("1e-1000")).toOption.get.decibels.isLeft)
-    assert(VolumeMultiplier(BigDecimal(20)).toOption.get.decibels.isLeft)
+    assert(VolumeMultiplier(BigDecimal(20)).toOption.get.decibels.isRight)
+
+  test("multiplier conversion saturates at the documented 26 dB ceiling at the top of its range"):
+    val ceiling = VolumeMultiplier(BigDecimal(20)).toOption.get.decibels.toOption.get
+    assertEquals(ceiling.value, BigDecimal(26))
+    val justBelow = VolumeMultiplier(BigDecimal("19.9")).toOption.get.decibels.toOption.get.value
+    assert(justBelow < BigDecimal(26))
+    assert(justBelow > BigDecimal(25))
+    val unity = VolumeMultiplier(BigDecimal(1)).toOption.get.decibels.toOption.get
+    assertEquals(unity.value, BigDecimal(0))
+    assert(Decibels(BigDecimal(26)).isRight)
+    assert(Decibels(BigDecimal("26.01")).isLeft)
 
   test("browser patches use current OBS keys and overlay preserves unrelated settings"):
     val patch = BrowserInputSettings

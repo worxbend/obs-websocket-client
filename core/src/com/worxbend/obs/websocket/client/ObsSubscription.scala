@@ -14,6 +14,21 @@ enum Next[+A]:
   case Failed(error: ObsError)
   case Ended
 
+object Next:
+  /** Every subscription flow shares this drain loop: items pass through, a concrete failure is emitted once before
+    * completion, and a clean end completes silently. Only the mapping from a source read to the tri-state differs per
+    * subscription type.
+    */
+  private[client] def drain[A](read: () => Next[A]): Flow[Either[ObsError, A]] = Flow.usingEmit: emit =>
+    var running = true
+    while running do
+      read() match
+        case Next.Item(value)   => emit(Right(value))
+        case Next.Failed(error) =>
+          emit(Left(error))
+          running = false
+        case Next.Ended => running = false
+
 private[client] final class SessionTerminated(val error: ObsError) extends RuntimeException("OBS session terminated")
 
 /** A bounded, ordered subscription. Consume it inside the withEvents callback. */
@@ -33,22 +48,15 @@ final class ObsSubscription private[client] (
     case _: ChannelClosed => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
-  def flow: Flow[Either[ObsError, Event]] = Flow.usingEmit: emit =>
-    var running = true
-    while running do
-      next() match
-        case Next.Ended         => running = false
-        case Next.Failed(error) =>
-          emit(Left(error))
-          running = false
-        case Next.Item(event) => emit(Right(event))
+  def flow: Flow[Either[ObsError, Event]] = Next.drain(() => next())
 
   /** Total explicit policy drops, retained by this subscription after its scope or session ends. */
   def droppedEvents: Long = losses()
 
   /** Explicit lossy telemetry sampling. The key function runs on a scoped consumer worker, never the session actor. Key
     * cardinality and queued windows are bounded; source overflow remains controlled by withEvents' policy. A terminal
-    * source error discards the unfinished window and terminates this stream.
+    * source error discards the unfinished window and terminates this stream. A defect thrown by the key function
+    * terminates the stream with `Next.Failed(ObsError.InternalError)` instead of escaping the scope.
     */
   def withLatestBy[K, A](interval: FiniteDuration, maxKeys: Int)(key: Event => K)(
       use: SampledSubscription[K] => A

@@ -21,6 +21,10 @@ class ProtocolSuite extends FunSuite:
     assertEquals(JsonValue.parse("9" * 309), Left(ProtocolError("$", "value exceeds limit for number of digits")))
     assertEquals(JsonValue.parse("1e6179"), Left(ProtocolError("$", "value exceeds limit for scale")))
 
+  test("decode failures from throwables with null or unrelated messages stay Malformed JSON"):
+    assertEquals(JsonValue.decodeFailure(new RuntimeException()), ProtocolError("$", "Malformed JSON"))
+    assertEquals(JsonValue.decodeFailure(new RuntimeException("unrelated")), ProtocolError("$", "Malformed JSON"))
+
   test("wire envelope rejects malformed fields"):
     List("[]", "{}", "{\"op\":1.5,\"d\":{}}", "{\"op\":2147483648,\"d\":{}}", "{\"op\":6,\"d\":false}").foreach:
       input => assert(Protocol.decode(input).isLeft)

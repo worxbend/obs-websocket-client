@@ -4,6 +4,7 @@ import com.worxbend.obs.websocket.client.protocol.*
 import ox.channels.{ActorRef, Channel, ChannelClosedException}
 import ox.{discard, sleep, timeoutOption, uninterruptible}
 import ox.either.catching
+import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 
 /** A session belongs to the callback passed to ObsClient.withTransport. */
@@ -16,9 +17,25 @@ final class ObsSession private[client] (
   private def ask[A](f: SessionLogic => Either[ObsError, A]): Either[ObsError, A] =
     logic.ask(f).catching[ChannelClosedException].left.map(_ => ObsError.Closed).flatten
 
+  /** Bookkeeping tells are best-effort: a defect in cleanup accounting must not kill the actor and take the whole
+    * session scope down with a raw escape.
+    */
+  private[client] def tellSafely(f: SessionLogic => Unit): Unit =
+    logic
+      .tell(state =>
+        try f(state)
+        catch case NonFatal(_) => ()
+      )
+      .catching[ChannelClosedException]
+      .discard
+
   /** Typed catalog request. A request type absent from the discovered capability set is rejected locally with
     * [[ObsError.UnsupportedRequest]]; an empty capability set therefore rejects every typed request. `RawRequest`
     * bypasses this check so vendor extensions and requests newer than the pinned catalog can reach the server.
+    *
+    * A returned [[ObsError.Timeout]] is ambiguous once the request reached the wire: the server may already have
+    * executed a mutation. Batches surface this explicitly as [[ObsError.AmbiguousBatchOutcome]]; single requests return
+    * the bare timeout.
     */
   def request[A](request: Request[A]): Either[ObsError, A] = requestEnvelope(request).flatMap(_.decoded)
 
@@ -82,7 +99,9 @@ final class ObsSession private[client] (
     case _: RawRequest => true
     case _             => metadata.availableRequests.contains(request.requestType)
 
-  /** Escape hatch for vendor extensions and requests newer than the pinned catalog. */
+  /** Escape hatch for vendor extensions and requests newer than the pinned catalog. A returned [[ObsError.Timeout]]
+    * after the request reached the wire is ambiguous: the server may already have executed a mutation.
+    */
   def rawRequest(
       requestType: String,
       data: JsonObject = JsonObject.empty,
@@ -122,8 +141,17 @@ final class ObsSession private[client] (
         val reply = Channel.buffered[Either[ObsError, JsonObject]](1)
         val started = dependencies.nanoTime()
         var outcome: DiagnosticOutcome = DiagnosticOutcome.Cancelled
+        val registered =
+          try ask(_.register(id, requestType, responseOpcode, message(id), reply))
+          catch
+            case interrupted: InterruptedException =>
+              // The register invocation may already be queued on the actor and execute after the caller is
+              // gone; cancel unconditionally (a no-op if it never landed) so interruption cannot orphan a
+              // pending entry whose request would be sent with no one awaiting it.
+              uninterruptible(tellSafely(_.cancel(id, reply)))
+              throw interrupted
         try
-          ask(_.register(id, requestType, responseOpcode, message(id), reply)).flatMap: _ =>
+          registered.flatMap: _ =>
             val completed = timeoutOption(budget)(reply.receive()).getOrElse:
               // A response landing between timeout expiry and this final check is delivered, not reported as a timeout.
               reply.tryReceive().getOrElse(Left(ObsError.Timeout(requestType)))
@@ -133,15 +161,14 @@ final class ObsSession private[client] (
                 postRegistration(error)
               case error => error
         finally
-          uninterruptible:
-            val elapsed = dependencies.nanoTime() - started
-            logic
-              .tell(state =>
+          // Only a registered request accounts a finished one: a rejection at registration never
+          // reached the writer and must not move the completed/failed counters.
+          if registered.isRight then
+            uninterruptible:
+              val elapsed = dependencies.nanoTime() - started
+              tellSafely: state =>
                 state.cancel(id, reply)
                 state.requestFinished(requestType, id, elapsed, outcome)
-              )
-              .catching[ChannelClosedException]
-              .discard
 
   /** Queue a server subscription change. Success means queued; the uncorrelated Identified acknowledgement is validated
     * asynchronously while the session remains ready.
@@ -190,7 +217,7 @@ final class ObsSession private[client] (
             dependencies.nanoTime
           )
         )
-    finally uninterruptible(logic.tell(_.unsubscribe(id, channel)).catching[ChannelClosedException].discard)
+    finally uninterruptible(tellSafely(_.unsubscribe(id, channel)))
 
   /** Execute heterogeneous requests, preserving raw response data and each submitted position. Typed entries are
     * capability-checked like [[request]]; `RawRequest` entries bypass that check.
@@ -300,10 +327,11 @@ final class ObsSession private[client] (
               () => logic.ask(_.diagnosticLosses(id)).catching[ChannelClosedException].getOrElse(0L)
             )
           )
-      finally
-        uninterruptible(logic.tell(_.unsubscribeDiagnostics(id, channel)).catching[ChannelClosedException].discard)
+      finally uninterruptible(tellSafely(_.unsubscribeDiagnostics(id, channel)))
 
   def state: Either[ObsError, ConnectionState] = ask(s => Right(s.phase))
 
-  /** Completes all outstanding requests and subscriptions immediately. */
-  def close(): Unit = logic.ask(_.close()).catching[ChannelClosedException].discard
+  /** Completes all outstanding requests and subscriptions immediately. Uninterruptible so a close in flight cannot be
+    * silently lost when the caller is interrupted.
+    */
+  def close(): Unit = uninterruptible(logic.ask(_.close()).catching[ChannelClosedException].discard)

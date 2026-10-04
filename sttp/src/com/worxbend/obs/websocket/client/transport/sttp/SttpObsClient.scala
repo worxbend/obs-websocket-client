@@ -87,7 +87,8 @@ object SttpObsClient:
                 config.maxMessageBytes,
                 config.shutdownTimeout,
                 abortConnection,
-                options.writeTimeout
+                options.writeTimeout,
+                options.readIdleTimeout
               )
             )(
               _.close()

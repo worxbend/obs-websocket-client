@@ -39,8 +39,11 @@ the temporary repository. It performs no remote publication.
 `0.1.0-SNAPSHOT`. The manual `Release preflight and publish` workflow defaults
 to preflight only. It checks exact fresh coverage, formatting, generation,
 packaging, a separate consumer, and documentation before its publication step.
-Publication requires selecting `publish`, running from the matching `vVERSION`
-tag, and configuring the `maven-central` environment's credentials and signing
+A successful publish also creates the GitHub Release for the tag with generated
+notes; that runs as a separate job after publication, so its failure does not
+fail the publication. Publication requires selecting `publish`, running from
+the matching `vVERSION` tag, and configuring the `maven-central` environment's
+credentials and signing
 key. Set `MAVEN_NAMESPACE_VERIFIED` to `com.worxbend.obs.websocket.client` only
 after ownership has been verified with Sonatype. The workflow has been authored;
 remote publishing and signing have not been exercised.

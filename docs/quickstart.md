@@ -15,7 +15,7 @@ Enable the WebSocket server in OBS Studio's Tools menu and obtain its password. 
 ./mill --no-server examples.run
 ```
 
-The wrapper downloads pinned Mill and Java versions. Set `OBS_WS_PASSWORD` for the example. Pass a URL as an argument to `examples.run` to override localhost. Local publication installs snapshot artifacts in your local Ivy repository; it does not publish a public release.
+The wrapper downloads pinned Mill and Java versions. Set `OBS_WS_PASSWORD` for the example. Pass a URL as an argument to `examples.run` to override localhost. Local publication installs snapshot artifacts in your local Ivy repository; it does not publish a public release. The Maven coordinates shown in this documentation are provisional and not yet published to Maven Central.
 
 ## Make a typed request
 
@@ -33,7 +33,7 @@ val result = SttpObsClient.connect(config): session =>
   session.request(GetSceneList())
 ```
 
-The connection callback owns the session. Returning from it closes the socket and joins its workers. Connection errors are the outer `Either`; each operation has its own `Either`. Call `.flatten` when your callback returns one operation's result.
+The connection callback owns the session. Returning from it closes the socket and joins its workers. Connection errors are the outer `Either`; each operation has its own `Either`. Call `.flatten` when your callback returns one operation's result. An exception thrown from the callback is a defect: it propagates raw after cleanup and is never wrapped in an `ObsError`, while expected failures stay inside the returned `Either`.
 
 ## Consume events
 

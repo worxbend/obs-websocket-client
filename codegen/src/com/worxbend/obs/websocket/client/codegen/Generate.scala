@@ -65,11 +65,17 @@ object Generate:
     rejectDuplicates("request", schema.requests.map(_.requestType))
     rejectDuplicates("event", schema.events.map(_.eventType))
     rejectDuplicates("enum", schema.enums.map(_.enumType))
+    // Field names are checked after the payload rename so a schema field literally named
+    // `payloadRequestType` collides loudly with a renamed `requestType` sibling instead of
+    // silently emitting two identically named constructor parameters.
     schema.requests.foreach: request =>
-      rejectDuplicates(s"field of ${request.requestType}.request", request.requestFields.map(_.valueName))
-      rejectDuplicates(s"field of ${request.requestType}.response", request.responseFields.map(_.valueName))
+      rejectDuplicates(s"field of ${request.requestType}.request", request.requestFields.map(f => renamed(f.valueName)))
+      rejectDuplicates(
+        s"field of ${request.requestType}.response",
+        request.responseFields.map(f => renamed(f.valueName))
+      )
     schema.events.foreach(event =>
-      rejectDuplicates(s"field of ${event.eventType}.event", event.dataFields.map(_.valueName))
+      rejectDuplicates(s"field of ${event.eventType}.event", event.dataFields.map(f => renamed(f.valueName)))
     )
     schema.enums.foreach(enumeration =>
       rejectDuplicates(s"identifier of enum ${enumeration.enumType}", enumeration.enumIdentifiers.map(_.enumIdentifier))
@@ -102,6 +108,8 @@ object Generate:
     def categoryName(category: String): String =
       val words = category.split(" ").toList
       val name = words.head + words.tail.map(_.capitalize).mkString
+      // The sole upstream "config" category is widened to "configuration" so the public facade
+      // val reads as a full word (docs/requests.md documents the category as `configuration`).
       if name == "config" then "configuration" else name
     groups.foreach: (category, _) =>
       validateIdentifier("RequestApi", "category", categoryName(category))
@@ -155,23 +163,38 @@ object Generate:
     if unmatched.nonEmpty then
       throw new IllegalArgumentException(s"Unmatched nullableFields overrides: ${unmatched.mkString(", ")}")
 
+  /** Emitted Scala type, JSON codec, and required-parameter placeholder for one supported schema type. Both
+    * [[normalize]] and [[placeholder]] read the single [[typeMappings]] table, so a newly supported schema type cannot
+    * compile while its placeholder is still missing (previously two parallel maps drifted apart).
+    */
+  private final case class TypeMapping(scalaType: String, codec: String, placeholder: String)
+
+  private val typeMappings = Map(
+    "String" -> TypeMapping("String", "ValueCodec.string", "\"\""),
+    "Number" -> TypeMapping("BigDecimal", "ValueCodec.number", "BigDecimal(0)"),
+    "Boolean" -> TypeMapping("Boolean", "ValueCodec.boolean", "false"),
+    "Object" -> TypeMapping("JsonObject", "ValueCodec.obj", "JsonObject.empty"),
+    "Any" -> TypeMapping("JsonValue", "ValueCodec.json", "JsonValue.Null"),
+    "Array<Object>" -> TypeMapping("Vector[JsonObject]", "ValueCodec.array(ValueCodec.obj)", "Vector.empty"),
+    "Array<String>" -> TypeMapping("Vector[String]", "ValueCodec.array(ValueCodec.string)", "Vector.empty")
+  )
+
+  /** Placeholder literal for a required request parameter, keyed by emitted Scala type. */
+  private val placeholders = typeMappings.values.map(mapping => mapping.scalaType -> mapping.placeholder).toMap
+
   private def normalize(owner: String, kind: String, fields: List[SchemaField], nullable: Set[String]): List[Field] =
     fields.map: field =>
       validateIdentifier(owner, kind, field.valueName)
-      val (scalaType, codec) = field.valueType match
-        case "String"        => "String" -> "ValueCodec.string"
-        case "Number"        => "BigDecimal" -> "ValueCodec.number"
-        case "Boolean"       => "Boolean" -> "ValueCodec.boolean"
-        case "Object"        => "JsonObject" -> "ValueCodec.obj"
-        case "Any"           => "JsonValue" -> "ValueCodec.json"
-        case "Array<Object>" => "Vector[JsonObject]" -> "ValueCodec.array(ValueCodec.obj)"
-        case "Array<String>" => "Vector[String]" -> "ValueCodec.array(ValueCodec.string)"
-        case unknown         =>
-          throw new IllegalArgumentException(s"Unsupported schema type: $unknown at $owner.$kind.${field.valueName}")
+      val mapping = typeMappings.getOrElse(
+        field.valueType,
+        throw new IllegalArgumentException(
+          s"Unsupported schema type: ${field.valueType} at $owner.$kind.${field.valueName}"
+        )
+      )
       Field(
         field.valueName,
-        scalaType,
-        codec,
+        mapping.scalaType,
+        mapping.codec,
         field.valueOptional,
         nullable.contains(s"$owner.$kind.${field.valueName}"),
         List(
@@ -193,10 +216,13 @@ object Generate:
     else if reservedIdentifiers.contains(name) then
       throw new IllegalArgumentException(s"Field name at $owner.$kind.$name collides with a generated member")
 
-  private def identifier(field: Field): String =
-    if Set("requestType", "requestData", "eventType", "eventData").contains(field.name) then
-      "payload" + field.name.head.toUpper + field.name.tail
-    else field.name
+  /** Payload field names that would shadow the `Request`/`Event` envelope members get a `payload` prefix. */
+  private def renamed(name: String): String =
+    if Set("requestType", "requestData", "eventType", "eventData").contains(name) then
+      "payload" + name.head.toUpper + name.tail
+    else name
+
+  private def identifier(field: Field): String = renamed(field.name)
 
   private def parameters(fields: List[Field]): String = fields
     .map: field =>
@@ -241,17 +267,6 @@ object Generate:
       case c if c < ' ' => f"\\u${c.toInt}%04x"
       case c            => c.toString
     .mkString("\"", "", "\"")
-
-  /** Placeholder literal for a required request parameter, keyed by emitted Scala type. */
-  private val placeholders = Map(
-    "String" -> "\"\"",
-    "BigDecimal" -> "BigDecimal(0)",
-    "Boolean" -> "false",
-    "JsonObject" -> "JsonObject.empty",
-    "JsonValue" -> "JsonValue.Null",
-    "Vector[JsonObject]" -> "Vector.empty",
-    "Vector[String]" -> "Vector.empty"
-  )
 
   private def placeholder(field: Field): String = if field.nullable then "None" else placeholders(field.scalaType)
 
@@ -382,12 +397,15 @@ object Generate:
         "Right(RawRequest(name, data))",
         n => s"requests.$n.decode(data)"
       ) +
+      // Response round-trip is a CatalogSuite catalog-validation aid, not public API; the emitted
+      // decoder table stays package-private so the published jar carries no test-only surface.
       emitDispatch(
         "roundTripResponse",
         "JsonObject",
         names,
         "Right(data)",
-        n => s"requests.${n}Response.decode(data).map(_.toJson)"
+        n => s"requests.${n}Response.decode(data).map(_.toJson)",
+        visibility = "private[protocol] "
       )
 
   private def emitDispatch(
@@ -395,7 +413,8 @@ object Generate:
       result: String,
       names: List[String],
       fallback: String,
-      call: String => String
+      call: String => String,
+      visibility: String = ""
   ): String =
     // Chunked Map literals keep generated method bytecode well below JVM class-file limits.
     val groups = names.grouped(24).toList.zipWithIndex
@@ -408,7 +427,7 @@ object Generate:
                                                              groups
                                                                .map((_, index) => s"$method$index")
                                                                .mkString(" ++ ")) + "\n" +
-      s"  def $method(name: String, data: JsonObject): Either[ProtocolError, $result] =\n" +
+      s"  $visibility" + s"def $method(name: String, data: JsonObject): Either[ProtocolError, $result] =\n" +
       s"    ${method}Decoders.get(name).fold[Either[ProtocolError, $result]]($fallback)(_(data))\n" + helpers.mkString(
         "\n"
       )
@@ -421,6 +440,19 @@ object Generate:
 
   /** Identifier tokens inside a parenthesized mask; numeric literals and operators pass through untouched. */
   private val maskIdentifier = "[A-Za-z_][0-9A-Za-z_]*".r
+
+  /** Rewrites sibling identifier references in a parenthesized bitmask to `.value` reads. Every identifier-shaped token
+    * must name a declared sibling constant: hex literals (`0x1F` yields the token `x1F`), suffixed numerics (`1L`
+    * yields `L`), and unknown identifiers would otherwise silently rewrite into wrong or uncompilable constants.
+    * Failures name the enum and the offending mask.
+    */
+  private def rewriteMask(name: String, raw: String, siblings: Set[String]): String =
+    val unknown = maskIdentifier.findAllIn(raw).filterNot(siblings).toList.distinct.sorted
+    if unknown.nonEmpty then
+      throw new IllegalArgumentException(
+        s"Enum $name mask $raw references identifiers that are not declared enum members: ${unknown.mkString(", ")}"
+      )
+    maskIdentifier.replaceAllIn(raw, m => s"`${m.matched}`.value")
 
   /** Long only when every value is numeric or a parenthesized bitmask; String when every value is textual; a genuinely
     * mixed enum is a schema error, not a guess. Empty values come from JSON nulls in the schema.
@@ -438,6 +470,7 @@ object Generate:
 
   private def emitEnum(enumeration: SchemaEnum, provenance: Provenance): String =
     val name = enumeration.enumType
+    val siblings = enumeration.enumIdentifiers.map(_.enumIdentifier).toSet
     val kind = classify(name, enumeration.enumIdentifiers.map(_.enumValue.value))
     val tpe = kind match
       case EnumKind.Str  => "String"
@@ -447,9 +480,9 @@ object Generate:
       val value = kind match
         case EnumKind.Str  => quote(raw)
         case EnumKind.Long =>
-          // Every identifier in a mask is a sibling constant reference, whatever operator combines it;
+          // Every identifier in a mask must be a sibling constant reference, whatever operator combines it;
           // backticks keep keyword-named identifiers (e.g. `Type`) legal.
-          if raw.startsWith("(") then maskIdentifier.replaceAllIn(raw, m => s"`${m.matched}`.value")
+          if raw.startsWith("(") then rewriteMask(name, raw, siblings)
           else raw
       val doc = if entry.description.nonEmpty then s"  /** ${collapse(entry.description)} */\n" else ""
       s"$doc  val `${entry.enumIdentifier}`: $name = $name($value)"

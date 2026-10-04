@@ -51,14 +51,16 @@ class ReconnectSuite extends FunSuite:
       closed = true
       val _ = inbound.doneOrClosed()
 
-  private class Connector(failures: List[ObsError] = Nil) extends ReconnectConnector:
+  private class Connector(failures: List[ObsError] = Nil, script: List[Option[ObsError]] = Nil)
+      extends ReconnectConnector:
     var calls = 0
     var peers = Vector.empty[Peer]
     var configs = Vector.empty[ObsConfig]
     def connect[A](config: ObsConfig)(use: ObsSession => A): Either[ObsError, A] =
       calls += 1
       configs = configs :+ config
-      failures.lift(calls - 1) match
+      val outcome = if script.nonEmpty then script.lift(calls - 1).flatten else failures.lift(calls - 1)
+      outcome match
         case Some(error) => Left(error)
         case None        =>
           val peer = new Peer
@@ -171,20 +173,40 @@ class ReconnectSuite extends FunSuite:
     assertEquals(connector.calls, 4)
 
   test("event gap notice fires only when the retry budget still covers another attempt"):
-    val connector = new Connector(List.fill(3)(transient))
+    val connector = new Connector
     var notices = Vector.empty[ReconnectNotice]
+    val noRetries = ReconnectPolicy.create(0, 1.millis, 4.millis, 0.0).toOption.get
     val result = ReconnectingObsClient.withConnector(
       connector,
       ObsConfig(),
-      policy,
+      noRetries,
       immediate,
       notice => notices = notices :+ notice
     ): (_, _) =>
       ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
     assertEquals(result, Left(transient))
-    assertEquals(connector.calls, 4)
-    assert(notices.exists(_.isInstanceOf[ReconnectNotice.RetryScheduled]))
+    assertEquals(connector.calls, 1)
+    assert(!notices.exists(_.isInstanceOf[ReconnectNotice.RetryScheduled]))
     assert(!notices.exists(_.isInstanceOf[ReconnectNotice.EventGap]))
+
+  test("healthy generations never exhaust the retry budget and restart the delay progression"):
+    val connector = new Connector
+    var delays = Vector.empty[FiniteDuration]
+    val timing = ReconnectTiming(() => 0.5, delay => delays = delays :+ delay)
+    val result = ReconnectingObsClient.withConnector(connector, ObsConfig(), policy, timing, _ => ()): (generation, _) =>
+      if generation.value <= 5 then ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
+      else ReconnectDecision.Complete(generation.value)
+    assertEquals(result, Right(6L))
+    assertEquals(connector.calls, 6)
+    assertEquals(delays, Vector.fill(5)(1.millis))
+
+  test("connection failures after a healthy generation consume a fresh budget"):
+    val script = List(Some(transient), Some(transient), None, Some(transient), Some(transient), Some(transient))
+    val connector = new Connector(script = script)
+    val result = ReconnectingObsClient.withConnector(connector, ObsConfig(), policy, immediate, _ => ()): (_, _) =>
+      ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
+    assertEquals(result, Left(transient))
+    assertEquals(connector.calls, 6)
 
   test("a non-retryable retry decision reports no event gap"):
     val connector = new Connector

@@ -64,5 +64,15 @@ final case class ObsConfig(
           Left(ObsError.InvalidConfiguration("All buffer and message limits must be positive"))
         else readiness.map(_.validate).getOrElse(Right(())).map(_ => this)
 
+  /** Validation forbids credentials, queries and fragments, so a valid URI never carries secrets and renders as-is.
+    * Unvalidated copies still have those components stripped defensively; passwords never render.
+    */
   override def toString: String =
-    s"ObsConfig(uri=<redacted>, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"
+    val safeUri = URI
+      .create(uri)
+      .catching[IllegalArgumentException]
+      .map(parsed =>
+        new URI(parsed.getScheme, null, parsed.getHost, parsed.getPort, parsed.getPath, null, null).toString
+      )
+      .getOrElse("<invalid>")
+    s"ObsConfig(uri=$safeUri, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"

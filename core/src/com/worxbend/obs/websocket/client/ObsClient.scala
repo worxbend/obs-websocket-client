@@ -1,15 +1,25 @@
 package com.worxbend.obs.websocket.client
 
 import com.worxbend.obs.websocket.client.protocol.*
+import com.worxbend.obs.websocket.client.util.{Defect, Utf8}
 import ox.*
-import ox.channels.{Actor, Channel, ChannelClosed, ChannelClosedException}
+import ox.channels.{Actor, BufferCapacity, Channel, ChannelClosed, ChannelClosedException}
 import ox.either.catching
 import scala.util.control.NonFatal
-import java.nio.charset.StandardCharsets.UTF_8
 
 object ObsClient:
+  /** Reader and writer forks, user request fibers and cleanup tells all post to the actor; 256 in-flight requests can
+    * each contribute a registration plus a completion tell in one burst. Invocations never block mid-invocation, so a
+    * larger mailbox only absorbs bursts where the Ox default of 16 would throttle senders.
+    */
+  private val mailboxCapacity: BufferCapacity = BufferCapacity(1024)
+
   /** Owns one connection. All workers terminate before this method returns. The socket is closed in the scope body
     * before Ox interrupts and joins its reader. Reconnection and automatic request replay are deliberately disabled.
+    *
+    * Expected failures — transport loss, protocol violations, timeouts — are reported as `Left(ObsError)`. An exception
+    * thrown by the `use` callback is a defect: it propagates raw after the transport is closed, never wrapped in an
+    * `ObsError`.
     */
   def withTransport[A](
       transport: ObsTransport,
@@ -36,6 +46,7 @@ object ObsClient:
   )(use: ObsSession => A)(using Ox): Either[ObsError, A] =
     val outgoing = Channel.buffered[WireMessage](config.outgoingCapacity)
     val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+    given BufferCapacity = mailboxCapacity
     val logic = Actor.create(new SessionLogic(config, password, outgoing, identified))
     forkDiscard:
       try
@@ -53,30 +64,31 @@ object ObsClient:
                   case Left(error) =>
                     logic.ask(_.fail(error))
                     running = false
-                  case Right(_) => logic.ask(_.traffic(TrafficDirection.Sent, encoded.getBytes(UTF_8).length))
+                  case Right(_) => logic.ask(_.traffic(TrafficDirection.Sent, Utf8.encodedLength(encoded).toInt))
             case _: ChannelClosed => running = false
-      catch case NonFatal(_) => logic.ask(_.fail(ObsError.Transport("Transport send failed unexpectedly")))
+      catch
+        // A defect here is a client bug, not a retryable transport fault; keep the cause for diagnosis.
+        case NonFatal(cause) =>
+          logic.ask(_.fail(ObsError.InternalError(s"Transport send defect: ${Defect.describe(cause)}")))
     forkDiscard:
       try
         var running = true
         while running do
-          transport
-            .receive()
-            .flatMap: text =>
-              logic.ask(_.traffic(TrafficDirection.Received, text.getBytes(UTF_8).length))
-              Protocol.decode(text, config.maxMessageBytes).left.map(SessionWire.malformed)
-          match
+          transport.receive() match
             case Left(error) =>
-              val classified = error match
-                case ObsError.Transport(_, Some(4009)) if logic.ask(_.phase) != ConnectionState.Ready =>
-                  // 4009 (AuthenticationFailed) is only legitimate during Identify.
-                  ObsError.Authentication("Server rejected authentication", Some(4009))
-                case other => other
-              logic.ask(_.fail(classified))
+              logic.ask(_.transportFailed(error))
               running = false
-            case Right(message) =>
-              running = logic.ask(_.incoming(message))
-      catch case NonFatal(_) => logic.ask(_.fail(ObsError.Transport("Transport receive failed unexpectedly")))
+            case Right(text) =>
+              // One actor round-trip per frame: byte accounting rides along with the decode outcome.
+              running = logic.ask(
+                _.received(
+                  Utf8.encodedLength(text).toInt,
+                  Protocol.decode(text, config.maxMessageBytes).left.map(SessionWire.malformed)
+                )
+              )
+      catch
+        case NonFatal(cause) =>
+          logic.ask(_.fail(ObsError.InternalError(s"Transport receive defect: ${Defect.describe(cause)}")))
     try
       timeoutOption(config.handshakeTimeout)(identified.receive())
         .getOrElse(Left(ObsError.Timeout("handshake")))

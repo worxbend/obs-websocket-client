@@ -19,7 +19,7 @@ Reading an OBS instance's version and scene catalog through a raw WebSocket requ
 
 ## Prepare OBS and the checkout
 
-Enable OBS Studio's WebSocket server in the Tools menu and obtain its connection password. The usual local address is `ws://localhost:4455`. Export `OBS_WS_PASSWORD` in the environment of the shell that will run the example, using your shell's secure input or secret-management facility. Keep the password out of source files and command arguments. If authentication is disabled, leave the variable unset.
+Enable OBS Studio's WebSocket server in the Tools menu and obtain its connection password. The usual local address is `ws://localhost:4455`. Export `OBS_WS_PASSWORD` in the environment of the shell that will run the example, using your shell's secure input or secret-management facility. Keep the password out of source files and command arguments. If authentication is disabled, leave the variable unset; the example treats a blank value as absent.
 
 This repository is unreleased; there is no published Maven Central version to install. Its wrapper pins Mill 1.1.10 and Java 25.0.3, and the build uses Scala 3.9.0. The first run may download the pinned tools and dependencies. Run all commands from the repository root:
 
@@ -89,7 +89,7 @@ The companion prints `OBS <version>: <count> scenes` on success. Its automated s
 OBS 32.0: 0 scenes
 ```
 
-Returning from the callback closes the socket and joins its workers. Return the response values, as this companion does, and keep all session operations inside the callback. Cleanup also runs if the callback throws, although application exceptions are not automatically converted into `ObsError`.
+Returning from the callback closes the socket and joins its workers. Return the response values, as this companion does, and keep all session operations inside the callback. Cleanup also runs if the callback throws: an application exception is a defect that propagates raw after cleanup, never converted into an `ObsError`; expected failures stay inside the returned `Either`.
 
 ## Handle a failed read
 
@@ -126,6 +126,6 @@ These repository checks use a local scripted WebSocket peer and compile the docu
 ./mill --no-server integration.test.compile
 ```
 
-The five companion tests cover discovery values, printed success, invalid input, and explicit/default configuration. The peer also checks the Close frame. These checks do not establish live compatibility; separate live-test evidence and its limits are recorded in [implementation and verification](../../IMPLEMENTATION.md).
+The seven companion tests cover discovery values, printed success, invalid input, blank-password handling, explicit/default configuration, and the CLI exit status. The peer also checks the Close frame. These checks do not establish live compatibility; separate live-test evidence and its limits are recorded in [implementation and verification](../../IMPLEMENTATION.md).
 
 Follow the [architecture's source map](../architecture.md) to see how the sttp entrypoint, core session, and generated protocol implement this workflow. For the next application operation, see [typed requests](../requests.md) or [scoped events](../events.md).

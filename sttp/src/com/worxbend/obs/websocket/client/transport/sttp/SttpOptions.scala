@@ -3,13 +3,25 @@ package com.worxbend.obs.websocket.client.transport.sttp
 import com.worxbend.obs.websocket.client.ObsError
 import scala.concurrent.duration.*
 
-/** Transport write deadline includes backend serialization; timing out destroys this connection. */
+/** Transport write deadline includes backend serialization; timing out destroys this connection. `readIdleTimeout` is
+  * opt-in liveness detection: when set, any receive that waits longer than the deadline for wire traffic — including a
+  * stall between the fragments of one message — fails with a retryable timeout and destroys the connection, so
+  * half-open connections (lost FIN, NAT timeout) engage `ReconnectPolicy` classification instead of stalling forever.
+  */
 final case class SttpOptions(
-    writeTimeout: FiniteDuration = 10.seconds,
-    headers: HandshakeHeaders = HandshakeHeaders.empty
+    writeTimeout: FiniteDuration = SttpOptions.DefaultWriteTimeout,
+    headers: HandshakeHeaders = HandshakeHeaders.empty,
+    readIdleTimeout: Option[FiniteDuration] = None
 ):
   def validate: Either[ObsError, SttpOptions] =
     if writeTimeout <= Duration.Zero then Left(ObsError.InvalidConfiguration("Write deadline must be positive"))
+    else if readIdleTimeout.exists(_ <= Duration.Zero) then
+      Left(ObsError.InvalidConfiguration("Read idle deadline must be positive"))
     else Right(this)
 
-  override def toString: String = s"SttpOptions(writeTimeout=$writeTimeout, headers=<redacted>)"
+  override def toString: String =
+    s"SttpOptions(writeTimeout=$writeTimeout, headers=<redacted>, readIdleTimeout=$readIdleTimeout)"
+
+object SttpOptions:
+  /** Single source for the transport write deadline default, shared with the transport constructor. */
+  val DefaultWriteTimeout: FiniteDuration = 10.seconds
