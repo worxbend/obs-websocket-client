@@ -4,7 +4,10 @@ import munit.FunSuite
 import java.nio.charset.StandardCharsets.UTF_8
 
 class CatalogSuite extends FunSuite:
-  private val fixtureStream = getClass.getResourceAsStream("/catalog-fixtures.json")
+  private val fixtureStream =
+    val stream = getClass.getResourceAsStream("/catalog-fixtures.json")
+    require(stream != null, "Missing test resource /catalog-fixtures.json")
+    stream
   private val fixtures =
     try JsonValue.parse(String(fixtureStream.readAllBytes(), UTF_8)).toOption.get.asInstanceOf[JsonValue.Arr].value
     finally fixtureStream.close()
@@ -24,6 +27,15 @@ class CatalogSuite extends FunSuite:
           assertEquals(event.eventType, name)
           event.eventData
 
+  private def replaceField(data: JsonObject, path: String, value: Option[JsonValue]): JsonObject =
+    val parts = path.split("\\.", 2)
+    if parts.length == 1 then
+      data.copy(fields = value match
+        case Some(replacement) => data.fields.updated(path, replacement)
+        case None              => data.fields - path)
+    else
+      data.copy(fields = data.fields.updated(parts(0), replaceField(data.obj(parts(0)).toOption.get, parts(1), value)))
+
   fixtures.foreach: json =>
     val fixture = json.asInstanceOf[JsonObject]
     val kind = fixture.string("kind").toOption.get
@@ -40,15 +52,15 @@ class CatalogSuite extends FunSuite:
       val nullable = field.boolean("nullable").toOption.get
       val any = field.string("type").toOption.get == "Any"
       test(s"$kind $name.$fieldName omission"):
-        val missing = valid.copy(fields = valid.fields - fieldName)
+        val missing = replaceField(valid, fieldName, None)
         assertEquals(decode(kind, name, missing).isRight, optional)
       test(s"$kind $name.$fieldName nullability"):
-        val nulled = valid.copy(fields = valid.fields.updated(fieldName, JsonValue.Null))
+        val nulled = replaceField(valid, fieldName, Some(JsonValue.Null))
         assertEquals(decode(kind, name, nulled).isRight, nullable || any)
       if !any then
         test(s"$kind $name.$fieldName malformed type"):
           val invalid =
-            valid.copy(fields = valid.fields.updated(fieldName, JsonValue.Arr(Vector(JsonValue.Bool(false)))))
+            replaceField(valid, fieldName, Some(JsonValue.Arr(Vector(JsonValue.Bool(false)))))
           assert(decode(kind, name, invalid).isLeft)
 
   test("all request response instance decoders match registry"):
@@ -85,7 +97,6 @@ class CatalogSuite extends FunSuite:
         "WebSocketCloseCode",
         "WebSocketOpCode"
       )
-    assertEquals(pinnedEnums.size, 7)
     assertEquals(
       pinnedEnums.map(name => Class.forName(s"com.worxbend.obs.websocket.client.protocol.enums.$name").getSimpleName),
       pinnedEnums

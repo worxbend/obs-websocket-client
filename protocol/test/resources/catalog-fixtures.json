@@ -750,12 +750,12 @@
     "valid": {
       "keyId": "value",
       "keyModifiers": {
-        "future": 42
-      },
-      "keyModifiers.shift": true,
-      "keyModifiers.control": true,
-      "keyModifiers.alt": true,
-      "keyModifiers.command": true
+        "future": 42,
+        "shift": true,
+        "control": true,
+        "alt": true,
+        "command": true
+      }
     },
     "fields": [
       {

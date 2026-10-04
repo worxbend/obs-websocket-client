@@ -472,3 +472,11 @@ Pin third-party actions by commit and tool versions explicitly. Use minimal work
 Protect the default branch with required checks after the workflows exist. Use environment-scoped credentials for Maven publication and the Pages deployment job. Release automation must verify the tag/version match, consume artifacts from the tested revision, fail before publication if checks fail, and avoid overwriting an existing version. Document recovery from partial publication.
 
 Add a release checklist covering compatibility, changelog, coordinates, license, 100% coverage reports, documentation links, consumer smoke test, and Pages health. The release pipeline is a planned deliverable; no release or documentation deployment has occurred yet.
+
+## 25. Peer-inspired expansion agreed on 2026-10-04
+
+The requested agent swarm compares goobs, tinodo/obsclient, and the legacy Java client, agrees module contracts, implements additions, and cross-reviews them before central validation. The [feature comparison](docs/feature-expansion.md) and [ADR-004](docs/decisions/004-additive-peer-features.md) record the scope and trade-offs.
+
+Add generated request-category facades, typed nested model views, typed event selectors, per-call budgets, raw-plus-typed response envelopes, bounded diagnostics and optional event sampling, read-only NotReady recovery, validated references, transport write deadlines/headers/TLS/proxy configuration, and pure workflow helpers. Preserve raw extension APIs, unknown fields, scoped ownership, bounded queues, and no replay of uncertain operations. Correct wire-format defects discovered through the peer comparison, including nested hotkey modifiers.
+
+These changes use the same exact coverage, deterministic generation, warnings-as-errors, compiled documentation, and packaging gates as the original library. Synthetic version fixtures do not establish live compatibility, and feature parity does not establish performance superiority. Published artifacts, deployment, and live OBS results remain separately reported.

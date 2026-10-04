@@ -10,10 +10,12 @@ import datetime
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import signal
 import socket
 import subprocess
+import sys
 import time
 
 from check_coverage import source_digest
@@ -109,6 +111,8 @@ def main():
             if ready.returncode == 0:
                 break
             time.sleep(.1)
+        else:
+            raise RuntimeError('Private Xvfb did not become ready')
         start_obs(name)
         test_env = os.environ.copy()
         test_env.update(OBS_INTEGRATION_DISPOSABLE='true', OBS_INTEGRATION_SCENE_MUTATIONS='true',
@@ -120,12 +124,13 @@ def main():
                 run([str(ROOT / 'mill'), '--no-server', 'integration.test'], cwd=ROOT,
                     env=test_env, stdout=log, stderr=subprocess.STDOUT, timeout=600)
             phase_log = (OUT / f'{phase}.log').read_text()
-            markers = ('0 failed, 0 ignored, 4 total',
-                       'Verified incorrect-password authentication rejection with close code 4009',
+            summary = re.search(r'(\d+) failed, (\d+) ignored, (\d+) total', phase_log)
+            markers = ('Verified incorrect-password authentication rejection with close code 4009',
                        'Verified read-only OBS ',
                        'Verified Reidentify acknowledgements preserve the live OBS session',
                        'Verified disposable scene creation, switching, event delivery, restoration and removal')
-            if any(marker not in phase_log for marker in markers):
+            if (summary is None or int(summary[1]) != 0 or int(summary[2]) != 0 or int(summary[3]) < 4
+                    or any(marker not in phase_log for marker in markers)):
                 raise RuntimeError(f'{phase}: required non-skipped integration checks were not reported')
             if phase == 'before-restart':
                 command(name, 'sh', '-c', 'kill -TERM "$(cat /tmp/obs-disposable/obs.pid)"')
@@ -159,7 +164,11 @@ def main():
             removed = subprocess.run(['docker', 'rm', '--force', name], timeout=30,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             if removed.returncode != 0:
-                raise RuntimeError(f'Could not remove owned disposable container {name}: {removed.stderr.strip()}')
+                message = f'Could not remove owned disposable container {name}: {removed.stderr.strip()}'
+                if sys.exc_info()[0] is not None:
+                    print(message, file=sys.stderr)
+                else:
+                    raise RuntimeError(message)
     if evidence is not None:
         evidence['container_removed'] = True
         (OUT / 'evidence.json').write_text(json.dumps(evidence, indent=2))

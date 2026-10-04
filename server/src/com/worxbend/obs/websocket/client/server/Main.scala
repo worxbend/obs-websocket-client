@@ -1,15 +1,32 @@
 package com.worxbend.obs.websocket.client.server
 
+import java.net.{InetAddress, URI}
+import java.nio.file.Paths
 import ox.*
+import org.slf4j.LoggerFactory
+import pureconfig.ConfigSource
 import _root_.sttp.tapir.server.netty.sync.NettySyncServer
 
 /** Local HTTP sample with a loopback bind by default. */
-object Main extends OxApp.Simple:
-  override def run(using Ox): Unit =
-    val config = Configuration.read
+object Main:
+  private val logger = LoggerFactory.getLogger(getClass)
+
+  /** An optional first argument names a HOCON configuration file; the standard source applies otherwise. */
+  def main(args: Array[String]): Unit = ox.supervised:
+    serve(Configuration.read(configSource(args)))
+
+  private[server] def configSource(args: Array[String]): ConfigSource =
+    if args.isEmpty then ConfigSource.default else ConfigSource.file(Paths.get(args(0)))
+
+  private[server] def serve(config: Configuration)(using Ox): Unit =
     val service = ObsReadService.live(config.obs.clientConfig)
     val binding = useInScope(
       NettySyncServer().host(config.http.host).port(config.http.port).addEndpoints(Endpoints.all(service)).start()
     )(_.stop())
-    println(s"Swagger UI: http://${config.http.host}:${binding.port}/docs")
+    logger.info("Swagger UI: {}", swaggerUrl(config.http.host, binding.port))
     never
+
+  /** Wildcard binds are reachable through loopback; URI rendering brackets IPv6 hosts. */
+  private[server] def swaggerUrl(host: String, port: Int): String =
+    val reachable = if InetAddress.getByName(host).isAnyLocalAddress then "127.0.0.1" else host
+    new URI("http", null, reachable, port, "/docs", null, null).toString

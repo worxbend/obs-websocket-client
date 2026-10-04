@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="docs/README.md">Guides</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
   <a href="IMPLEMENTATION.md">Verification report</a> ·
   <a href="PLAN.md">Plan</a> ·
   <a href="LICENSE">MIT</a>
@@ -21,6 +22,8 @@ deployment has been performed. An isolated OBS 30.2.3 smoke test passed; see the
 ## Typed control, bounded concurrency
 
 - Generated bindings for **147 requests, 60 events, and seven enum groups** from a pinned OBS schema.
+- Category APIs, lossless typed nested views, typed subscriptions, and validated workflow helpers.
+- Per-call budgets, bounded diagnostic streams, optional event sampling, and explicit readiness recovery.
 - Scoped authentication and connection ownership; typed expected failures and separate deadlines.
 - Concurrent request correlation, typed heterogeneous batches, and explicit raw extension APIs.
 - Broadcast Ox flows, bounded subscriber buffers, overflow errors, and opt-in loss policies.
@@ -80,15 +83,19 @@ with 100% in every production module. It includes generator logic, generated bin
 and examples, and rejects missing, stale, or inconsistent evidence. It does not establish
 real OBS compatibility or certify a public CI run.
 
-The [verification report](IMPLEMENTATION.md) records executed checks and open release
-gates. CI workflows are authored for validation, documentation, disposable OBS checks,
-and explicit release preflight/publication. They have not yet run on GitHub.
+The [verification report](IMPLEMENTATION.md) records executed checks, remote workflow
+evidence, and open release gates. CI workflows cover validation, documentation,
+disposable OBS checks, and explicit release preflight/publication.
 
 ## Contributing and licensing
 
 Read [AGENTS.md](AGENTS.md), the [contributor guide](docs/contributing.md), and [PLAN.md](PLAN.md).
 The reusable dependency direction is `protocol ← core ← sttp`; server and examples
 remain separate. Ordinary builds generate offline from the pinned schema.
+
+The [architecture overview](docs/architecture.md) diagrams module dependencies,
+connection establishment, request/event dispatch, and reconnect ownership.
+[Decision records](docs/decisions.md) explain these boundaries and their trade-offs.
 
 First-party code uses the [MIT License](LICENSE), as selected by the maintainer.
 Bundled upstream skills and the [OBS schema](protocol-spec/README.md) retain their own

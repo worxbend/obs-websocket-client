@@ -1,5 +1,28 @@
 # Events and ownership
 
+## Typed subscriptions
+
+Each generated event companion exposes a selector. The subscription retains its bounded queue and scoped ownership while `next` and `flow` return the selected event type:
+
+```scala
+import com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged
+
+val result = session.withEvents(CurrentProgramSceneChanged.selector): events =>
+  events.next().map(_.sceneName)
+```
+
+The callback waits for a future matching event. Configure the corresponding server event intent before subscribing; a local selector does not change OBS's subscription mask. Typed payload projection and selection run on consumers, with no user handler on the session dispatcher. `next()` reports clean termination as `Left(ObsError.Closed)`; event and diagnostic `flow` streams complete cleanly without a trailing `Closed`. Event failures emit their concrete error before completion.
+
+## Optional sampling and diagnostics
+
+`ObsSubscription.withLatestBy(interval, maxKeys)(key)(use)` provides explicit latest-per-key windows for telemetry. The sampler owns a worker inside the callback scope. It retains at most `maxKeys` keys and one queued output window. Each `EventWindow` reports coalesced events and evicted keys; `droppedWindows` reports replaced output windows and `droppedEvents` reports source-queue loss. Source termination discards the unfinished window and ends the sampled stream. Keep ordinary ordered subscriptions for control events that must all be observed.
+
+`session.withDiagnostics(capacity)(use)` exposes metadata through `next` or `flow`: logical JSON byte traffic, request duration/outcome, and connection state transitions. It excludes request/response payloads, URI, credentials, and server rejection comments. Slow observers drop new diagnostic records, counted by `droppedDiagnostics`, without blocking the session. Wire counters remain available through `session.statistics`; request success means a successful wire exchange and can still be followed by a typed payload decode failure.
+
+Traffic counts measure encoded UTF-8 JSON at the session boundary, including handshake/discovery traffic handled by the session. They exclude WebSocket framing, Ping/Pong, HTTP headers, TLS overhead, and TCP retransmissions. They are application metrics rather than network-interface byte counters. Diagnostic subscriptions observe future transitions; use `session.state` for a snapshot.
+
+`completedRequests` counts finished exchange attempts, including startup discovery, rejected registrations, timeouts, and cancellation; `failedRequests` counts their nonsuccessful outcomes. Capability or typed request validation refusals made before an exchange are excluded. Raw request validation performed during registration is included. Sent byte counts include successful transport sends; received byte counts are recorded before protocol decoding.
+
 Use `session.withEvents(eventTypes)(use)` to register an independent broadcast subscription. An empty set accepts every event. Each subscriber observes future matching events in receive order; subscriptions do not replay history.
 
 ## Overflow
@@ -68,6 +91,10 @@ def nextSceneChange(config: ObsConfig): Either[ObsError, Event] =
 The optional `onNotice` callback reports `Connected`, `EventGap`,
 `RetryScheduled`, and `Reconnected`. Notices execute on the calling thread;
 they are not OBS events and do not imply that missed events can be recovered.
+`EventGap` names the generation that just failed and fires only when a retry
+actually follows, immediately before its `RetryScheduled`. A notice callback
+that throws surfaces as `Left(ObsError.InternalError)`; interruption still
+propagates so cancellation stays responsive.
 Generation numbers identify attempts within one `run`, including unsuccessful
 attempts. The retry budget applies to the complete run and does not reset after
 a successful handshake.

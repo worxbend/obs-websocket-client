@@ -13,6 +13,9 @@ class QuickstartSuite extends FunSuite:
     LocalWebSocketPeer.send(socket, """{"op":0,"d":{"obsWebSocketVersion":"5.7.0","rpcVersion":1}}""")
     val _ = LocalWebSocketPeer.receive(socket)
     LocalWebSocketPeer.send(socket, """{"op":2,"d":{"negotiatedRpcVersion":1}}""")
+    // Three requests arrive in order: the internal GetVersion capability probe that ObsClient.run sends before
+    // invoking user code, then Quickstart's own GetVersion and GetSceneList. The probe has no shared named
+    // constant; removing it or the discovery requests requires adjusting this count.
     for _ <- 1 to 3 do
       val request = Protocol.decode(LocalWebSocketPeer.receive(socket)._2).toOption.get.data
       val kind = request.string("requestType").toOption.get
@@ -45,7 +48,7 @@ class QuickstartSuite extends FunSuite:
     val err = new ByteArrayOutputStream
     Console.withOut(out):
       Console.withErr(err):
-        Quickstart.main(Array("invalid"))
+        assertEquals(Quickstart.execute(Array("invalid"), Map.empty), 1)
     assertEquals(out.toString("UTF-8"), "")
     val failure = err.toString("UTF-8")
     assert(failure.startsWith("OBS connection failed: "), failure)
@@ -60,3 +63,41 @@ class QuickstartSuite extends FunSuite:
     val config = Quickstart.configuration(Array.empty, Map.empty)
     assertEquals(config.uri, "ws://localhost:4455")
     assertEquals(config.passwordProvider.password(), Right(None))
+
+  test("CLI process exits unsuccessfully when configuration is invalid"):
+    import java.nio.file.{Files, Paths}
+    import java.util.concurrent.TimeUnit
+    val classpath = runtimeClasspath
+    val output = Files.createTempFile("obs-quickstart-exit", ".log")
+    val executable = Paths.get(System.getProperty("java.home"), "bin", "java").toString
+    val process = new ProcessBuilder(
+      executable,
+      "-cp",
+      classpath,
+      "com.worxbend.obs.websocket.client.examples.Quickstart",
+      "invalid"
+    )
+      .redirectErrorStream(true)
+      .redirectOutput(output.toFile)
+      .start()
+    try
+      assert(process.waitFor(15, TimeUnit.SECONDS), "CLI process did not terminate within its test budget")
+      assertEquals(process.exitValue(), 1)
+      val diagnostic = Files.readString(output)
+      assert(diagnostic.contains("OBS connection failed: InvalidConfiguration"), diagnostic)
+    finally
+      val _ = process.destroyForcibly()
+      val _ = process.waitFor(5, TimeUnit.SECONDS)
+      Files.delete(output)
+
+  private def runtimeClasspath: String =
+    val loaders = Iterator
+      .iterate(Option(getClass.getClassLoader))(_.flatMap(loader => Option(loader.getParent)))
+      .takeWhile(_.nonEmpty)
+      .flatMap(_.iterator)
+    val urls = loaders
+      .collect { case loader: java.net.URLClassLoader => loader }
+      .flatMap(_.getURLs)
+      .map(url => java.nio.file.Paths.get(url.toURI).toString)
+    (urls ++ System.getProperty("java.class.path").split(java.io.File.pathSeparator)).toVector.distinct
+      .mkString(java.io.File.pathSeparator)

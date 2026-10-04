@@ -11,18 +11,40 @@ class ProtocolSuite extends FunSuite:
     assertEquals(Protocol.decode(Protocol.encode(decoded)), Right(decoded))
 
   test("malformed JSON never leaks its content"):
-    List("secret", "{\"password\":\"secret\"", "{\"x\":1,\"x\":2}", "[1,}").foreach: input =>
+    List("secret", "{\"password\":\"secret\"", "[1,}").foreach: input =>
       assertEquals(JsonValue.parse(input), Left(ProtocolError("$", "Malformed JSON")))
+
+  test("structural policy violations report their fixed safe reason"):
+    assertEquals(JsonValue.parse("{\"x\":1,\"x\":2}"), Left(ProtocolError("$", "duplicate JSON key")))
+    assertEquals(JsonValue.parse("[" * 66 + "0" + "]" * 66), Left(ProtocolError("$", "JSON nesting exceeds 64")))
+    assertEquals(JsonValue.parse("9" * 309), Left(ProtocolError("$", "value exceeds limit for number of digits")))
+    assertEquals(JsonValue.parse("1e6179"), Left(ProtocolError("$", "value exceeds limit for scale")))
 
   test("wire envelope rejects malformed fields"):
     List("[]", "{}", "{\"op\":1.5,\"d\":{}}", "{\"op\":2147483648,\"d\":{}}", "{\"op\":6,\"d\":false}").foreach:
       input => assert(Protocol.decode(input).isLeft)
 
   test("JSON byte limit counts UTF-8 bytes"):
-    assert(JsonValue.parse("\"α\"", 3).isLeft)
-    assert(JsonValue.parse("0", 0).isLeft)
-    assert(JsonValue.parse("1234", 3).isLeft)
+    assertEquals(JsonValue.parse("\"α\"", 3), Left(ProtocolError.SizeLimit))
+    assertEquals(JsonValue.parse("0", 0), Left(ProtocolError.SizeLimit))
+    assertEquals(JsonValue.parse("1234", 3), Left(ProtocolError.SizeLimit))
     assert(JsonValue.parse("\"α\"", 4).isRight)
+
+  test("nested decode failures report full dotted paths"):
+    val nested = JsonValue.parse("""{"op":6,"d":{"requestStatus":{"result":true,"code":"high"}}}""").toOption.get
+    val envelope = ValueCodec.obj.decode(nested, "$").toOption.get
+    val data = envelope.obj("d").toOption.get
+    assertEquals(
+      data.obj("requestStatus").flatMap(_.int("code")),
+      Left(ProtocolError("$.d.requestStatus.code", "Expected number"))
+    )
+    assertEquals(data.string("missing"), Left(ProtocolError("$.d.missing", "Required field is missing")))
+    val direct =
+      JsonObject(Map("items" -> JsonValue.Arr(Vector(JsonObject(Map("flag" -> JsonValue.Num(BigDecimal(1))))))))
+    assertEquals(
+      direct.required("items", ValueCodec.array(ValueCodec.obj)).flatMap(_.head.boolean("flag")),
+      Left(ProtocolError("items[0].flag", "Expected boolean"))
+    )
 
   test("JSON depth limit rejects nested payloads"):
     assert(JsonValue.parse("[" * 66 + "0" + "]" * 66).isLeft)
@@ -48,7 +70,10 @@ class ProtocolSuite extends FunSuite:
     assert(JsonObject(Map("x" -> JsonValue.Null)).optionalString("x").isLeft)
 
   test("UTF-8 authentication matches independently computed vector"):
-    assertEquals(Authentication.compute("päss🔒", "salt", "challenge"), "hRPwuZ1gatdRB2rztwbomuiw2cq2/yH+EroCZA5oLdo=")
+    assertEquals(
+      Authentication.compute("päss🔒".getBytes(java.nio.charset.StandardCharsets.UTF_8), "salt", "challenge"),
+      "hRPwuZ1gatdRB2rztwbomuiw2cq2/yH+EroCZA5oLdo="
+    )
 
   test("JSON rejects mismatched closing delimiters"):
     assert(JsonValue.parse("{\"x\":1]").isLeft)
@@ -62,7 +87,7 @@ class ProtocolSuite extends FunSuite:
   test("official authentication-guide inputs match independent SHA-256 calculation"):
     assertEquals(
       Authentication.compute(
-        "supersecretpassword",
+        "supersecretpassword".getBytes(java.nio.charset.StandardCharsets.UTF_8),
         "lM1GncleQOaCu9lT1yeUZhFYnqhsLLP1G5lAGo3ixaI=",
         "+IxH4CnCiqpX1rM9scsNynZzbOe4KhDeYcTNS3PDaeY="
       ),

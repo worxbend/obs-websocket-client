@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 class ImportSafetyTests(unittest.TestCase):
     def test_cli_imports_have_no_external_effects(self):
-        for name in ('real_obs_smoke', 'check_generation', 'doc_snippets'):
+        for name in ('real_obs_smoke', 'check_generation', 'doc_snippets', 'build_site', 'check_coverage', 'dependency_report'):
             with self.subTest(module=name):
                 path = Path(__file__).with_name(name + '.py')
                 spec = importlib.util.spec_from_file_location(name, path)

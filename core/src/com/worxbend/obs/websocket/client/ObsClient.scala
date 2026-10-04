@@ -5,6 +5,7 @@ import ox.*
 import ox.channels.{Actor, Channel, ChannelClosed, ChannelClosedException}
 import ox.either.catching
 import scala.util.control.NonFatal
+import java.nio.charset.StandardCharsets.UTF_8
 
 object ObsClient:
   /** Owns one connection. All workers terminate before this method returns. The socket is closed in the scope body
@@ -22,7 +23,10 @@ object ObsClient:
           password <- valid.passwordProvider.password()
           result <- run(transport, valid, password, dependencies)(use)
         yield result
-      finally transport.close()
+      // Ordinary cleanup defects must not mask the result, but interruption and fatal errors still propagate.
+      finally
+        try transport.close()
+        catch case NonFatal(_) => ()
 
   private def run[A](
       transport: ObsTransport,
@@ -40,7 +44,8 @@ object ObsClient:
           outgoing.receiveOrClosed() match
             case message: WireMessage =>
               if logic.ask(_.canSend(message)) then
-                transport.send(Protocol.encode(message)) match
+                val encoded = Protocol.encode(message)
+                transport.send(encoded) match
                   case Left(error: ObsError.MessageTooLarge) =>
                     // Deterministic local rejection: nothing reached the socket, so only the
                     // offending request or batch fails and the session keeps running.
@@ -48,14 +53,19 @@ object ObsClient:
                   case Left(error) =>
                     logic.ask(_.fail(error))
                     running = false
-                  case Right(_) => ()
+                  case Right(_) => logic.ask(_.traffic(TrafficDirection.Sent, encoded.getBytes(UTF_8).length))
             case _: ChannelClosed => running = false
       catch case NonFatal(_) => logic.ask(_.fail(ObsError.Transport("Transport send failed unexpectedly")))
     forkDiscard:
       try
         var running = true
         while running do
-          transport.receive().flatMap(Protocol.decode(_, config.maxMessageBytes).left.map(SessionWire.malformed)) match
+          transport
+            .receive()
+            .flatMap: text =>
+              logic.ask(_.traffic(TrafficDirection.Received, text.getBytes(UTF_8).length))
+              Protocol.decode(text, config.maxMessageBytes).left.map(SessionWire.malformed)
+          match
             case Left(error) =>
               val classified = error match
                 case ObsError.Transport(_, Some(4009)) if logic.ask(_.phase) != ConnectionState.Ready =>
@@ -72,8 +82,7 @@ object ObsClient:
         .getOrElse(Left(ObsError.Timeout("handshake")))
         .flatMap: initial =>
           val provisional = new ObsSession(initial, config, dependencies, logic)
-          provisional
-            .rawRequest("GetVersion")
+          provisional.discoverVersion
             .flatMap: version =>
               version
                 .array("availableRequests")

@@ -39,7 +39,13 @@ def declared_licenses(pom: Path, repository: Path, visited: frozenset[Path] = fr
 
 def inspect_jar(value: str) -> dict:
     jar = Path(value)
-    marker = jar.parts.index("maven2")
+    try:
+        marker = jar.parts.index("maven2")
+    except ValueError:
+        return {"coordinate": "unparsed", "file": jar.name,
+                "sha256": hashlib.sha256(jar.read_bytes()).hexdigest(),
+                "licenses": [],
+                "license_status": "requires-review-no-cached-declaration"}
     repository = Path(*jar.parts[: marker + 1])
     relative = jar.relative_to(repository)
     *group_parts, artifact, version, filename = relative.parts

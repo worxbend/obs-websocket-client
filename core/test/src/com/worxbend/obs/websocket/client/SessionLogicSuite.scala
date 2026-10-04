@@ -88,7 +88,8 @@ class SessionLogicSuite extends FunSuite:
     val h = new Harness
     h.ready()
     val events = Channel.buffered[Event](1)
-    assertEquals(h.logic.subscribe("s", events, Set.empty, OverflowPolicy.DropNewest), Right(()))
+    val dropped = new java.util.concurrent.atomic.AtomicLong(0L)
+    assertEquals(h.logic.subscribe("s", events, Set.empty, OverflowPolicy.DropNewest, dropped = dropped), Right(()))
     val frame = WireMessage(
       5,
       obj("eventIntent" -> number(1), "eventType" -> JsonValue.Str("Future"), "eventData" -> empty)
@@ -97,7 +98,8 @@ class SessionLogicSuite extends FunSuite:
     assertEquals(h.logic.incoming(frame), true)
     assertEquals(h.logic.losses("s"), 1L)
     h.logic.fail(ObsError.Transport("lost"))
-    assertEquals(h.logic.losses("s"), 1L)
+    assertEquals(dropped.get(), 1L)
+    assertEquals(h.logic.losses("s"), 0L)
     assertEquals(h.logic.losses("missing"), 0L)
 
   test("a hello missing every required field fails the handshake"):
@@ -328,8 +330,9 @@ class SessionLogicSuite extends FunSuite:
   test("reidentify acknowledgement backlog is bounded independently of the writer"):
     val h = new Harness(config = ObsConfig(maxInFlight = 1))
     h.ready()
-    assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
-    h.outgoing.receive().discard
+    for _ <- 1 to SessionLogic.maxReidentifyAcks do
+      assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
+      h.outgoing.receive().discard
     assertEquals(h.logic.reidentify(EventSubscriptions.normal), Left(ObsError.Overflow("reidentify acknowledgements")))
 
   test("malformed and incompatible reidentify acknowledgements fail the session"):
@@ -338,3 +341,59 @@ class SessionLogicSuite extends FunSuite:
       h.ready()
       assertEquals(h.logic.reidentify(EventSubscriptions.none), Right(()))
       assert(!h.logic.incoming(WireMessage(2, data)))
+
+  test("diagnostic registration preserves ownership and closed sessions reject observers"):
+    val h = new Harness
+    val events = Channel.buffered[SessionDiagnostic](1)
+    val other = Channel.buffered[SessionDiagnostic](1)
+    assertEquals(h.logic.subscribeDiagnostics("observer", events), Left(ObsError.Closed))
+    h.ready()
+    assertEquals(h.logic.subscribeDiagnostics("observer", events), Right(()))
+    assert(h.logic.subscribeDiagnostics("observer", other).isLeft)
+    h.logic.unsubscribeDiagnostics("observer", other)
+    h.logic.traffic(TrafficDirection.Sent, 7)
+    h.logic.traffic(TrafficDirection.Received, 9)
+    assertEquals(h.logic.diagnosticLosses("observer"), 1L)
+    assertEquals(h.logic.diagnosticLosses("absent"), 0L)
+    assertEquals(h.logic.statistics.sentBytes, 7L)
+    assertEquals(h.logic.statistics.receivedBytes, 9L)
+    h.logic.requestFinished("Echo", "id", 12L, DiagnosticOutcome.Failed)
+    assertEquals(h.logic.statistics.failedRequests, 1L)
+    assertEquals(h.logic.statistics.requestElapsedNanos, 12L)
+    h.logic.unsubscribeDiagnostics("observer", events)
+    assertEquals(h.logic.diagnosticLosses("observer"), 0L)
+    h.logic.close()
+
+  test("normal close reports Closed and keeps terminal diagnostic loss counts"):
+    val h = new Harness
+    h.ready()
+    val events = Channel.buffered[SessionDiagnostic](1)
+    h.logic.subscribeDiagnostics("observer", events).toOption.get
+    h.logic.traffic(TrafficDirection.Sent, 1)
+    h.logic.close()
+    assertEquals(h.logic.diagnosticLosses("observer"), 1L)
+    h.logic.requestFinished("Echo", "id", 1L, DiagnosticOutcome.Cancelled)
+    assertEquals(h.logic.diagnosticLosses("observer"), 1L)
+    assertEquals(events.receive(), SessionDiagnostic.Traffic(TrafficDirection.Sent, 1))
+    val closed = new Harness
+    closed.ready()
+    val channel = Channel.buffered[SessionDiagnostic](1)
+    closed.logic.subscribeDiagnostics("observer", channel).toOption.get
+    closed.logic.close()
+    assertEquals(channel.receive(), SessionDiagnostic.StateChanged(ConnectionState.Closed))
+
+  test("repeated unsubscribe preserves owned counters without retaining registry history"):
+    val h = new Harness
+    h.ready()
+    val frame =
+      WireMessage(5, obj("eventIntent" -> number(1), "eventType" -> JsonValue.Str("Future"), "eventData" -> empty))
+    for index <- 1 to 100 do
+      val id = s"losses-$index"
+      val events = Channel.buffered[Event](1)
+      val dropped = new java.util.concurrent.atomic.AtomicLong(0L)
+      h.logic.subscribe(id, events, Set.empty, OverflowPolicy.DropNewest, dropped = dropped).toOption.get
+      assert(h.logic.incoming(frame))
+      assert(h.logic.incoming(frame))
+      h.logic.unsubscribe(id, events)
+      assertEquals(dropped.get(), 1L)
+      assertEquals(h.logic.losses(id), 0L)

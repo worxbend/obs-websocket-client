@@ -55,11 +55,10 @@ object JsonValue:
     def encodeValue(value: JsonValue, out: JsonWriter): Unit = value match
       case JsonObject(fields) =>
         out.writeObjectStart()
-        fields.toVector
-          .sortBy(_._1)
-          .foreach: (key, entry) =>
-            out.writeKey(key)
-            encodeValue(entry, out)
+        val ordered = if fields.size < 2 then fields.toVector else fields.toVector.sortBy(_._1)
+        ordered.foreach: (key, entry) =>
+          out.writeKey(key)
+          encodeValue(entry, out)
         out.writeObjectEnd()
       case Str(value)  => out.writeVal(value)
       case Num(value)  => out.writeVal(value)
@@ -70,35 +69,61 @@ object JsonValue:
         out.writeArrayEnd()
       case Null => out.writeNull()
 
-  /** Decoding errors contain structure only, never the potentially secret input. */
+  /** Decoding errors contain structure only, never the potentially secret input. jsoniter appends a payload hex dump to
+    * every message, so only whitelisted fixed reasons may surface; everything else stays "Malformed JSON".
+    */
   def parse(text: String, maxBytes: Int = Protocol.defaultMaxBytes): Either[ProtocolError, JsonValue] =
-    if maxBytes < 1 || text.length > maxBytes || text
-        .getBytes(java.nio.charset.StandardCharsets.UTF_8)
-        .length > maxBytes
-    then Left(ProtocolError("$", "JSON exceeds configured byte limit"))
-    else Try(readFromString[JsonValue](text)).toEither.left.map(_ => ProtocolError("$", "Malformed JSON"))
+    val bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+    if maxBytes < 1 || text.length > maxBytes || bytes.length > maxBytes then Left(ProtocolError.SizeLimit)
+    else Try(readFromArray[JsonValue](bytes)).toEither.left.map(decodeFailure)
+
+  /** Fixed structural reasons from this codec and jsoniter's numeric limits; they describe shape, never content. */
+  private val structuralReasons = List(
+    "JSON nesting exceeds 64",
+    "duplicate JSON key",
+    "value exceeds limit for number of digits",
+    "value exceeds limit for scale"
+  )
+
+  private def decodeFailure(error: Throwable): ProtocolError =
+    ProtocolError(
+      "$",
+      structuralReasons.find(reason => error.getMessage.startsWith(s"$reason, offset:")).getOrElse("Malformed JSON")
+    )
 
   def render(value: JsonValue): String = writeToString(value)
 
-final case class JsonObject(fields: Map[String, JsonValue]) extends JsonValue:
+/** The `parent` path tracks nesting for errors only and is excluded from equality. Single-list apply/copy remain
+  * source-compatible.
+  */
+final case class JsonObject(fields: Map[String, JsonValue])(private val parent: String = "") extends JsonValue:
+  def copy(fields: Map[String, JsonValue]): JsonObject = new JsonObject(fields)(parent)
+  def copy(): JsonObject = new JsonObject(fields)(parent)
+  private[protocol] def at(path: String): JsonObject = new JsonObject(fields)(path)
+  private def child(name: String): String = if parent.isEmpty then name else s"$parent.$name"
   def string(name: String): Either[ProtocolError, String] = required(name, ValueCodec.string)
   def int(name: String): Either[ProtocolError, Int] =
     required(name, ValueCodec.number).flatMap: value =>
-      value.toBigIntExact.filter(_.isValidInt).map(_.intValue).toRight(ProtocolError(name, "Expected 32-bit integer"))
+      value.toBigIntExact
+        .filter(_.isValidInt)
+        .map(_.intValue)
+        .toRight(ProtocolError(child(name), "Expected 32-bit integer"))
   def obj(name: String): Either[ProtocolError, JsonObject] = required(name, ValueCodec.obj)
   def array(name: String): Either[ProtocolError, Vector[JsonValue]] = required(name, ValueCodec.array(ValueCodec.json))
   def boolean(name: String): Either[ProtocolError, Boolean] = required(name, ValueCodec.boolean)
   def optionalString(name: String): Either[ProtocolError, Option[String]] =
     fields.get(name) match
       case None        => Right(None)
-      case Some(value) => ValueCodec.string.decode(value, name).map(Some(_))
+      case Some(value) => ValueCodec.string.decode(value, child(name)).map(Some(_))
   def required[A](name: String, codec: ValueCodec[A]): Either[ProtocolError, A] =
-    fields.get(name).toRight(ProtocolError(name, "Required field is missing")).flatMap(codec.decode(_, name))
+    val path = child(name)
+    fields.get(name).toRight(ProtocolError(path, "Required field is missing")).flatMap(codec.decode(_, path))
   def field[A](name: String, codec: ValueCodec[A], nullable: Boolean): Either[ProtocolError, Field[A]] =
     fields.get(name) match
       case None                             => Right(Field.Missing)
       case Some(JsonValue.Null) if nullable => Right(Field.Null)
-      case Some(value)                      => codec.decode(value, name).map(Field.Value(_))
+      case Some(value)                      => codec.decode(value, child(name)).map(Field.Value(_))
 
 object JsonObject:
+  def apply(fields: Map[String, JsonValue]): JsonObject = new JsonObject(fields)("")
   val empty: JsonObject = JsonObject(Map.empty)

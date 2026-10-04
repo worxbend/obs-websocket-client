@@ -32,6 +32,12 @@ class ConfigurationSuite extends munit.FunSuite:
   test("empty HTTP host is rejected"):
     assertEquals(Configuration.load(source(host = "")), Left(ConfigurationError.InvalidHttpHost))
 
+  test("surrounding whitespace in the HTTP host is trimmed before validation and storage"):
+    assertEquals(Configuration.load(source(host = " localhost ")).map(_.http), Right(HttpConfig("localhost", 8080)))
+
+  test("whitespace-only HTTP host is rejected"):
+    assertEquals(Configuration.load(source(host = "   ")), Left(ConfigurationError.InvalidHttpHost))
+
   test("port below range is rejected"):
     assertEquals(Configuration.load(source(port = "-1")), Left(ConfigurationError.InvalidHttpPort))
 
@@ -52,7 +58,19 @@ class ConfigurationSuite extends munit.FunSuite:
       .get
     assertEquals(config.obs.clientConfig.passwordProvider.password(), Right(Some("top-secret")))
     assert(!config.toString.contains("top-secret"))
-    assert(config.toString.contains("***"))
+    assert(config.toString.contains("url=ws://localhost:4456"))
+    assert(config.toString.contains("password=<set>"))
+
+  test("a blank OBS password is treated as no authentication"):
+    val config = Configuration
+      .load(
+        ConfigSource.string(
+          """http { host = "127.0.0.1", port = 8080 }, obs { url = "ws://localhost:4455", password = "" }"""
+        )
+      )
+      .toOption
+      .get
+    assertEquals(config.obs.clientConfig.passwordProvider.password(), Right(None))
 
   test("invalid startup configuration terminates with a redacted diagnostic"):
     val error = intercept[IllegalArgumentException]:
@@ -70,3 +88,13 @@ class ConfigurationSuite extends munit.FunSuite:
       (config.http, config.obs.url, config.obs.password.map(_.value)),
       (HttpConfig("localhost", 8082), "ws://localhost:4457", Some("override-secret"))
     )
+
+  test("configuration rendering distinguishes an unset password without exposing wrapped secrets"):
+    assertEquals(Sensitive("do-not-print").toString, "***")
+    assertEquals(
+      ObsSettings("ws://localhost:4455", None).toString,
+      "ObsSettings(url=ws://localhost:4455, password=<unset>)"
+    )
+
+  test("parameterless configuration loader reads the default source"):
+    assertEquals(Configuration.read, Configuration.read(ConfigSource.default))

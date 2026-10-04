@@ -133,3 +133,69 @@ class SttpTransportSuite extends FunSuite:
     val socket = new SttpTransport(new SyncWebSocket(peer), 1024, 1.second, () => aborted = true)
     socket.close()
     assert(aborted)
+
+  test("close restores interruption and still aborts instead of throwing"):
+    var aborted = false
+    val peer = new Peer(Nil, Some(new InterruptedException("teardown")))
+    val socket = new SttpTransport(new SyncWebSocket(peer), 1024, 1.second, () => aborted = true)
+    socket.close()
+    assert(aborted)
+    assert(Thread.currentThread().isInterrupted)
+    val _ = Thread.interrupted()
+
+  test("incoming limit counts large fragments without materializing encoded copies"):
+    val fragment = "é" * 3000
+    val peer = new Peer(List(WebSocketFrame.Text(fragment, false, None), WebSocketFrame.text("é")))
+    assertEquals(transport(peer, 6002).receive(), Right(fragment + "é"))
+
+  test("unpaired surrogates count their replacement byte exactly like getBytes"):
+    val lone = "a\uD800"
+    assertEquals(lone.getBytes(java.nio.charset.StandardCharsets.UTF_8).length, 2)
+    assertEquals(transport(new Peer(List(WebSocketFrame.text(lone))), 2).receive(), Right(lone))
+
+  /** Models a foreign backend whose write ignores interruption but unblocks when its socket is aborted. */
+  private final class BlockedPeer(frames: List[WebSocketFrame]) extends WebSocket[Identity]:
+    private val started = ox.channels.Channel.buffered[Unit](1)
+    private val released = new java.util.concurrent.Semaphore(0)
+    private var remaining = frames
+    val finished = new java.util.concurrent.atomic.AtomicBoolean(false)
+    override def receive(): WebSocketFrame =
+      val frame = remaining.head
+      remaining = remaining.tail
+      frame
+    override def send(frame: WebSocketFrame, isContinuation: Boolean): Unit =
+      val _ = started.trySendOrClosed(())
+      released.acquireUninterruptibly()
+      finished.set(true)
+    def awaitWrite(): Unit = started.receive()
+    def abort(): Unit = released.release(10)
+    override def isOpen(): Boolean = true
+    override val upgradeHeaders: Headers = Headers(Nil)
+    override implicit val monad: MonadError[Identity] = IdentityMonad
+
+  private def blockedTransport(peer: BlockedPeer): SttpTransport =
+    new SttpTransport(new SyncWebSocket(peer), 1024, 40.millis, () => peer.abort(), 40.millis)
+
+  test("write deadline aborts an uninterruptible foreign send before joining its worker"):
+    val peer = new BlockedPeer(Nil)
+    val result = ox.timeout(2.seconds)(blockedTransport(peer).send("{}"))
+    assertEquals(result, Left(ObsError.Timeout("write")))
+    assert(peer.finished.get())
+
+  test("pong write deadline terminates receive without waiting for the next frame"):
+    val peer = new BlockedPeer(List(WebSocketFrame.ping))
+    assertEquals(ox.timeout(2.seconds)(blockedTransport(peer).receive()), Left(ObsError.Timeout("write")))
+    assert(peer.finished.get())
+
+  test("close deadline aborts an uninterruptible close before joining its worker"):
+    val peer = new BlockedPeer(Nil)
+    ox.timeout(2.seconds)(blockedTransport(peer).close())
+    assert(peer.finished.get())
+
+  test("caller interruption aborts an in-progress write before the scope can join it"):
+    val peer = new BlockedPeer(Nil)
+    ox.supervised:
+      val sending = ox.forkCancellable(blockedTransport(peer).send("{}"))
+      peer.awaitWrite()
+      val _ = sending.cancel()
+      assert(peer.finished.get())

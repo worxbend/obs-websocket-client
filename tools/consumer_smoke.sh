@@ -29,11 +29,20 @@ PYTHON
 cat > "$smoke_dir/consumer/src/Main.scala" <<'SCALA'
 import com.worxbend.obs.websocket.client.ObsConfig
 import com.worxbend.obs.websocket.client.protocol.requests.GetVersion
+import com.worxbend.obs.websocket.client.protocol.{Request, RequestApi, SceneRef}
+import com.worxbend.obs.websocket.client.protocol.workflows.Screenshot
+import com.worxbend.obs.websocket.client.transport.sttp.HandshakeHeaders
 import com.worxbend.obs.websocket.client.transport.sttp.SttpObsClient
 object Main:
   def main(args: Array[String]): Unit =
     assert(Runtime.version.feature == 25)
     assert(GetVersion().requestType == "GetVersion")
+    val api = new RequestApi[String]:
+      def request[A](value: Request[A]): Either[String, A] = Left(value.requestType)
+    assert(api.general.getVersion() == Left("GetVersion"))
+    assert(SceneRef.byName("Camera").map(_.setProgram.requestType) == Right("SetCurrentProgramScene"))
+    assert(Screenshot.decode("data:image/png;base64,AQ==").map(_.bytes.size) == Right(1))
+    assert(HandshakeHeaders.create(Vector("X-Client" -> "consumer-smoke")).isRight)
     assert(SttpObsClient.connect(ObsConfig(uri = "invalid"))(_ => ()).isLeft)
     println("Isolated published consumer compiled and ran on Java 25")
 SCALA

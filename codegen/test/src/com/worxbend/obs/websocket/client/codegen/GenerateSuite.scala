@@ -24,6 +24,30 @@ class GenerateSuite extends FunSuite:
   )
   private val overrides = Overrides(List("Zed.request.field0", "Zed.response.field1"))
 
+  test("category facades preserve names, optionality, selectors, and stable category ordering"):
+    val categories = schema.copy(requests =
+      schema.requests.map(request =>
+        request.copy(category = if request.requestType == "Zed" then "scene items" else "config")
+      )
+    )
+    val generated = Generate.generate(categories, overrides, provenance).toMap
+    val api = generated("RequestApi.scala")
+    assert(api.contains("val configuration: ConfigurationApi[E]"))
+    assert(api.contains("val sceneItems: SceneItemsApi[E]"))
+    assert(api.contains("def empty(): Either[E, requests.EmptyResponse]"))
+    assert(api.contains("`field0`: Field[String] = Field.Missing"))
+    assert(
+      api.contains(
+        "executor.request(requests.Zed(`field0`, `field1`, `field2`, `field3`, `field4`, `field5`, `field6`))"
+      )
+    )
+    assert(generated("events/Changed.scala").contains("val selector: EventSelector[Changed]"))
+    val invalid = schema.copy(requests = List(SchemaRequest("Empty", Nil, Nil, category = "bad-name")))
+    assert(
+      intercept[IllegalArgumentException](Generate.generate(invalid, Overrides(), provenance)).getMessage
+        .contains("category")
+    )
+
   test("generation is deterministic regardless of catalog input order"):
     val first = Generate.generate(schema, overrides, provenance)
     val second =
@@ -75,6 +99,95 @@ class GenerateSuite extends FunSuite:
       intercept[IllegalArgumentException](Generate.generate(enums, Overrides(Nil), provenance)).getMessage
         .contains("Same")
     )
+
+  test("duplicate field names within one payload fail with the owning field list"):
+    val duplicated = SchemaField("slot", "String")
+    val request = schema.copy(requests =
+      List(SchemaRequest("Dupe", List(duplicated, duplicated.copy(valueType = "Number")), List(duplicated, duplicated)))
+    )
+    val requestError = intercept[IllegalArgumentException](Generate.generate(request, Overrides(Nil), provenance))
+    assert(requestError.getMessage.contains("Dupe.request"))
+    val event =
+      schema.copy(events = List(SchemaEvent("Dupe", List(duplicated, duplicated.copy(valueType = "Boolean")))))
+    val eventError = intercept[IllegalArgumentException](Generate.generate(event, Overrides(Nil), provenance))
+    assert(eventError.getMessage.contains("Dupe.event"))
+
+  test("duplicate enum identifiers within one enum fail with the enum name"):
+    val duplicated = SchemaEnum(
+      "Dupe",
+      List(SchemaEnumEntry("One", SchemaEnumValue("1")), SchemaEnumEntry("One", SchemaEnumValue("2")))
+    )
+    val error = intercept[IllegalArgumentException]:
+      Generate.generate(schema.copy(enums = List(duplicated)), overrides, provenance)
+    assert(error.getMessage.contains("Dupe"))
+    assert(error.getMessage.contains("One"))
+
+  test("a request named after another request's response class fails"):
+    val colliding = schema.copy(requests = schema.requests ++ List(SchemaRequest("ZedResponse", Nil, Nil)))
+    val error = intercept[IllegalArgumentException](Generate.generate(colliding, overrides, provenance))
+    assert(error.getMessage.contains("ZedResponse"))
+
+  test("an empty schema still generates a compilable catalog"):
+    val generated = Generate.generate(Schema(Nil, Nil), Overrides(Nil), provenance).toMap
+    assert(generated("Catalog.scala").contains("Map.empty"))
+    assert(
+      !generated("Catalog.scala").contains(
+        "Decoders: Map[String, JsonObject => Either[ProtocolError, Request[?]]] = \n"
+      )
+    )
+
+  test("invalid field names fail with owner context instead of leaking into generated code"):
+    val unnamed = Schema(List(SchemaRequest("Broken", List(SchemaField("", "String")), Nil)), Nil)
+    val empty = intercept[IllegalArgumentException](Generate.generate(unnamed, Overrides(Nil), provenance))
+    assert(empty.getMessage.contains("Broken.request"))
+    val symbol = Schema(List(SchemaRequest("Broken", List(SchemaField("not-a-name", "String")), Nil)), Nil)
+    val invalid = intercept[IllegalArgumentException](Generate.generate(symbol, Overrides(Nil), provenance))
+    assert(invalid.getMessage.contains("Broken.request.not-a-name"))
+    val ticked = Schema(List(SchemaRequest("Broken", List(SchemaField("bad`name", "String")), Nil)), Nil)
+    val backtick = intercept[IllegalArgumentException](Generate.generate(ticked, Overrides(Nil), provenance))
+    assert(backtick.getMessage.contains("Broken.request.bad`name"))
+    val reserved = Schema(List(SchemaRequest("Broken", Nil, List(SchemaField("toJson", "String")))), Nil)
+    val collision = intercept[IllegalArgumentException](Generate.generate(reserved, Overrides(Nil), provenance))
+    assert(collision.getMessage.contains("Broken.response.toJson"))
+
+  test("dotted schema names stay legal backticked identifiers"):
+    val dotted = Schema(List(SchemaRequest("Nested", List(SchemaField("keyModifiers.shift", "Boolean")), Nil)), Nil)
+    val generated = Generate.generate(dotted, Overrides(Nil), provenance).toMap
+    assert(generated("requests/Nested.scala").contains("`keyModifiers.shift`: Boolean"))
+    assert(generated("requests/Nested.scala").contains("NestedFields.encode("))
+    assert(
+      generated("requests/Nested.scala").contains(
+        "NestedFields.required(data, \"keyModifiers.shift\", ValueCodec.boolean)"
+      )
+    )
+
+  test("optional dotted fields decode through the parent object with omission semantics"):
+    val nested = Schema(
+      List(SchemaRequest("Nested", List(SchemaField("parent.child", "Boolean", valueOptional = true)), Nil)),
+      Nil
+    )
+    val generated = Generate.generate(nested, Overrides(), provenance).toMap
+    assert(
+      generated("requests/Nested.scala").contains(
+        "NestedFields.field(data, \"parent.child\", ValueCodec.boolean, false)"
+      )
+    )
+
+  test("overrides files with only documentation keys parse with an empty nullable list"):
+    import com.github.plokhotnyuk.jsoniter_scala.core.*
+    import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
+    assertEquals(
+      readFromString[Overrides]("""{"numberPolicy":"documentation only"}""")(using JsonCodecMaker.make),
+      Overrides(Nil)
+    )
+
+  test("inventory rows collapse restrictions onto one line and include event field restrictions"):
+    val field = SchemaField("slot", "String", valueRestrictions = Some(">= 0,\n\t<= 100"))
+    val inventoried = Schema(List(SchemaRequest("Ranged", List(field), Nil)), List(SchemaEvent("Ranged", List(field))))
+    val generated = Generate.generate(inventoried, Overrides(Nil), provenance).toMap
+    val rows = generated("catalog-inventory.tsv").linesIterator.filter(_.contains("Ranged")).toList
+    assertEquals(rows.size, 2)
+    assert(rows.forall(_.endsWith("\t>= 0, <= 100")))
 
   test("unknown schema types fail instead of silently generating untyped bindings"):
     val unknown = Schema(List(SchemaRequest("Unknown", List(SchemaField("x", "Mystery")), Nil)), Nil)
@@ -157,10 +270,26 @@ class GenerateSuite extends FunSuite:
       SchemaEnum("Status", List(SchemaEnumEntry("Success", SchemaEnumValue("100"))))
     )
     val generated = Generate.generate(schema.copy(enums = enums), overrides, provenance).toMap
-    assert(generated("enums/Mask.scala").contains("One.value | Two.value"))
+    assert(generated("enums/Mask.scala").contains("(`One`.value | `Two`.value)"))
     assert(generated("enums/Mask.scala").contains("/** Bitmask member. */"))
     assert(generated("enums/State.scala").contains("value: String"))
     assert(generated("enums/Status.scala").contains("value: Long"))
+
+  test("mask identifiers are qualified and backticked regardless of the combining operator"):
+    val enums = List(
+      SchemaEnum(
+        "Combo",
+        List(
+          SchemaEnumEntry("One", SchemaEnumValue("(1 << 0)")),
+          SchemaEnumEntry("Type", SchemaEnumValue("(1 << 1)")),
+          SchemaEnumEntry("Both", SchemaEnumValue("(One & Type)")),
+          SchemaEnumEntry("Single", SchemaEnumValue("(One)"))
+        )
+      )
+    )
+    val generated = Generate.generate(schema.copy(enums = enums), overrides, provenance).toMap
+    assert(generated("enums/Combo.scala").contains("Combo((`One`.value & `Type`.value))"))
+    assert(generated("enums/Combo.scala").contains("Combo((`One`.value))"))
 
   test("genuinely mixed enum values are rejected instead of guessed"):
     val mixed = SchemaEnum(
@@ -231,7 +360,7 @@ class GenerateSuite extends FunSuite:
       Schema(List(SchemaRequest("Volume", List(field), List(field))), List(SchemaEvent("VolumeChanged", List(field))))
     val generated = Generate.generate(described, Overrides(Nil), provenance).toMap
     val expected =
-      "@param payloadRequestType Volume in dB. * / Restrictions: >= -100, <= 26 When omitted: Specify inputVolumeMul"
+      "@param `payloadRequestType` Volume in dB. * / Restrictions: >= -100, <= 26 When omitted: Specify inputVolumeMul"
     assertEquals(generated("requests/Volume.scala").sliding(expected.length).count(_ == expected), 2)
     assert(generated("events/VolumeChanged.scala").contains(expected))
 

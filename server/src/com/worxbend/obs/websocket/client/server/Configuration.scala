@@ -15,9 +15,11 @@ private[server] object Configuration:
       .left
       .map(_ => ConfigurationError.MissingOrMalformed)
       .flatMap: config =>
-        if config.http.host.trim.isEmpty then Left(ConfigurationError.InvalidHttpHost)
-        else if config.http.port < 0 || config.http.port > 65535 then Left(ConfigurationError.InvalidHttpPort)
-        else config.obs.clientConfig.validate.left.map(_ => ConfigurationError.InvalidObsSettings).map(_ => config)
+        val normalized = config.copy(http = config.http.copy(host = config.http.host.trim))
+        if normalized.http.host.isEmpty then Left(ConfigurationError.InvalidHttpHost)
+        else if normalized.http.port < 0 || normalized.http.port > 65535 then Left(ConfigurationError.InvalidHttpPort)
+        else
+          normalized.obs.clientConfig.validate.left.map(_ => ConfigurationError.InvalidObsSettings).map(_ => normalized)
 
   /** Invalid startup configuration is terminal; diagnostics never render the source or secret values. */
   def read: Configuration = read(ConfigSource.default)

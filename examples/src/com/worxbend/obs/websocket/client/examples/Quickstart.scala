@@ -26,7 +26,16 @@ object Quickstart:
       passwordProvider = PasswordProvider.fixed(environment.get("OBS_WS_PASSWORD"))
     )
 
+  /** Execute the CLI without terminating its process, so embedders and tests can inspect the status. */
+  private[examples] def execute(args: Array[String], environment: Map[String, String]): Int =
+    run(configuration(args, environment)) match
+      case Right((version, scenes)) =>
+        println(s"OBS ${version.obsVersion}: ${scenes.scenes.size} scenes")
+        0
+      case Left(error) =>
+        Console.err.println(s"OBS connection failed: $error")
+        1
+
   def main(args: Array[String]): Unit =
-    run(configuration(args, sys.env)) match
-      case Right((version, scenes)) => println(s"OBS ${version.obsVersion}: ${scenes.scenes.size} scenes")
-      case Left(error)              => Console.err.println(s"OBS connection failed: $error")
+    val status = execute(args, sys.env)
+    if status != 0 then sys.exit(status)

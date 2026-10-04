@@ -41,6 +41,13 @@ class CoverageGateTests(unittest.TestCase):
             manifest, reports = self.fixture(root)
             self.assertEqual(verify(root, reports, manifest)[1], [])
 
+    def test_mill_wrapper_participates_in_source_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = source_digest(root)
+            (root / 'mill').write_text('#!/bin/sh\n')
+            self.assertNotEqual(before, source_digest(root))
+
     def test_deliberately_missed_branch_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -2,6 +2,8 @@
 
 This is an unreleased Scala 3 library for OBS WebSocket 5.x / RPC 1. Java 25 is required. No Maven Central version has been published.
 
+For a complete read-only workflow with a runnable companion, see [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md).
+
 ## Prepare OBS
 
 Enable the WebSocket server in OBS Studio's Tools menu and obtain its password. The usual local URL is `ws://localhost:4455`. Use a disposable scene collection for tests. This client never starts recording or streaming during its normal test suite.

@@ -2,27 +2,74 @@
 
 Generated request classes live in `com.worxbend.obs.websocket.client.protocol.requests`. A `Request[A]` determines its response type. The session discovers available request names using `GetVersion` immediately after identification. Typed requests absent from the discovered capability set are rejected locally with `ObsError.UnsupportedRequest` — an empty capability set rejects every typed request. `RawRequest` entries bypass this check and reach the server.
 
+For a complete read-only workflow with a runnable companion, see [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md).
+
 ## Optional and nullable fields
 
 Generated optional request fields use `Field.Missing`, `Field.Null`, or `Field.Value(value)`. Missing values are omitted. Explicit null remains distinct on the wire. Required nullable response fields use `Option`. The generator keeps documented numbers as exact `BigDecimal`; it does not guess that every number is an integer.
 
-The upstream catalog describes some nested values only as Object or Array<Object>. Those values remain `JsonObject` or `Vector[JsonObject]`. Read a property through validated `string`, `int`, `array`, or `obj` accessors. Unknown object fields are retained.
+Whether a field takes a plain value or `Field.Value` is schema-driven, not per-request: upstream marks the field optional or not. `CreateScene(sceneName = ...)` takes a plain `String` because the field is required, while `SetCurrentProgramScene(sceneName = Field.Value(...))` wraps it because upstream marks `sceneName` optional there (either name or UUID may identify the scene). The same name can therefore appear with different shapes across requests.
+
+The upstream catalog describes some nested values only as Object or Array<Object>. Generated fields remain `JsonObject` or `Vector[JsonObject]`. Read a property through validated accessors, or import `protocol.models.TypedPayloads.*` for typed views of scenes, inputs, scene items/transforms, monitors, filters, outputs/flags, transitions, property items, canvases, and volume meters. Views validate known fields and retain the original object through `raw`/`toJson`, including unknown keys. Optional version-added fields distinguish `Field.Missing`, `Field.Null`, and `Field.Value`.
+
+## Category APIs and typed views
+
+All 147 catalog requests also have generated category methods. Categories include `general`, `scenes`, `sceneItems`, `inputs`, `sources`, `filters`, `outputs`, `record`, `stream`, `transitions`, `mediaInputs`, `configuration`, `canvases`, and `ui`. They delegate to the same session request method.
+
+```scala
+import com.worxbend.obs.websocket.client.protocol.models.TypedPayloads.*
+
+val result = session.scenes.getSceneList().map(_.typedScenes)
+```
+
+The outer `Either` describes the request outcome; the inner `Either` describes the nested model projection. This lets a caller distinguish connection failures from an incompatible nested payload shape.
 
 ## Expected errors
 
-`ObsError` distinguishes configuration, authentication, protocol negotiation, malformed payload, unexpected messages, oversized messages, unsupported incoming frames, OBS request rejection, timeout, bounded-capacity overflow, unsupported request, transport closure, ambiguous batch outcome, internal invariant violations, and closed session failures.
+`ObsError` distinguishes configuration, authentication, protocol negotiation, malformed payload, local invalid requests, unexpected messages, oversized messages, unsupported incoming frames, OBS request rejection, timeout, bounded-capacity overflow, unsupported request, transport closure, ambiguous batch outcome, internal invariant violations, and closed session failures.
 
-The protocol module reports structural decode failures as `ProtocolError(path, message)`. It is part of the public `Request` trait so custom request types can compose the generated decoders; payload contents and credentials are never included. The session maps every `ProtocolError` to `ObsError.MalformedPayload` internally, so session operations only ever return `ObsError`.
+The protocol module reports structural decode failures as `ProtocolError(path, message)`. It is part of the public `Request` trait so custom request types can compose the generated decoders; payload contents and credentials are never included. The session maps local catalog validation failures to `ObsError.InvalidRequest` and incoming decode failures to `ObsError.MalformedPayload`, so session operations return `ObsError` while independent model/helper validation retains `ProtocolError`.
 
 An OBS rejection preserves request type, request ID, status code, and optional comment. Do not log complete request/settings objects. Configuration rendering redacts both the URI and password provider, including invalid configurations and query tokens. Transport diagnostics omit peer-controlled exception text.
 
+Connection URIs must use `ws` or `wss` with a host, and must omit userinfo, query parameters, and fragments. Use the password provider for OBS authentication and validated handshake headers for an intermediary's header-based authentication.
+
 A `MessageTooLarge` failure on an outgoing request or batch is a deterministic local rejection: nothing was written to the socket, only the offending operation fails, the session stays alive, and a rejected batch is never reported as an ambiguous outcome. `UnsupportedMessage` (for example a binary frame in JSON mode) and an inbound `MessageTooLarge` fail the session. `InternalError` reports a violated library invariant — a bug or a broken injected dependency — never a user configuration problem.
 
-Retry classification for the opt-in reconnect entrypoint: transport failures without a close code, transient close codes (1001, 1006, 1011, 1012, 1013), and timeouts may retry. Deterministic conditions — `MessageTooLarge`, `UnsupportedMessage`, `InvalidConfiguration`, `InternalError`, malformed payloads, authentication and protocol failures, request rejections, and the terminal OBS close codes (1000, 4009, 4010, 4011) — recur identically after reconnect and never retry.
+Retry classification for the opt-in reconnect entrypoint: transport failures without a close code, transient close codes (1001, 1006, 1011, 1012, 1013), and timeouts may retry. Deterministic conditions — `MessageTooLarge`, `UnsupportedMessage`, `InvalidConfiguration`, `InvalidRequest`, `InternalError`, malformed payloads, authentication and protocol failures, request rejections, and the terminal OBS close codes (1000, 4009, 4010, 4011) — recur identically after reconnect and never retry.
 
 ## Deadlines and backpressure
 
 Connection, identification, request, and shutdown deadlines are configured separately. Pending requests, the outgoing queue, message size, and each subscriber buffer are bounded. Saturation returns a typed overflow error. Concurrent responses correlate by request ID, independent of arrival order. Late or duplicate responses cannot revive completed requests.
+
+`RequestOptions` overrides the session default for a complete exchange, including actor registration and response waiting. It applies to `request`, `rawRequest`, `batch`, and `typedBatch`. Use `withOptions` to apply it through category methods:
+
+```scala
+import com.worxbend.obs.websocket.client.RequestOptions
+import scala.concurrent.duration.*
+
+val result = session.withOptions(RequestOptions(timeout = Some(2.seconds))).general.getVersion()
+```
+
+Budgets bound registration and response waiting. Local validation, typed decoding, and required cancellation cleanup are additional work, so this is not a hard end-to-end wall-clock return guarantee.
+
+The sttp adapter separately enforces `SttpOptions.writeTimeout` for data and Pong writes; `ObsConfig.shutdownTimeout` bounds the Close attempt. A write timeout aborts that connection; it never replays the operation. Caller-owned backends must provide an abort hook that promptly unblocks both reads and writes.
+
+For an owned connection, `SttpObsClient.connect(config, options, clientOptions)` accepts `SttpOptions` and `JdkClientOptions`. Construct custom handshake headers with `HandshakeHeaders.create`; reserved WebSocket/HTTP framing headers and invalid values are rejected, and rendering is redacted. `JdkClientOptions` accepts optional `ProxySelector` and `SSLContext` values. `withBackend` takes transport options but leaves TLS/proxy ownership with its supplied backend. Reconnect uses the same transport settings on each fresh generation.
+
+## Inspect a response once
+
+`requestEnvelope` retains the raw response data and its typed decode result from the same exchange. Server rejections and transport failures remain outer errors. A successful server response with an incompatible typed shape returns an envelope whose `decoded` member is `Left`; `raw` remains available. This is especially useful for operations that must not be issued again just to inspect their result.
+
+```scala
+import com.worxbend.obs.websocket.client.protocol.requests.GetVersion
+
+val result = session.requestEnvelope(GetVersion()).map(envelope => (envelope.raw, envelope.decoded))
+```
+
+## Explicit readiness recovery
+
+`requestWhenReady` retries only an explicit OBS NotReady rejection (207), only for names in `ReadinessPolicy.supportedRequests`. Raw requests, batches, and mutations are excluded. `maxAttempts` includes the first attempt, and the entire operation shares the configured request budget, including delays. `ObsConfig.readiness = Some(policy)` enables the same bounded recovery for startup capability discovery. Both behaviors are opt-in; authentication failures, timeouts, and uncertain writes are never readiness retries.
 
 ## Raw extensions
 

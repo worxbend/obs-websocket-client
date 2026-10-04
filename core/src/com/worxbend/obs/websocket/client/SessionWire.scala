@@ -3,7 +3,25 @@ package com.worxbend.obs.websocket.client
 import com.worxbend.obs.websocket.client.protocol.*
 
 private[client] object SessionWire:
-  def malformed(error: ProtocolError): ObsError = ObsError.MalformedPayload(error.path, error.message)
+  /** obs-websocket 5.x opcodes the session sends and matches on. */
+  object Op:
+    val Hello = 0
+    val Identify = 1
+    val Identified = 2
+    val Reidentify = 3
+    val Event = 5
+    val Request = 6
+    val RequestResponse = 7
+    val RequestBatch = 8
+    val RequestBatchResponse = 9
+
+  /** A byte-limit rejection means the frame never reached the parser; keep it distinct from malformed input. */
+  def malformed(error: ProtocolError): ObsError = error match
+    case ProtocolError.SizeLimit => ObsError.MessageTooLarge("Incoming message exceeds configured byte limit")
+    case other                   => ObsError.MalformedPayload(other.path, other.message)
+
+  /** Local pre-send catalog validation is not a wire failure. */
+  def invalid(error: ProtocolError): ObsError = ObsError.InvalidRequest(error.path, error.message)
 
   def responseData(data: JsonObject, expectedType: String, id: String): Either[ObsError, JsonObject] =
     for

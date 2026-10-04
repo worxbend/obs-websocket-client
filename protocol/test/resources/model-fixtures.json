@@ -1,0 +1,563 @@
+{
+  "Scene": {
+    "valid": {
+      "sceneName": "sceneName value",
+      "sceneIndex": 1,
+      "sceneUuid": "sceneUuid value"
+    },
+    "fields": [
+      {
+        "name": "sceneName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneIndex",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneUuid",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "Input": {
+    "valid": {
+      "inputName": "inputName value",
+      "inputKind": "inputKind value",
+      "unversionedInputKind": "unversionedInputKind value",
+      "inputUuid": "inputUuid value",
+      "inputKindCaps": 1
+    },
+    "fields": [
+      {
+        "name": "inputName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "inputKind",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "unversionedInputKind",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "inputUuid",
+        "optional": true,
+        "any": false
+      },
+      {
+        "name": "inputKindCaps",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "SceneItemTransform": {
+    "valid": {
+      "alignment": 1,
+      "boundsAlignment": 1,
+      "boundsHeight": 1,
+      "boundsWidth": 1,
+      "cropBottom": 1,
+      "cropLeft": 1,
+      "cropRight": 1,
+      "cropTop": 1,
+      "height": 1,
+      "positionX": 3.25,
+      "positionY": 3.25,
+      "rotation": 1,
+      "scaleX": 3.25,
+      "scaleY": 3.25,
+      "sourceHeight": 1,
+      "sourceWidth": 1,
+      "width": 1,
+      "boundsType": "boundsType value",
+      "cropToBounds": true
+    },
+    "fields": [
+      {
+        "name": "alignment",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "boundsAlignment",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "boundsHeight",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "boundsWidth",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "cropBottom",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "cropLeft",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "cropRight",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "cropTop",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "height",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "positionX",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "positionY",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "rotation",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "scaleX",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "scaleY",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sourceHeight",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sourceWidth",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "width",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "boundsType",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "cropToBounds",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "SceneItem": {
+    "valid": {
+      "sceneItemId": 1,
+      "sceneItemIndex": 1,
+      "sourceName": "sourceName value",
+      "sourceType": "sourceType value",
+      "sceneItemEnabled": true,
+      "sceneItemLocked": true,
+      "sceneItemBlendMode": "sceneItemBlendMode value",
+      "sceneItemTransform": {
+        "alignment": 1,
+        "boundsAlignment": 1,
+        "boundsHeight": 1,
+        "boundsWidth": 1,
+        "cropBottom": 1,
+        "cropLeft": 1,
+        "cropRight": 1,
+        "cropTop": 1,
+        "height": 1,
+        "positionX": 3.25,
+        "positionY": 3.25,
+        "rotation": 1,
+        "scaleX": 3.25,
+        "scaleY": 3.25,
+        "sourceHeight": 1,
+        "sourceWidth": 1,
+        "width": 1,
+        "boundsType": "boundsType value",
+        "cropToBounds": true
+      },
+      "sourceUuid": "sourceUuid value",
+      "inputKind": "inputKind value",
+      "isGroup": true
+    },
+    "fields": [
+      {
+        "name": "sceneItemId",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneItemIndex",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sourceName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sourceType",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneItemEnabled",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneItemLocked",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneItemBlendMode",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sceneItemTransform",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "sourceUuid",
+        "optional": true,
+        "any": false
+      },
+      {
+        "name": "inputKind",
+        "optional": true,
+        "any": false
+      },
+      {
+        "name": "isGroup",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "Monitor": {
+    "valid": {
+      "monitorHeight": 1,
+      "monitorIndex": 1,
+      "monitorPositionX": 1,
+      "monitorPositionY": 1,
+      "monitorWidth": 1,
+      "monitorName": "monitorName value"
+    },
+    "fields": [
+      {
+        "name": "monitorHeight",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "monitorIndex",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "monitorPositionX",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "monitorPositionY",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "monitorWidth",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "monitorName",
+        "optional": false,
+        "any": false
+      }
+    ]
+  },
+  "Filter": {
+    "valid": {
+      "filterName": "filterName value",
+      "filterKind": "filterKind value",
+      "filterIndex": 1,
+      "filterEnabled": true,
+      "filterSettings": {
+        "customSetting": "retained"
+      }
+    },
+    "fields": [
+      {
+        "name": "filterName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "filterKind",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "filterIndex",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "filterEnabled",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "filterSettings",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "OutputFlags": {
+    "valid": {
+      "OBS_OUTPUT_AUDIO": true,
+      "OBS_OUTPUT_VIDEO": true,
+      "OBS_OUTPUT_ENCODED": true,
+      "OBS_OUTPUT_MULTI_TRACK": true,
+      "OBS_OUTPUT_SERVICE": true
+    },
+    "fields": [
+      {
+        "name": "OBS_OUTPUT_AUDIO",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "OBS_OUTPUT_VIDEO",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "OBS_OUTPUT_ENCODED",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "OBS_OUTPUT_MULTI_TRACK",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "OBS_OUTPUT_SERVICE",
+        "optional": false,
+        "any": false
+      }
+    ]
+  },
+  "Output": {
+    "valid": {
+      "outputName": "outputName value",
+      "outputKind": "outputKind value",
+      "outputWidth": 1,
+      "outputHeight": 1,
+      "outputActive": true,
+      "outputFlags": {
+        "OBS_OUTPUT_AUDIO": true,
+        "OBS_OUTPUT_VIDEO": true,
+        "OBS_OUTPUT_ENCODED": true,
+        "OBS_OUTPUT_MULTI_TRACK": true,
+        "OBS_OUTPUT_SERVICE": true
+      }
+    },
+    "fields": [
+      {
+        "name": "outputName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "outputKind",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "outputWidth",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "outputHeight",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "outputActive",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "outputFlags",
+        "optional": false,
+        "any": false
+      }
+    ]
+  },
+  "Transition": {
+    "valid": {
+      "transitionName": "transitionName value",
+      "transitionKind": "transitionKind value",
+      "transitionConfigurable": true,
+      "transitionFixed": true,
+      "transitionUuid": "transitionUuid value"
+    },
+    "fields": [
+      {
+        "name": "transitionName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "transitionKind",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "transitionConfigurable",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "transitionFixed",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "transitionUuid",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "PropertyItem": {
+    "valid": {
+      "itemName": "itemName value",
+      "itemEnabled": true,
+      "itemValue": null
+    },
+    "fields": [
+      {
+        "name": "itemName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "itemEnabled",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "itemValue",
+        "optional": false,
+        "any": true
+      }
+    ]
+  },
+  "InputVolumeMeter": {
+    "valid": {
+      "inputName": "inputName value",
+      "inputLevelsMul": [
+        [
+          0.1,
+          0.2,
+          0.3
+        ],
+        [
+          0.2,
+          0.3,
+          0.4
+        ]
+      ],
+      "inputUuid": "inputUuid value"
+    },
+    "fields": [
+      {
+        "name": "inputName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "inputLevelsMul",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "inputUuid",
+        "optional": true,
+        "any": false
+      }
+    ]
+  },
+  "Canvas": {
+    "valid": {
+      "canvasName": "canvasName value",
+      "canvasUuid": "canvasUuid value",
+      "canvasWidth": 1,
+      "canvasHeight": 1
+    },
+    "fields": [
+      {
+        "name": "canvasName",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "canvasUuid",
+        "optional": false,
+        "any": false
+      },
+      {
+        "name": "canvasWidth",
+        "optional": true,
+        "any": false
+      },
+      {
+        "name": "canvasHeight",
+        "optional": true,
+        "any": false
+      }
+    ]
+  }
+}

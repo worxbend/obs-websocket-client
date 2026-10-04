@@ -63,7 +63,7 @@ class SttpClientSuite extends FunSuite:
     )(_ => ())
     assertEquals(
       result,
-      Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials or fragment"))
+      Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
     )
 
   test("residual sttp URI parse failures are configuration errors"):

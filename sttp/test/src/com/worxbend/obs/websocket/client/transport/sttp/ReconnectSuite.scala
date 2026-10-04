@@ -44,8 +44,9 @@ class ReconnectSuite extends FunSuite:
           Right(())
         case _ => Left(transient)
     def receive(): Either[ObsError, String] = inbound.receiveOrClosed() match
-      case value: Either[?, ?] => value.asInstanceOf[Either[ObsError, String]]
-      case _: ChannelClosed    => Left(ObsError.Closed)
+      case Right(text)      => Right(text)
+      case Left(error)      => Left(error)
+      case _: ChannelClosed => Left(ObsError.Closed)
     def close(): Unit =
       closed = true
       val _ = inbound.doneOrClosed()
@@ -142,6 +143,7 @@ class ReconnectSuite extends FunSuite:
       ObsError.Authentication("rejected"),
       ObsError.IncompatibleProtocol(0),
       ObsError.MalformedPayload("rpcVersion", "invalid"),
+      ObsError.InvalidRequest("inputVolumeDb", "out of range"),
       ObsError.Transport("invalidated", Some(4011)),
       ObsError.Transport("authentication", Some(4009)),
       ObsError.Transport("unsupported RPC", Some(4010)),
@@ -167,6 +169,71 @@ class ReconnectSuite extends FunSuite:
       ReconnectDecision.Complete(())
     assertEquals(result, Left(transient))
     assertEquals(connector.calls, 4)
+
+  test("event gap notice fires only when the retry budget still covers another attempt"):
+    val connector = new Connector(List.fill(3)(transient))
+    var notices = Vector.empty[ReconnectNotice]
+    val result = ReconnectingObsClient.withConnector(
+      connector,
+      ObsConfig(),
+      policy,
+      immediate,
+      notice => notices = notices :+ notice
+    ): (_, _) =>
+      ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
+    assertEquals(result, Left(transient))
+    assertEquals(connector.calls, 4)
+    assert(notices.exists(_.isInstanceOf[ReconnectNotice.RetryScheduled]))
+    assert(!notices.exists(_.isInstanceOf[ReconnectNotice.EventGap]))
+
+  test("a non-retryable retry decision reports no event gap"):
+    val connector = new Connector
+    var notices = Vector.empty[ReconnectNotice]
+    val fatal = ObsError.Authentication("rejected")
+    val result = ReconnectingObsClient.withConnector(
+      connector,
+      ObsConfig(),
+      policy,
+      immediate,
+      notice => notices = notices :+ notice
+    ): (_, _) =>
+      ReconnectDecision.Retry(fatal, ObsConfig().eventSubscriptions)
+    assertEquals(result, Left(fatal))
+    assertEquals(connector.calls, 1)
+    assert(!notices.exists(_.isInstanceOf[ReconnectNotice.EventGap]))
+
+  test("notice callback defects surface as internal errors within the either contract"):
+    val connector = new Connector
+    val result = ReconnectingObsClient.withConnector(
+      connector,
+      ObsConfig(),
+      policy,
+      immediate,
+      _ => throw new IllegalArgumentException("listener defect")
+    ): (_, _) =>
+      ReconnectDecision.Complete(())
+    assert(result.left.exists(_.isInstanceOf[ObsError.InternalError]))
+    assertEquals(connector.calls, 1)
+    assert(connector.peers.head.closed)
+
+  test("notice callbacks propagate interruption for cancellation"):
+    val connector = new Connector(List(transient))
+    val interrupted =
+      try
+        val _ = ReconnectingObsClient.withConnector(
+          connector,
+          ObsConfig(),
+          policy,
+          immediate,
+          _ => throw new InterruptedException("cancelled")
+        ): (_, _) =>
+          ReconnectDecision.Complete(())
+        false
+      catch case _: InterruptedException => true
+      finally
+        val _ = Thread.interrupted()
+    assert(interrupted)
+    assertEquals(connector.calls, 1)
 
   test("application stop prevents retry even for a transient cause"):
     val connector = new Connector

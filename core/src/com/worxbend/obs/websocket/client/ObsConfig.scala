@@ -37,8 +37,12 @@ final case class ObsConfig(
     maxInFlight: Int = 256,
     outgoingCapacity: Int = 256,
     subscriptionCapacity: Int = 128,
+    /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
+      * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session.
+      */
     maxMessageBytes: Int = Protocol.defaultMaxBytes,
-    eventSubscriptions: EventSubscriptions = EventSubscriptions.normal
+    eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
+    readiness: Option[ReadinessPolicy] = None
 ):
   def validate: Either[ObsError, ObsConfig] =
     URI
@@ -48,15 +52,17 @@ final case class ObsConfig(
       .map(_ => ObsError.InvalidConfiguration("Invalid WebSocket URI"))
       .flatMap: parsed =>
         if !Set("ws", "wss").contains(parsed.getScheme) || Option(parsed.getHost).isEmpty ||
-          Option(parsed.getUserInfo).nonEmpty || Option(parsed.getFragment).nonEmpty
-        then Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials or fragment"))
+          Option(parsed.getUserInfo).nonEmpty || Option(parsed.getQuery).nonEmpty ||
+          Option(parsed.getFragment).nonEmpty
+        then
+          Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
         else if parsed.getPort != -1 && (parsed.getPort < 1 || parsed.getPort > 65535) then
           Left(ObsError.InvalidConfiguration("Explicit WebSocket port must be between 1 and 65535"))
         else if List(connectionTimeout, handshakeTimeout, requestTimeout, shutdownTimeout).exists(_ <= Duration.Zero)
         then Left(ObsError.InvalidConfiguration("All deadlines must be positive"))
         else if List(maxInFlight, outgoingCapacity, subscriptionCapacity, maxMessageBytes).exists(_ <= 0) then
           Left(ObsError.InvalidConfiguration("All buffer and message limits must be positive"))
-        else Right(this)
+        else readiness.map(_.validate).getOrElse(Right(())).map(_ => this)
 
   override def toString: String =
     s"ObsConfig(uri=<redacted>, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"

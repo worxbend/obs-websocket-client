@@ -4,8 +4,8 @@ package com.worxbend.obs.websocket.client
   *
   * Retry classification for the opt-in reconnect entrypoint: `Transport` without a close code, `Transport` with a
   * transient close code (1001, 1006, 1011, 1012, 1013), and `Timeout` may retry. `MessageTooLarge`,
-  * `UnsupportedMessage`, `InvalidConfiguration`, and `InternalError` are deterministic and never retry; neither do
-  * authentication, protocol, malformed-payload, rejection, overflow, or closed-session failures.
+  * `UnsupportedMessage`, `InvalidConfiguration`, `InvalidRequest`, and `InternalError` are deterministic and never
+  * retry; neither do authentication, protocol, malformed-payload, rejection, overflow, or closed-session failures.
   */
 enum ObsError:
   case InvalidConfiguration(message: String)
@@ -14,6 +14,11 @@ enum ObsError:
   case IncompatibleProtocol(version: Int)
   case MalformedPayload(path: String, message: String)
   case UnexpectedMessage(state: ConnectionState, opcode: Int)
+
+  /** A request failed local catalog validation before anything was sent. Unlike `MalformedPayload` — a wire-level
+    * failure reported by the peer or the frame decoder — this is a deterministic local rejection.
+    */
+  case InvalidRequest(path: String, message: String)
 
   /** A message exceeded the configured byte limit. Nothing was written to or read from the socket beyond the limit, so
     * the condition recurs identically after reconnect. An outbound occurrence completes only the offending request or

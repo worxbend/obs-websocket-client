@@ -37,10 +37,12 @@ obs {
 ```
 
 PureConfig loads typed settings once at startup. A nonempty host, a port in
-`1..65535`, and a valid `ws`/`wss` OBS endpoint are required. The library retains
+`0..65535` (0 lets the OS assign), and a valid `ws`/`wss` OBS endpoint are
+required. The library retains
 its explicit `ObsConfig` API; it does not depend on PureConfig or read HOCON.
-Passwords use a `Sensitive` wrapper, configuration rendering masks both the
-password and OBS URL, and startup errors do not echo configuration source text.
+Passwords use a `Sensitive` wrapper, configuration rendering shows the OBS URL but
+masks the password as `<set>` or `<unset>`, and startup errors do not echo
+configuration source text.
 
 The four environment overrides above are optional. `OBS_WS_PASSWORD` can be
 omitted for an OBS instance without authentication. PureConfig's normal
@@ -58,3 +60,4 @@ were sbt and Scala CLI, so the sbt archive was inspected and migrated to the sol
 Mill build. `server/generator-provenance.json` records settings and archive hash.
 
 Set `HTTP_PORT=0` to let the OS assign a free listening port; the startup message reports the actual port.
+Passing a HOCON file path as the first argument loads configuration from that file instead of the default source.

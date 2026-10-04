@@ -1,6 +1,7 @@
 package com.worxbend.obs.websocket.client.integration
 
 import com.worxbend.obs.websocket.client.{EventSubscriptions, ObsConfig, ObsError, PasswordProvider}
+import com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged
 import com.worxbend.obs.websocket.client.protocol.requests.{GetSceneList, GetVersion}
 import com.worxbend.obs.websocket.client.protocol.requests.{
   CreateScene,
@@ -12,7 +13,6 @@ import com.worxbend.obs.websocket.client.protocol.Field
 import com.worxbend.obs.websocket.client.transport.sttp.SttpObsClient
 import munit.FunSuite
 import ox.timeoutOption
-import scala.concurrent.duration.*
 
 /** Opt-in discovery plus separately enabled disposable scene mutations; absence is an explicit skip. */
 class RealObsSuite extends FunSuite:
@@ -50,13 +50,20 @@ class RealObsSuite extends FunSuite:
   test("disposable real OBS acknowledges subscription updates without disconnecting"):
     assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")
     val result = SttpObsClient.connect(disposableConfig()): session =>
+      // Each request after a reidentify forces its uncorrelated Identified ack to arrive first (the server
+      // processes frames in order), so a zero observed backlog proves the ack was actually received.
       for
         _ <- session.reidentify(EventSubscriptions.none)
         _ <- session.request(GetVersion())
+        firstBacklog <- session.pendingReidentifyAcks
         _ <- session.reidentify(EventSubscriptions.normal)
         version <- session.request(GetVersion())
-      yield version.obsWebSocketVersion
-    assert(result.flatten.isRight, s"Reidentify verification failed: $result")
+        secondBacklog <- session.pendingReidentifyAcks
+      yield (firstBacklog, secondBacklog, version.obsWebSocketVersion)
+    val (firstBacklog, secondBacklog, _) =
+      result.flatten.fold(error => fail(s"Reidentify verification failed: $error"), identity)
+    assertEquals(firstBacklog, 0, "Server never acknowledged the first Reidentify")
+    assertEquals(secondBacklog, 0, "Server never acknowledged the second Reidentify")
     println("Verified Reidentify acknowledgements preserve the live OBS session")
 
   test("empty disposable OBS scene switching broadcasts a typed event and cleans up"):
@@ -78,20 +85,24 @@ class RealObsSuite extends FunSuite:
       try
         val observed = session.withEvents(Set("CurrentProgramSceneChanged")): events =>
           assert(session.request(SetCurrentProgramScene(sceneName = Field.Value(temporary))).isRight)
-          val event = timeoutOption(5.seconds)(events.next())
+          val event = timeoutOption(config.requestTimeout)(events.next())
             .getOrElse(fail("Scene event deadline exceeded"))
             .fold(error => fail(s"Scene subscription failed: $error"), identity)
           event match
-            case changed: com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged =>
+            case changed: CurrentProgramSceneChanged =>
               assertEquals(changed.sceneName, temporary)
             case other => fail(s"Expected typed scene event, received ${other.eventType}")
-          assertEquals(session.request(GetSceneList()).toOption.flatMap(_.currentProgramSceneName), Some(temporary))
+          val switched =
+            session.request(GetSceneList()).fold(error => fail(s"Scene verification failed: $error"), identity)
+          assertEquals(switched.currentProgramSceneName, Some(temporary))
         assertEquals(observed, Right(()))
       finally
         val restored = session.request(SetCurrentProgramScene(sceneName = Field.Value(original)))
         val removed = session.request(RemoveScene(sceneName = Field.Value(temporary)))
         assert(restored.isRight, s"Disposable scene restoration failed: $restored")
         assert(removed.isRight, s"Disposable scene removal failed: $removed")
-      assertEquals(session.request(GetSceneList()).toOption.map(_.scenes.size), Some(1))
+      val remaining =
+        session.request(GetSceneList()).fold(error => fail(s"Scene cleanup verification failed: $error"), identity)
+      assertEquals(remaining.scenes.size, 1)
       println("Verified disposable scene creation, switching, event delivery, restoration and removal")
     assertEquals(result, Right(()))

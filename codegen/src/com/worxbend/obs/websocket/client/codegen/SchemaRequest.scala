@@ -7,5 +7,6 @@ private[codegen] final case class SchemaRequest(
     initialVersion: String = "",
     description: String = "",
     rpcVersion: String = "",
-    deprecated: Boolean = false
+    deprecated: Boolean = false,
+    category: String = "general"
 )

@@ -50,7 +50,7 @@ def instrumented_statements(root, module):
 def source_digest(root):
     files = sorted(p for p in root.rglob('*') if p.is_file()
                    and not any(part in {'.git', 'out', '.bsp', '.metals'} for part in p.relative_to(root).parts)
-                   and (p.suffix in {'.scala', '.mill', '.md', '.json', '.conf', '.py', '.sh', '.yml', '.yaml'} or p.name in {'.mill-version', '.scalafmt.conf'}))
+                   and (p.suffix in {'.scala', '.mill', '.md', '.json', '.conf', '.py', '.sh', '.yml', '.yaml'} or p.name in {'.mill-version', '.scalafmt.conf', 'mill'}))
     digest = hashlib.sha256()
     for path in files:
         digest.update(str(path.relative_to(root)).encode())
@@ -133,16 +133,23 @@ def main():
     if args.start:
         import time
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
-        args.manifest.write_text(json.dumps({'source_sha256': source_digest(ROOT), 'started_ns': time.time_ns(), 'instrumentation_sha256': instrumentation_digests(ROOT)}, indent=2))
+        try:
+            digests = instrumentation_digests(ROOT)
+        except OSError as error:
+            print(f'Coverage start failed: {error}; run ./mill --no-server coverage.reset first', file=sys.stderr)
+            return 1
+        args.manifest.write_text(json.dumps({'source_sha256': source_digest(ROOT), 'started_ns': time.time_ns(), 'instrumentation_sha256': digests}, indent=2))
         return 0
     paths = dict(item.split('=', 1) for item in args.report)
     reports = {module: Path(path) for module, path in paths.items()}
-    for module in MODULES:
-        if module not in reports:
-            candidates = list((ROOT / 'out' / module / 'scoverage').glob('xmlReport.dest/**/scoverage.xml'))
-            if len(candidates) == 1:
-                reports[module] = candidates[0]
     try:
+        for module in MODULES:
+            if module not in reports:
+                candidates = list((ROOT / 'out' / module / 'scoverage').glob('xmlReport.dest/**/scoverage.xml'))
+                if len(candidates) == 1:
+                    reports[module] = candidates[0]
+                elif len(candidates) > 1:
+                    raise ValueError(f'{module}: multiple scoverage.xml candidates: ' + ', '.join(map(str, candidates)))
         rows, errors = verify(ROOT, reports, args.manifest)
     except (OSError, ValueError, KeyError, ET.ParseError) as error:
         print(f'Coverage verification failed: {error}', file=sys.stderr)

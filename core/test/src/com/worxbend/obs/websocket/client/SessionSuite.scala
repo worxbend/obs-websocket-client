@@ -18,8 +18,9 @@ class SessionSuite extends FunSuite:
     def send(text: String): Either[ObsError, Unit] =
       Protocol.decode(text).left.map(SessionWire.malformed).map(sent.send)
     def receive(): Either[ObsError, String] = inbound.receiveOrClosed() match
-      case value: Either[?, ?] => value.asInstanceOf[Either[ObsError, String]]
-      case _: ChannelClosed    => Left(ObsError.Closed)
+      case Right(text: String)   => Right(text)
+      case Left(error: ObsError) => Left(error)
+      case _: ChannelClosed      => Left(ObsError.Closed)
     def close(): Unit =
       closed.trySendOrClosed(()).discard
       inbound.doneOrClosed().discard
@@ -209,11 +210,11 @@ class SessionSuite extends FunSuite:
       }
       assertEquals(result, Right(Right(())))
 
-  test("event flows emit typed terminal errors once"):
+  test("event flows complete cleanly when the session closes"):
     val result = connected()(_ => ()): (session, _) =>
       session.withEvents(): subscription =>
         session.close()
-        assertEquals(subscription.flow.runToList(), List(Left(ObsError.Closed)))
+        assertEquals(subscription.flow.runToList(), List.empty)
     assertEquals(result, Right(Right(())))
 
   test("a hello requiring authentication without a configured password fails and closes"):
@@ -257,7 +258,7 @@ class SessionSuite extends FunSuite:
         val identify = peer.identify()
         assertEquals(
           identify.data.string("authentication"),
-          Right(Authentication.compute(password, "salt", "challenge"))
+          Right(Authentication.compute(password.getBytes(java.nio.charset.StandardCharsets.UTF_8), "salt", "challenge"))
         )
         peer.discover()
       val cfg = config.copy(passwordProvider = PasswordProvider.fixed(Some(password)))
@@ -275,6 +276,12 @@ class SessionSuite extends FunSuite:
 
   test("URIs with embedded credentials are rejected"):
     assert(config.copy(uri = "ws://a:b@localhost").validate.isLeft)
+
+  test("URIs with a query string are rejected so secrets cannot leak into requests or logs"):
+    assertEquals(
+      config.copy(uri = "ws://localhost/?token=secret").validate,
+      Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
+    )
 
   test("unparseable URIs are rejected"):
     assert(config.copy(uri = "not a uri").validate.isLeft)
@@ -421,10 +428,14 @@ class SessionSuite extends FunSuite:
     } { (session, _) =>
       assertEquals(session.reidentify(EventSubscriptions.none), Right(()))
       assertEquals(session.rawRequest("Echo"), Right(empty))
+      // The peer acknowledged the reidentify before responding, so the backlog observed by the hook has drained.
+      assertEquals(session.pendingReidentifyAcks, Right(0))
       session.close()
       session.close()
       assertEquals(session.state, Right(ConnectionState.Closed))
       assertEquals(session.rawRequest("Echo"), Left(ObsError.Closed))
+      // Registration fails before anything is queued, so the batch outcome is certain, not ambiguous.
+      assertEquals(session.batch(Vector(RawRequest("Echo", empty))), Left(ObsError.Closed))
       assertEquals(session.reidentify(EventSubscriptions.normal), Left(ObsError.Closed))
       assertEquals(session.withEvents()(_ => ()), Left(ObsError.Closed))
       session
@@ -567,8 +578,8 @@ class SessionSuite extends FunSuite:
             )
           )
         )
-        assert(allowed.request(invalid).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
-        assert(allowed.batch(Vector(invalid)).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
+        assert(allowed.request(invalid).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
+        assert(allowed.batch(Vector(invalid)).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
     }
     assertEquals(result, Right(()))
 
@@ -629,3 +640,224 @@ class SessionSuite extends FunSuite:
   test("configuration rendering redacts invalid userinfo and query credentials"):
     for uri <- Vector("ws://user:secret@localhost", "ws://localhost?token=secret") do
       assert(!config.copy(uri = uri).toString.contains("secret"))
+
+  private val versionRead: Request[JsonObject] = new Request[JsonObject]:
+    def requestType: String = "GetVersion"
+    def requestData: JsonObject = JsonObject.empty
+    def decodeResponse(data: JsonObject): Either[ProtocolError, JsonObject] = Right(data)
+
+  test("per-operation deadlines validate and override the session default"):
+    connected() { peer =>
+      val request = peer.sent.receive()
+      assertEquals(request.data.string("requestType"), Right("Echo"))
+    } { (session, _) =>
+      assert(session.rawRequest("Echo", options = RequestOptions(Some(Duration.Zero))).isLeft)
+      assertEquals(
+        session.rawRequest("Echo", options = RequestOptions(Some(10.millis))),
+        Left(ObsError.Timeout("Echo"))
+      )
+    }
+
+  test("response envelopes retain unknown fields and decode errors from exactly one request"):
+    val payload = JsonObject(Map("future" -> JsonValue.Str("retained")))
+    connected()(peer => peer.respond(peer.sent.receive(), payload)) { (session, _) =>
+      val envelope =
+        session.requestEnvelope(com.worxbend.obs.websocket.client.protocol.requests.GetVersion()).toOption.get
+      assertEquals(envelope.raw, payload)
+      assert(envelope.decoded.isLeft)
+    }
+
+  test("configured facade adapter shares request budget and typed decoder"):
+    connected()(peer => peer.respond(peer.sent.receive())) { (session, _) =>
+      assertEquals(session.withOptions(RequestOptions(Some(1.second))).request(versionRead), Right(empty))
+    }
+
+  test("readiness retries explicit NotReady then returns read response"):
+    connected() { peer =>
+      peer.respond(peer.sent.receive(), code = 207)
+      peer.respond(peer.sent.receive(), JsonObject(Map("ready" -> JsonValue.Bool(true))))
+    } { (session, _) =>
+      assertEquals(
+        session.requestWhenReady(versionRead, ReadinessPolicy(2, Duration.Zero)).toOption.get.boolean("ready"),
+        Right(true)
+      )
+    }
+
+  test("readiness rejects extension requests, mutation requests and invalid policies locally"):
+    connected()(_ => ()) { (session, _) =>
+      assert(session.requestWhenReady(RawRequest("GetVersion")).isLeft)
+      assert(session.requestWhenReady(com.worxbend.obs.websocket.client.protocol.requests.StartRecord()).isLeft)
+      assert(session.requestWhenReady(versionRead, ReadinessPolicy(0)).isLeft)
+      assert(session.requestWhenReady(versionRead, options = RequestOptions(Some(Duration.Zero))).isLeft)
+    }
+
+  test("readiness attempts stop at their configured limit"):
+    connected()(peer => peer.respond(peer.sent.receive(), code = 207)) { (session, _) =>
+      assert(session.requestWhenReady(versionRead, ReadinessPolicy(1)).left.toOption.exists {
+        case ObsError.RequestRejected(_, _, 207, _) => true
+        case _                                      => false
+      })
+    }
+
+  test("readiness total deadline includes backoff"):
+    connected()(peer => peer.respond(peer.sent.receive(), code = 207)) { (session, _) =>
+      assertEquals(
+        session.requestWhenReady(versionRead, ReadinessPolicy(2, 1.second), RequestOptions(Some(20.millis))),
+        Left(ObsError.Timeout("GetVersion"))
+      )
+    }
+
+  test("startup readiness recovery is opt-in and finishes discovery before invoking the callback"):
+    supervised:
+      val peer = new Peer
+      forkDiscard:
+        peer.hello()
+        peer.identify().discard
+        peer.respond(peer.sent.receive(), code = 207)
+        peer.discover()
+      assertEquals(
+        ObsClient.withTransport(peer, config.copy(readiness = Some(ReadinessPolicy(2, Duration.Zero))))(
+          _.metadata.availableRequests.contains("GetVersion")
+        ),
+        Right(true)
+      )
+      assert(config.copy(readiness = Some(ReadinessPolicy(0))).validate.isLeft)
+
+  test("diagnostics record metadata and complete counters despite bounded observer overflow"):
+    connected() { peer =>
+      peer.respond(peer.sent.receive())
+    } { (session, _) =>
+      assert(session.withDiagnostics(0)(_ => ()).isLeft)
+      val observed = session.withDiagnostics(1): diagnostics =>
+        assertEquals(session.rawRequest("Echo"), Right(empty))
+        val stats = session.statistics.toOption.get
+        assertEquals(stats.completedRequests, 2L)
+        assertEquals(stats.failedRequests, 0L)
+        assert(stats.sentMessages >= 3L)
+        assert(stats.receivedMessages >= 4L)
+        assert(stats.sentBytes > 0L && stats.receivedBytes > 0L)
+        assert(diagnostics.next().isRight)
+        assert(diagnostics.droppedDiagnostics > 0L)
+      assert(observed.isRight)
+      session.close()
+      assert(session.withDiagnostics()(_ => ()).isLeft)
+    }
+
+  test("typed event subscriptions select matching generated values"):
+    connected()(_ => ()) { (session, peer) =>
+      val selector = com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged.selector
+      assertEquals(
+        session.withEvents(selector): subscription =>
+          peer.emit(
+            5,
+            JsonObject(
+              Map(
+                "eventType" -> JsonValue.Str("CurrentProgramSceneChanged"),
+                "eventIntent" -> JsonValue.Num(BigDecimal(1)),
+                "eventData" -> JsonObject(Map("sceneName" -> JsonValue.Str("Main"), "sceneUuid" -> JsonValue.Str("id")))
+              )
+            )
+          )
+          val event = subscription.next().toOption.get
+          assertEquals(event.sceneName, "Main")
+          assertEquals(subscription.droppedEvents, 0L)
+        ,
+        Right(())
+      )
+    }
+
+  test("readiness returns non-NotReady server rejections without another attempt"):
+    connected()(peer => peer.respond(peer.sent.receive(), code = 500)) { (session, _) =>
+      assert(session.requestWhenReady(versionRead).left.toOption.exists {
+        case ObsError.RequestRejected(_, _, 500, _) => true
+        case _                                      => false
+      })
+    }
+
+  test("startup readiness is bounded by the total discovery deadline"):
+    supervised:
+      val peer = new Peer
+      forkDiscard:
+        peer.hello()
+        peer.identify().discard
+        peer.respond(peer.sent.receive(), code = 207)
+      val result = ObsClient.withTransport(
+        peer,
+        config.copy(requestTimeout = 20.millis, readiness = Some(ReadinessPolicy(2, 1.second)))
+      )(_ => ())
+      assertEquals(result, Left(ObsError.Timeout("GetVersion")))
+
+  private def closeFailure(error: Throwable): Peer = new Peer:
+    override def close(): Unit =
+      super.close()
+      throw error
+
+  test("a nonfatal close defect does not replace the typed configuration failure"):
+    val peer = closeFailure(new IllegalStateException("cleanup defect"))
+    val invalid = config.copy(uri = "http://localhost")
+    assertEquals(ObsClient.withTransport(peer, invalid)(_ => ()), invalid.validate.map(_ => ()))
+    assert(peer.closed.tryReceive().nonEmpty)
+
+  test("a nonfatal close defect preserves a successful callback result"):
+    supervised:
+      val peer = closeFailure(new IllegalStateException("cleanup defect"))
+      forkDiscard:
+        peer.hello()
+        peer.identify().discard
+        peer.discover()
+      assertEquals(ObsClient.withTransport(peer, config)(_ => 42), Right(42))
+      assert(peer.closed.tryReceive().nonEmpty)
+
+  test("a nonfatal close defect preserves callback cancellation"):
+    val cancelled = new InterruptedException("cancelled")
+    val observed = captureInterruption:
+      supervised:
+        val peer = closeFailure(new IllegalStateException("cleanup defect"))
+        forkDiscard:
+          peer.hello()
+          peer.identify().discard
+          peer.discover()
+        ObsClient.withTransport(peer, config)(_ => throw cancelled).discard
+    assert(observed eq cancelled)
+
+  test("interruption from transport close propagates"):
+    val interrupted = new InterruptedException("close interrupted")
+    val peer = closeFailure(interrupted)
+    val observed = captureInterruption:
+      ObsClient.withTransport(peer, config.copy(uri = "http://localhost"))(_ => ()).discard
+    assert(observed eq interrupted)
+
+  test("fatal transport close errors propagate"):
+    val fatal = new java.lang.InternalError("synthetic fatal cleanup error")
+    val peer = closeFailure(fatal)
+    val observed = try
+      ObsClient.withTransport(peer, config.copy(uri = "http://localhost"))(_ => ()).discard
+      fail("Expected the fatal cleanup error to propagate")
+    catch case error: java.lang.InternalError => error
+    assert(observed eq fatal)
+
+  private def captureInterruption(operation: => Unit): InterruptedException =
+    try
+      operation
+      fail("Expected cancellation to propagate")
+    catch case error: InterruptedException => error
+    finally Thread.interrupted().discard
+
+  test("oversized incoming JSON retains its size-limit classification"):
+    val peer = new Peer
+    peer.hello()
+    val result = ObsClient.withTransport(peer, config.copy(maxMessageBytes = 1))(_ => ())
+    assertEquals(result, Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit")))
+
+  test("subscription drop counts remain readable after callback and session scopes end"):
+    val escaped = connected(config.copy(subscriptionCapacity = 1)) { peer =>
+      val request = peer.sent.receive()
+      peer.event(1)
+      peer.event(2)
+      peer.respond(request)
+    } { (session, _) =>
+      session.withEvents(policy = OverflowPolicy.DropOldest): subscription =>
+        assertEquals(session.rawRequest("Echo"), Right(empty))
+        subscription
+    }.toOption.get.toOption.get
+    assertEquals(escaped.droppedEvents, 1L)

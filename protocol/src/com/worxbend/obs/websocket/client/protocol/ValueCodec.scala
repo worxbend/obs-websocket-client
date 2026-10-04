@@ -12,8 +12,13 @@ object ValueCodec:
     case JsonValue.Num(v) => v
   val boolean: ValueCodec[Boolean] = simple[Boolean]("boolean")(JsonValue.Bool.apply):
     case JsonValue.Bool(v) => v
-  val obj: ValueCodec[JsonObject] = simple[JsonObject]("object")(identity):
-    case v: JsonObject => v
+
+  /** Decoded objects carry their dotted path so nested failures report full paths, consistent with `path[i]`. */
+  val obj: ValueCodec[JsonObject] = new ValueCodec[JsonObject]:
+    def decode(value: JsonValue, path: String): Either[ProtocolError, JsonObject] = value match
+      case obj: JsonObject => Right(obj.at(path))
+      case _               => Left(ProtocolError(path, "Expected object"))
+    def encode(value: JsonObject): JsonValue = value
   val json: ValueCodec[JsonValue] = simple[JsonValue]("JSON value")(identity):
     case v => v
 

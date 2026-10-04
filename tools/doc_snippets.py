@@ -10,8 +10,8 @@ def main(destination):
     out.mkdir(parents=True, exist_ok=True)
     source = ['package com.worxbend.obs.websocket.client.documentation', '', 'object DocumentationSnippets:']
     count = 0
-    for page in [root / 'README.md', *sorted((root / 'docs').glob('*.md'))]:
-        for snippet in re.findall(r'```scala\n(.*?)\n```', page.read_text(), flags=re.S):
+    for page in [root / 'README.md', *sorted((root / 'docs').rglob('*.md'))]:
+        for snippet in re.findall(r'```scala[^\S\n]*\n(.*?)\n```', page.read_text(), flags=re.S):
             count += 1
             source.append(f'  // {page.name}, Scala block {count}')
             source.append(f'  def snippet{count}(session: com.worxbend.obs.websocket.client.ObsSession): Any =')

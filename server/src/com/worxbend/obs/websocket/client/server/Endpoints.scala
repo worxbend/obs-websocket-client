@@ -6,6 +6,7 @@ import _root_.sttp.tapir.*
 import _root_.sttp.tapir.json.jsoniter.*
 import _root_.sttp.tapir.server.ServerEndpoint
 import _root_.sttp.tapir.swagger.bundle.SwaggerInterpreter
+import scala.util.control.NonFatal
 
 private[server] object Endpoints:
   val health: PublicEndpoint[Unit, Unit, Health, Any] = endpoint.get
@@ -23,7 +24,12 @@ private[server] object Endpoints:
   def all(service: ObsReadService): List[ServerEndpoint[Any, Identity]] =
     val api = List(
       health.handleSuccess(_ => Health("ok")),
-      version.handle(_ => service.version().left.map(_ => ApiFailure("OBS is unavailable")))
+      version.handle(_ => obsVersion(service))
     )
     api ++ SwaggerInterpreter()
       .fromServerEndpoints[Identity](api, "OBS WebSocket client sample", BuildInfo.version)
+
+  /** Unchecked service defects get the same redacted 503 as expected OBS failures. */
+  private def obsVersion(service: ObsReadService): Either[ApiFailure, VersionInformation] =
+    try service.version().left.map(_ => ApiFailure("OBS is unavailable"))
+    catch case NonFatal(_) => Left(ApiFailure("OBS is unavailable"))
