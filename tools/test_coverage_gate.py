@@ -12,16 +12,26 @@ class CoverageGateTests(unittest.TestCase):
         for module in MODULES:
             instrumentation = root / 'out' / module / 'scoverage/data.dest/scoverage.coverage'
             instrumentation.parent.mkdir(parents=True)
-            instrumentation.write_bytes(b'fixture instrumentation')
+            records = []
+            for index in (1, 2):
+                records.append('\n'.join([str(index), f'{module}/src/Example.scala', module,
+                                           'Example', 'Object', f'{module}.Example', 'run',
+                                           str(index), str(index + 1), '1', 'symbol', 'tree',
+                                           'true', '0', 'false', 'description']) + '\n\f\n')
+            instrumentation.write_text('# Coverage data, format version: 3.0\n' + ''.join(records))
         manifest = root / 'run.txt'
         manifest.write_text(json.dumps({'source_sha256': source_digest(root), 'started_ns': 0, 'instrumentation_sha256': instrumentation_digests(root)}))
         reports = {}
         for module in MODULES:
             path = root / f'{module}.xml'
+            statements = ''.join(
+                f'<statement source="{module}/src/Example.scala" package="{module}" class="Example" '
+                f'class-type="Object" full-class-name="{module}.Example" method="run" '
+                f'start="{index}" end="{index + 1}" line="1" branch="true" '
+                f'invocation-count="{0 if missed and index == 2 else 1}" ignored="false"/>'
+                for index in (1, 2))
             path.write_text(f'<scoverage statement-count="2" statements-invoked="{1 if missed else 2}">'
-                            '<statement branch="true" invocation-count="1" ignored="false"/>'
-                            f'<statement branch="true" invocation-count="{0 if missed else 1}" ignored="false"/>'
-                            '</scoverage>')
+                            + statements + '</scoverage>')
             reports[module] = path
         return manifest, reports
 
@@ -56,7 +66,8 @@ class CoverageGateTests(unittest.TestCase):
             root = Path(directory)
             manifest, reports = self.fixture(root)
             (root / 'out/core/scoverage/data.dest/scoverage.coverage').write_bytes(b'changed IDs')
-            self.assertIn('Instrumentation changed since the measurement run began', verify(root, reports, manifest)[1])
+            with self.assertRaises(ValueError):
+                verify(root, reports, manifest)
 
     def test_stale_report_fails(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -80,6 +91,35 @@ class CoverageGateTests(unittest.TestCase):
             self.assertEqual(stray_instrumentation(root), ['stray'])
             errors = verify(root, reports, manifest)[1]
             self.assertIn('Unexpected scoverage data outside gated modules: stray', errors)
+
+    def test_swapped_module_report_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, reports = self.fixture(root)
+            reports['server'] = reports['core']
+            self.assertIn('server: report does not match instrumented statement inventory',
+                          verify(root, reports, manifest)[1])
+
+    def test_modified_statement_inventory_fails(self):
+        import xml.etree.ElementTree as ET
+        for mutation in ('missing', 'duplicate', 'location', 'classification'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, reports = self.fixture(root)
+                tree = ET.parse(reports['core'])
+                report = tree.getroot()
+                entry = report.find('statement')
+                if mutation == 'missing':
+                    report.remove(entry)
+                elif mutation == 'duplicate':
+                    report.append(entry)
+                elif mutation == 'location':
+                    entry.set('source', 'other.scala')
+                else:
+                    entry.set('branch', 'false')
+                tree.write(reports['core'])
+                self.assertIn('core: report does not match instrumented statement inventory',
+                              verify(root, reports, manifest)[1])
 
 
 if __name__ == '__main__':

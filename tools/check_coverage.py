@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed on missing, stale, or less-than-complete Scoverage evidence."""
 import argparse
+from collections import Counter
 import hashlib
 import json
 from pathlib import Path
@@ -13,11 +14,43 @@ MODULES = ('codegen', 'protocol', 'core', 'sttp', 'examples', 'server')
 # data under out/ means a production module escapes this gate.
 SEPARATE = ('integration',)
 
+STATEMENT_FIELDS = ('source', 'package', 'class', 'class-type', 'full-class-name',
+                    'method', 'start', 'end', 'line', 'branch', 'ignored')
+
+
+def statement_key(root, attributes):
+    values = dict(attributes)
+    source = Path(values['source'].replace('\\', '/'))
+    values['source'] = str((root / source).resolve())
+    return tuple(values[field] for field in STATEMENT_FIELDS)
+
+
+def instrumented_statements(root, module):
+    """Read the pinned Scoverage 3.0 format; preserve form-feed record separators."""
+    path = root / 'out' / module / 'scoverage/data.dest/scoverage.coverage'
+    text = path.read_text()
+    if not text.startswith('# Coverage data, format version: 3.0\n'):
+        raise ValueError(f'{module}: unsupported instrumentation format')
+    lines = text.split('\n')
+    first = next(i for i, line in enumerate(lines) if not line.startswith('#'))
+    inventory = []
+    ids = set()
+    for record in '\n'.join(lines[first:]).split('\f'):
+        fields = record.strip('\n').split('\n')
+        if fields == ['']:
+            continue
+        if len(fields) < 15 or fields[0] in ids:
+            raise ValueError(f'{module}: malformed or duplicate instrumentation record')
+        ids.add(fields[0])
+        attributes = dict(zip(STATEMENT_FIELDS, fields[1:10] + [fields[12], fields[14]]))
+        inventory.append(statement_key(root, attributes))
+    return Counter(inventory)
+
 
 def source_digest(root):
     files = sorted(p for p in root.rglob('*') if p.is_file()
                    and not any(part in {'.git', 'out', '.bsp', '.metals'} for part in p.relative_to(root).parts)
-                   and (p.suffix in {'.scala', '.mill', '.json', '.conf', '.py', '.sh', '.yml', '.yaml'} or p.name in {'.mill-version', '.scalafmt.conf'}))
+                   and (p.suffix in {'.scala', '.mill', '.md', '.json', '.conf', '.py', '.sh', '.yml', '.yaml'} or p.name in {'.mill-version', '.scalafmt.conf'}))
     digest = hashlib.sha256()
     for path in files:
         digest.update(str(path.relative_to(root)).encode())
@@ -65,6 +98,9 @@ def verify(root, report_paths, manifest_path):
             errors.append(f'{module}: stale coverage XML')
         report = ET.parse(path).getroot()
         entries = report.findall('.//statement')
+        inventory = Counter(statement_key(root, entry.attrib) for entry in entries)
+        if inventory != instrumented_statements(root, module):
+            errors.append(f'{module}: report does not match instrumented statement inventory')
         if any(entry.attrib.get(key) not in {'true', 'false'} for entry in entries for key in ('branch', 'ignored')):
             errors.append(f'{module}: malformed statement classification')
         branches_entries = [entry for entry in entries if entry.attrib['branch'] == 'true']

@@ -19,26 +19,68 @@ GUIDES = [('README', 'Home'), ('quickstart', 'Getting started'), ('requests', 'R
 
 
 def target(link):
+    parsed = urlparse(link)
+    if parsed.scheme or parsed.netloc:
+        return link
     if link.startswith('../'):
         return 'https://github.com/worxbend/obs-websocket-client/blob/main/' + link[3:]
-    return link.replace('README.md', 'index.html').replace('.md', '.html')
+    path = parsed.path
+    if path.endswith('.md'):
+        path = ('index' if path == 'README.md' else path[:-3]) + '.html'
+    return parsed._replace(path=path).geturl()
 
 
 def inline(text):
-    text = escape(text)
-    text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
-    return re.sub(r'\[([^\]]+)\]\(([^)]+)\)', lambda m: f'<a href="{escape(target(m[2]), quote=True)}">{m[1]}</a>', text)
+    tokens = re.compile(r'`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*(.+?)\*\*')
+    rendered, end = [], 0
+    for match in tokens.finditer(text):
+        rendered.append(escape(text[end:match.start()]))
+        code, label, link, strong = match.groups()
+        if code is not None:
+            rendered.append('<code>' + escape(code) + '</code>')
+        elif label is not None:
+            rendered.append(f'<a href="{escape(target(link), quote=True)}">{inline(label)}</a>')
+        else:
+            rendered.append('<strong>' + inline(strong) + '</strong>')
+        end = match.end()
+    rendered.append(escape(text[end:]))
+    return ''.join(rendered)
+
+
+def table_html(lines):
+    rows = [[cell.strip() for cell in line.strip().strip('|').split('|')] for line in lines]
+    if len(rows) < 2 or not all(re.fullmatch(r':?-+:?', cell) for cell in rows[1]):
+        raise ValueError('Malformed Markdown table separator')
+    width = len(rows[0])
+    if any(len(row) != width for row in rows):
+        raise ValueError('Inconsistent Markdown table columns')
+    def row_html(row, tag):
+        return '<tr>' + ''.join(f'<{tag}>{inline(cell)}</{tag}>' for cell in row) + '</tr>'
+    return ('<div class="table-scroll"><table><thead>' + row_html(rows[0], 'th') +
+            '</thead><tbody>' + ''.join(row_html(row, 'td') for row in rows[2:]) +
+            '</tbody></table></div>')
 
 
 def markdown(source):
-    # The project's guides deliberately use headings, paragraphs, lists, and fenced code.
+    # Support the constructs used by the offline guides; fail on malformed tables/fences.
     result, paragraph, code = [], [], None
     in_list = False
+    table = []
     def flush():
         if paragraph:
             result.append('<p>' + inline(' '.join(paragraph)) + '</p>')
             paragraph.clear()
     for line in source.splitlines():
+        if code is None and line.startswith('|'):
+            flush()
+            if in_list:
+                result.append('</ul>')
+                in_list = False
+            table.append(line)
+            continue
+        if table:
+            result.append(table_html(table))
+            table.clear()
         if line.startswith('```'):
             flush()
             if code is None:
@@ -70,6 +112,8 @@ def markdown(source):
         else:
             paragraph.append(line)
     flush()
+    if table:
+        result.append(table_html(table))
     if in_list:
         result.append('</ul>')
     if code is not None:
@@ -78,6 +122,7 @@ def markdown(source):
 
 
 CSS = '''
+.table-scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:1rem 0}th,td{border:1px solid var(--line);padding:.5rem .8rem;text-align:left}th{background:var(--panel)}
 :root{color-scheme:light dark;--bg:#f5f7fa;--text:#132333;--panel:#fff;--accent:#006b54;--line:#d9e2e9}
 [data-theme=dark]{--bg:#0e1622;--text:#e7f1f8;--panel:#182332;--accent:#70f0be;--line:#344351}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.7 system-ui,sans-serif}
