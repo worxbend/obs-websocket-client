@@ -5,13 +5,16 @@
 Each generated event companion exposes a selector. The subscription retains its bounded queue and scoped ownership while `next` and `flow` return the selected event type:
 
 ```scala
+import com.worxbend.obs.websocket.client.Next
 import com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged
 
 val result = session.withEvents(CurrentProgramSceneChanged.selector): events =>
-  events.next().map(_.sceneName)
+  events.next() match
+    case Next.Item(event) => event.sceneName
+    case _                => "stream ended"
 ```
 
-The callback waits for a future matching event. Configure the corresponding server event intent before subscribing; a local selector does not change OBS's subscription mask. Typed payload projection and selection run on consumers, with no user handler on the session dispatcher. `next()` reports clean termination as `Left(ObsError.Closed)`; event and diagnostic `flow` streams complete cleanly without a trailing `Closed`. Event failures emit their concrete error before completion.
+The callback waits for a future matching event. Configure the corresponding server event intent before subscribing; a local selector does not change OBS's subscription mask. Typed payload projection and selection run on consumers, with no user handler on the session dispatcher. `next()` is tri-state: `Next.Item(event)` delivers a value, failures surface as `Next.Failed` with their concrete error, and `Next.Ended` is clean termination. Event and diagnostic `flow` streams complete cleanly without a trailing failure; event failures emit their concrete error once before completion.
 
 ## Optional sampling and diagnostics
 
@@ -83,8 +86,10 @@ import com.worxbend.obs.websocket.client.transport.sttp.*
 def nextSceneChange(config: ObsConfig): Either[ObsError, Event] =
   ReconnectPolicy.create().flatMap: policy =>
     ReconnectingObsClient.run(config, policy): (_, session) =>
-      session.withEvents(Set("CurrentProgramSceneChanged"))(_.next()).flatten match
-        case Right(event) => ReconnectDecision.Complete(event)
+      session.withEvents(Set("CurrentProgramSceneChanged"))(_.next()) match
+        case Right(Next.Item(event)) => ReconnectDecision.Complete(event)
+        case Right(Next.Failed(error)) => ReconnectDecision.Retry(error, config.eventSubscriptions)
+        case Right(Next.Ended) => ReconnectDecision.Retry(ObsError.Closed, config.eventSubscriptions)
         case Left(error) => ReconnectDecision.Retry(error, config.eventSubscriptions)
 ```
 

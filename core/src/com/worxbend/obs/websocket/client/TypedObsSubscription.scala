@@ -6,21 +6,23 @@ import ox.flow.Flow
 /** Typed view of the same scoped event queue, with filtering performed on the consuming caller. */
 final class TypedObsSubscription[E <: Event] private[client] (source: ObsSubscription, selector: EventSelector[E]):
   @scala.annotation.tailrec
-  def next(): Either[ObsError, E] = source.next() match
-    case Left(error)  => Left(error)
-    case Right(event) =>
+  def next(): Next[E] = source.next() match
+    case Next.Item(event) =>
       selector.select(event) match
-        case Some(value) => Right(value)
+        case Some(value) => Next.Item(value)
         case None        => next()
+    case Next.Failed(error) => Next.Failed(error)
+    case Next.Ended         => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
   def flow: Flow[Either[ObsError, E]] = Flow.usingEmit: emit =>
     var running = true
     while running do
       next() match
-        case Left(ObsError.Closed) => running = false
-        case result                =>
-          emit(result)
-          running = result.isRight
+        case Next.Ended         => running = false
+        case Next.Failed(error) =>
+          emit(Left(error))
+          running = false
+        case Next.Item(event) => emit(Right(event))
 
   def droppedEvents: Long = source.droppedEvents

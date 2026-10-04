@@ -307,7 +307,9 @@ class ReconnectSuite extends FunSuite:
         .create()
         .flatMap: policy =>
           ReconnectingObsClient.run(config, policy): (_, session) =>
-            session.withEvents(Set("CurrentProgramSceneChanged"))(_.next()).flatten match
-              case Right(event) => ReconnectDecision.Complete(event)
-              case Left(error)  => ReconnectDecision.Retry(error, config.eventSubscriptions)
+            session.withEvents(Set("CurrentProgramSceneChanged"))(_.next()) match
+              case Right(Next.Item(event))   => ReconnectDecision.Complete(event)
+              case Right(Next.Failed(error)) => ReconnectDecision.Retry(error, config.eventSubscriptions)
+              case Right(Next.Ended)         => ReconnectDecision.Retry(ObsError.Closed, config.eventSubscriptions)
+              case Left(error)               => ReconnectDecision.Retry(error, config.eventSubscriptions)
     assert(nextSceneChange(ObsConfig(uri = "http://invalid")).isLeft)

@@ -68,7 +68,7 @@ class SessionLogicSuite extends FunSuite:
       .discard
     assertEquals(original.receive().eventType, "Future")
     h.logic.unsubscribe("same", original)
-    assertEquals(new ObsSubscription(original, () => 0L).next(), Left(ObsError.Closed))
+    assertEquals(new ObsSubscription(original, () => 0L).next(), Next.Ended)
     assertEquals(h.logic.losses("missing"), 0L)
 
   test("closed subscriber is removed without poisoning response handling"):

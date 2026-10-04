@@ -68,7 +68,10 @@ class ObservationSuite extends FunSuite:
     assertEquals(sampled.droppedEvents, 5L)
     val failed = Channel.buffered[EventWindow[String]](1)
     failed.error(new SessionTerminated(ObsError.Overflow("test")))
-    assertEquals(new SampledSubscription(failed, new AtomicLong(0L), source).next(), Left(ObsError.Overflow("test")))
+    assertEquals(
+      new SampledSubscription(failed, new AtomicLong(0L), source).next(),
+      Next.Failed(ObsError.Overflow("test"))
+    )
 
   test("latest-value sampling rejects invalid bounds and preserves source errors"):
     val source = Channel.buffered[Event](2)
@@ -78,8 +81,14 @@ class ObservationSuite extends FunSuite:
     source.error(new SessionTerminated(ObsError.Overflow("source")))
     assertEquals(
       subscription.withLatestBy(1.second, 2)(_.eventType)(_.next()),
-      Right(Left(ObsError.Overflow("source")))
+      Right(Next.Failed(ObsError.Overflow("source")))
     )
+
+  test("latest-value sampling completes cleanly when the source ends"):
+    val source = Channel.buffered[Event](1)
+    source.done()
+    val subscription = new ObsSubscription(source, () => 0L)
+    assertEquals(subscription.withLatestBy(20.millis, 1)(_.eventType)(_.next()), Right(Next.Ended))
 
   test("latest-value sampling emits a bounded window within a scope"):
     val source = Channel.buffered[Event](3)
@@ -87,7 +96,9 @@ class ObservationSuite extends FunSuite:
     source.send(event(2))
     val subscription = new ObsSubscription(source, () => 0L)
     val result = subscription.withLatestBy(20.millis, 1)(_.eventType): sampled =>
-      val window = sampled.next().toOption.get
+      val window = sampled.next() match
+        case Next.Item(window) => window
+        case other             => fail(s"Expected a window, got $other")
       assertEquals(window.values, Vector("Telemetry" -> event(2)))
       assertEquals(window.coalesced, 1L)
     assertEquals(result, Right(()))
@@ -107,7 +118,9 @@ class ObservationSuite extends FunSuite:
     val result = subscription.withLatestBy(1.second, 1)(_.eventType): sampled =>
       published.receive()
       assertEquals(sampled.droppedWindows, 1L)
-      assertEquals(sampled.next().toOption.get.values, Vector("Telemetry" -> event(2)))
+      sampled.next() match
+        case Next.Item(window) => assertEquals(window.values, Vector("Telemetry" -> event(2)))
+        case other             => fail(s"Expected a window, got $other")
     assertEquals(result, Right(()))
 
   test("readiness delay rejects negative values"):

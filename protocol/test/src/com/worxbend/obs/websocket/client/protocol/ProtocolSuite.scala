@@ -2,6 +2,7 @@ package com.worxbend.obs.websocket.client.protocol
 
 import munit.FunSuite
 import com.worxbend.obs.websocket.client.protocol.requests.*
+import scala.language.implicitConversions
 
 class ProtocolSuite extends FunSuite:
   test("wire JSON preserves decimal precision and unknown settings"):
@@ -83,6 +84,11 @@ class ProtocolSuite extends FunSuite:
     assert(SetCurrentProgramScene(sceneName = Field.Null).validate.isLeft)
     assert(SetCurrentProgramScene(sceneName = Field.Value("main")).validate.isRight)
     assertEquals(RawRequest("NewRequest").requestData, JsonObject.empty)
+
+  test("a plain value converts to a supplied optional field"):
+    val field: Field[String] = "Studio"
+    assertEquals(field, Field.Value("Studio"))
+    assertEquals(SetCurrentProgramScene(sceneName = "Studio").sceneName, Field.Value("Studio"))
 
   test("official authentication-guide inputs match independent SHA-256 calculation"):
     assertEquals(

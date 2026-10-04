@@ -1,6 +1,6 @@
 package com.worxbend.obs.websocket.client.integration
 
-import com.worxbend.obs.websocket.client.{EventSubscriptions, ObsConfig, ObsError, PasswordProvider}
+import com.worxbend.obs.websocket.client.{EventSubscriptions, Next, ObsConfig, ObsError, PasswordProvider}
 import com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged
 import com.worxbend.obs.websocket.client.protocol.requests.{GetSceneList, GetVersion}
 import com.worxbend.obs.websocket.client.protocol.requests.{
@@ -86,8 +86,10 @@ class RealObsSuite extends FunSuite:
         val observed = session.withEvents(Set("CurrentProgramSceneChanged")): events =>
           assert(session.request(SetCurrentProgramScene(sceneName = Field.Value(temporary))).isRight)
           val event = timeoutOption(config.requestTimeout)(events.next())
-            .getOrElse(fail("Scene event deadline exceeded"))
-            .fold(error => fail(s"Scene subscription failed: $error"), identity)
+            .getOrElse(fail("Scene event deadline exceeded")) match
+            case Next.Item(event)   => event
+            case Next.Failed(error) => fail(s"Scene subscription failed: $error")
+            case Next.Ended         => fail("Scene subscription ended")
           event match
             case changed: CurrentProgramSceneChanged =>
               assertEquals(changed.sceneName, temporary)

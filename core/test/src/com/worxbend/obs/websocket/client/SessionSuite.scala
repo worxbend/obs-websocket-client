@@ -182,9 +182,9 @@ class SessionSuite extends FunSuite:
       session.withEvents(): slow =>
         session.withEvents(Set("Unrelated")): filtered =>
           assertEquals(session.rawRequest("Echo"), Right(empty))
-          assertEquals(slow.next(), Left(ObsError.Overflow("event subscription")))
+          assertEquals(slow.next(), Next.Failed(ObsError.Overflow("event subscription")))
           session.close()
-          assertEquals(filtered.next(), Left(ObsError.Closed))
+          assertEquals(filtered.next(), Next.Ended)
     }
     assertEquals(result, Right(Right(Right(()))))
 
@@ -200,10 +200,10 @@ class SessionSuite extends FunSuite:
           assertEquals(session.rawRequest("Echo"), Right(empty))
           assertEquals(subscription.droppedEvents, 1L)
           val expected = if policy == OverflowPolicy.DropNewest then 1 else 2
-          assertEquals(
-            subscription.next().flatMap(_.eventData.int("index").left.map(SessionWire.malformed)),
-            Right(expected)
-          )
+          subscription.next() match
+            case Next.Item(event) =>
+              assertEquals(event.eventData.int("index").left.map(SessionWire.malformed), Right(expected))
+            case other => fail(s"Expected an event, got $other")
           session.close()
           // Terminal drop counts survive session failure and close.
           assertEquals(subscription.droppedEvents, 1L)
@@ -606,14 +606,13 @@ class SessionSuite extends FunSuite:
     } { (session, _) =>
       session.withRawEvents() { events =>
         assertEquals(session.rawRequest("Echo"), Right(empty))
-        val delivered = events.next()
-        assert(delivered.exists:
-          case UnknownEvent("CurrentProgramSceneChanged", _) => true
-          case _                                             => false)
-        assertEquals(
-          delivered.flatMap(_.eventData.string("futureField").left.map(SessionWire.malformed)),
-          Right("preserved")
-        )
+        events.next() match
+          case Next.Item(event) =>
+            assert(event match
+              case UnknownEvent("CurrentProgramSceneChanged", _) => true
+              case _                                             => false)
+            assertEquals(event.eventData.string("futureField").left.map(SessionWire.malformed), Right("preserved"))
+          case other => fail(s"Expected an event, got $other")
       }
     }
     assertEquals(result, Right(Right(())))
@@ -758,7 +757,9 @@ class SessionSuite extends FunSuite:
               )
             )
           )
-          val event = subscription.next().toOption.get
+          val event = subscription.next() match
+            case Next.Item(event) => event
+            case other            => fail(s"Expected an event, got $other")
           assertEquals(event.sceneName, "Main")
           assertEquals(subscription.droppedEvents, 0L)
         ,

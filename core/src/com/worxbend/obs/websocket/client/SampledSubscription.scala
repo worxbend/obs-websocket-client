@@ -13,20 +13,21 @@ final class SampledSubscription[K] private[client] (
     drops: AtomicLong,
     source: ObsSubscription
 ):
-  def next(): Either[ObsError, EventWindow[K]] = channel.receiveOrClosed() match
-    case window: EventWindow[?]                        => Right(window.asInstanceOf[EventWindow[K]])
-    case ChannelClosed.Error(error: SessionTerminated) => Left(error.error)
-    case _                                             => Left(ObsError.Closed)
+  def next(): Next[EventWindow[K]] = channel.receiveOrClosed() match
+    case window: EventWindow[?]                        => Next.Item(window.asInstanceOf[EventWindow[K]])
+    case ChannelClosed.Error(error: SessionTerminated) => Next.Failed(error.error)
+    case _                                             => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
   def flow: Flow[Either[ObsError, EventWindow[K]]] = Flow.usingEmit: emit =>
     var running = true
     while running do
       next() match
-        case Left(ObsError.Closed) => running = false
-        case result                =>
-          emit(result)
-          running = result.isRight
+        case Next.Ended         => running = false
+        case Next.Failed(error) =>
+          emit(Left(error))
+          running = false
+        case Next.Item(window) => emit(Right(window))
 
   def droppedWindows: Long = drops.get()
   def droppedEvents: Long = source.droppedEvents
@@ -62,9 +63,12 @@ private[client] object SampledSubscription:
         val remaining = deadline - nanoTime()
         val event = if remaining <= 0 then None else timeoutOption(remaining.nanos)(source.next())
         event match
-          case Some(Right(value)) => window = window.add(key(value), value, maxKeys)
-          case Some(Left(error))  =>
+          case Some(Next.Item(value))   => window = window.add(key(value), value, maxKeys)
+          case Some(Next.Failed(error)) =>
             output.errorOrClosed(new SessionTerminated(error)).discard
+            running = false
+          case Some(Next.Ended) =>
+            output.doneOrClosed().discard
             running = false
           case None => collecting = false
       if running && window.values.nonEmpty then
