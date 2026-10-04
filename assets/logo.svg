@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">OBS WebSocket Client project mark</title>
+  <desc id="desc">Two connected brackets inside a dark rounded square, with a coral signal light.</desc>
+  <rect width="256" height="256" rx="64" fill="#101923"/>
+  <circle cx="128" cy="128" r="87" fill="none" stroke="#263842" stroke-width="2"/>
+  <path d="M103 84 60 128 103 172M153 84 196 128 153 172" fill="none" stroke="#70F0BE" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M113 140 143 116" fill="none" stroke="#F3F7F5" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="200" cy="58" r="13" fill="#FF826C" stroke="#101923" stroke-width="6"/>
+</svg>

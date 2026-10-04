@@ -1,0 +1,22 @@
+# Mill and IDE output
+out/
+.bsp/
+.metals/
+.idea/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Temporary generators and local reports
+starter.zip
+.DS_Store
+
+# Python tooling cache
+__pycache__/
+*.pyc
+
+# Local agent tooling configuration
+.agents/
+.claude/

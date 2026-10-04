@@ -1,0 +1,26 @@
+name: Disposable real OBS
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 5 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: real-obs-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated-obs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Authenticated OBS scene, event and restart smoke
+        run: tools/real_obs_smoke.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: real-obs-evidence-${{ github.sha }}
+          path: |
+            out/real-obs-smoke/
+            out/integration/test/testForked.dest/
+          if-no-files-found: error

@@ -1,0 +1,203 @@
+//| mill-version: 1.1.10
+//| mill-jvm-index-version: 0.0.4-198-293bcc
+//| mill-jvm-version: temurin:25.0.3
+//| mvnDeps: ["com.lihaoyi::mill-contrib-scoverage:$MILL_VERSION"]
+package build
+
+import mill.*
+import mill.scalalib.*
+import mill.scalalib.publish.*
+import mill.scalalib.scalafmt.ScalafmtModule
+import mill.contrib.scoverage.{ScoverageModule, ScoverageReport}
+
+object Versions:
+  val scala = "3.9.0"
+  val ox = "1.0.9"
+  val sttp = "4.0.27"
+  val jsoniter = "2.41.2"
+  val tapir = "1.13.32"
+  val munit = "1.3.6"
+  val scoverage = "2.5.2"
+  val pureconfig = "0.17.10"
+  val logback = "1.6.4"
+  def release(environment: Map[String, String]): String =
+    val version = environment.getOrElse("OBS_RELEASE_VERSION", "0.1.0-SNAPSHOT")
+    require(
+      version == "0.1.0-SNAPSHOT" || version.matches("[0-9]+\\.[0-9]+\\.[0-9]+"),
+      "OBS_RELEASE_VERSION must be a stable semantic version"
+    )
+    version
+
+object Deps:
+  val jsoniter = Seq(
+    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-core:${Versions.jsoniter}",
+    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}"
+  )
+
+trait ProjectModule extends ScalaModule with ScoverageModule with ScalafmtModule:
+  def scalaVersion = Versions.scala
+  // All compiler, test and run forks use the same Java 25 as the Mill process.
+  def javaHome = Some(PathRef(os.Path(sys.props("java.home"))))
+  def scalacOptions = Seq("-release:25", "-Wunused:all", "-Wvalue-discard", "-Wnonunit-statement", "-Werror")
+  def scoverageVersion = Versions.scoverage
+  // Exact 100% coverage enforcement lives in tools/check_coverage.py per PLAN §23, not Mill percentage minimums.
+  trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule:
+    def mvnDeps = Seq(mvn"org.scalameta::munit:${Versions.munit}")
+
+trait LibraryModule extends ProjectModule with PublishModule:
+  def publishVersion = Task.Input:
+    Versions.release(Task.env)
+  def pomSettings = PomSettings(
+    description = "A scoped direct-style Scala 3 client for OBS WebSocket 5.x",
+    organization = "com.worxbend.obs.websocket.client",
+    url = "https://github.com/worxbend/obs-websocket-client",
+    licenses = Seq(License.MIT),
+    versionControl = VersionControl.github("worxbend", "obs-websocket-client"),
+    developers = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend"))
+  )
+
+object codegen extends ProjectModule:
+  def mvnDeps = Deps.jsoniter
+  object test extends Tests
+
+object protocol extends LibraryModule:
+  def specification = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "protocol.json")
+  def overrides = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "overrides.json")
+  def provenance = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "provenance.json")
+  def generatedSources = Task:
+    val classpath = codegen.runClasspath().map(_.path.toString).mkString(_root_.java.io.File.pathSeparator)
+    val executable = if scala.util.Properties.isWin then "java.exe" else "java"
+    val java = codegen.javaHome().get.path / "bin" / executable
+    os.proc(
+      java.toString,
+      "-cp",
+      classpath,
+      "com.worxbend.obs.websocket.client.codegen.Generate",
+      specification().path.toString,
+      Task.dest.toString,
+      overrides().path.toString,
+      provenance().path.toString
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
+    Seq(PathRef(Task.dest))
+  def artifactName = "obs-websocket-client-protocol"
+  def mvnDeps = Deps.jsoniter
+  object test extends Tests
+
+object core extends LibraryModule:
+  def artifactName = "obs-websocket-client-core"
+  def moduleDeps = Seq(protocol)
+  def mvnDeps = Seq(mvn"com.softwaremill.ox::core:${Versions.ox}")
+  object test extends Tests
+
+object sttp extends LibraryModule:
+  def artifactName = "obs-websocket-client-sttp"
+  def moduleDeps = Seq(core)
+  def mvnDeps = Seq(mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}")
+  object test extends Tests
+
+object examples extends ProjectModule:
+  def moduleDeps = Seq(sttp)
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+
+object server extends ProjectModule:
+  def moduleDeps = Seq(sttp)
+  def mvnDeps = Seq(
+    mvn"com.softwaremill.sttp.tapir::tapir-netty-server-sync:${Versions.tapir}",
+    mvn"com.softwaremill.sttp.tapir::tapir-swagger-ui-bundle:${Versions.tapir}",
+    mvn"com.softwaremill.sttp.tapir::tapir-jsoniter-scala:${Versions.tapir}",
+    mvn"ch.qos.logback:logback-classic:${Versions.logback}",
+    mvn"com.github.pureconfig::pureconfig-core:${Versions.pureconfig}"
+  )
+  def mainClass = Some("com.worxbend.obs.websocket.client.server.Main")
+  def generatedSources = Task:
+    os.write(
+      Task.dest / "BuildInfo.scala",
+      s"""package com.worxbend.obs.websocket.client.server
+         |
+         |private[server] object BuildInfo:
+         |  val version: String = "${Versions.release(Task.env)}"
+         |""".stripMargin
+    )
+    Seq(PathRef(Task.dest))
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+    def mvnDeps = super.mvnDeps() ++ Seq(
+      mvn"com.softwaremill.sttp.tapir::tapir-sttp-stub4-server:${Versions.tapir}",
+      mvn"com.softwaremill.sttp.tapir::tapir-sttp-client4:${Versions.tapir}"
+    )
+
+object integration extends ProjectModule:
+  def moduleDeps = Seq(sttp)
+  object test extends Tests:
+    def documentation = Task.Sources(mill.api.BuildCtx.workspaceRoot / "docs", mill.api.BuildCtx.workspaceRoot / "README.md")
+    def snippetGenerator = Task.Source(mill.api.BuildCtx.workspaceRoot / "tools" / "doc_snippets.py")
+    def generatedSources = Task:
+      val _ = documentation()
+      os.proc("python3", snippetGenerator().path.toString, Task.dest.toString)
+        .call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
+      Seq(PathRef(Task.dest))
+
+object scoverage extends ScoverageReport:
+  def scalaVersion = Versions.scala
+  def scoverageVersion = Versions.scoverage
+
+object site extends Module:
+  def build() = Task.Command:
+    val docs = Seq("protocol" -> protocol.docJar(), "core" -> core.docJar(), "sttp" -> sttp.docJar())
+    os.proc(
+      Seq("python3", (mill.api.BuildCtx.workspaceRoot / "tools" / "build_site.py").toString) ++
+        docs.map((module, jar) => s"$module=${jar.path}")
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
+    ()
+
+object coverage extends Module:
+  /** Modules measured by the exact gate in tools/check_coverage.py. Integration coverage is collected separately
+    * per PLAN §23, so `integration` is deliberately absent here.
+    */
+  val measured: Seq[ProjectModule] = Seq(codegen, protocol, core, sttp, examples, server)
+
+  /** Start a measurement run only after instrumentation is up to date. */
+  def reset() = Task.Command:
+    val _ = Task.sequence(measured.map(_.scoverage.compile))()
+    val directories = Task.sequence(measured.map(_.scoverage.data))()
+    directories.foreach: directory =>
+      os.list(directory.path).filter(_.last.startsWith("scoverage.measurements.")).foreach(os.remove(_))
+    ()
+
+object release extends Module:
+  def dependencyReport() = Task.Command:
+    val resolved = Map(
+      "protocol" -> protocol.resolvedRunMvnDeps().map(_.path.toString),
+      "core" -> core.resolvedRunMvnDeps().map(_.path.toString),
+      "sttp" -> sttp.resolvedRunMvnDeps().map(_.path.toString),
+      "server-sample" -> server.resolvedRunMvnDeps().map(_.path.toString)
+    )
+    val input = Task.dest / "resolved.json"
+    os.write(input, upickle.default.write(resolved))
+    os.proc(
+      "python3",
+      (mill.api.BuildCtx.workspaceRoot / "tools" / "dependency_report.py").toString,
+      input.toString,
+      (Task.dest / "dependencies.json").toString
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
+    PathRef(Task.dest / "dependencies.json")
+
+  def packageReport() = Task.Command:
+    val artifacts = Seq(
+      protocol.jar(),
+      protocol.sourceJar(),
+      protocol.docJar(),
+      core.jar(),
+      core.sourceJar(),
+      core.docJar(),
+      sttp.jar(),
+      sttp.sourceJar(),
+      sttp.docJar()
+    )
+    val manifest = artifacts.map: artifact =>
+      val digest = java.security.MessageDigest.getInstance("SHA-256").digest(os.read.bytes(artifact.path))
+      artifact.path.toString -> digest.map(byte => f"${byte & 0xff}%02x").mkString
+    val output = Task.dest / "artifacts.json"
+    os.write(output, upickle.default.write(manifest.toMap, indent = 2))
+    PathRef(output)

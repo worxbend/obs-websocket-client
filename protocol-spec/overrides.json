@@ -1,0 +1,26 @@
+{
+  "numberPolicy": "BigDecimal preserves every schema Number without guessing integer width. Documented restrictions are emitted as metadata and enforced by OBS; no local narrowing is implied.",
+  "objectPolicy": "Schema Object and Array<Object> lack member schemas and retain JsonObject values losslessly.",
+  "nullableFields": [
+    "GetPersistentData.response.slotValue",
+    "GetProfileParameter.response.parameterValue",
+    "GetProfileParameter.response.defaultParameterValue",
+    "GetMediaInputStatus.response.mediaDuration",
+    "GetMediaInputStatus.response.mediaCursor",
+    "GetSceneList.response.currentProgramSceneName",
+    "GetSceneList.response.currentProgramSceneUuid",
+    "GetSceneList.response.currentPreviewSceneName",
+    "GetSceneList.response.currentPreviewSceneUuid",
+    "GetSceneSceneTransitionOverride.response.transitionName",
+    "GetSceneSceneTransitionOverride.response.transitionDuration",
+    "GetSceneTransitionList.response.currentSceneTransitionName",
+    "GetSceneTransitionList.response.currentSceneTransitionUuid",
+    "GetSceneTransitionList.response.currentSceneTransitionKind",
+    "GetCurrentSceneTransition.response.transitionDuration",
+    "GetCurrentSceneTransition.response.transitionSettings",
+    "RecordStateChanged.event.outputPath",
+    "SetProfileParameter.request.parameterValue",
+    "SetSceneSceneTransitionOverride.request.transitionName",
+    "SetSceneSceneTransitionOverride.request.transitionDuration"
+  ]
+}

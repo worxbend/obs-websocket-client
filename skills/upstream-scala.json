@@ -1,0 +1,112 @@
+{
+  "repository": "https://github.com/VirtusLab/scala-skill",
+  "revision": "51eb40a55fa1c2a4c99f2980830d28bbea4a2ac7",
+  "retrievedOn": "2026-10-04",
+  "installation": "Complete project-local skill snapshot, referenced by root AGENTS.md. Global Codex marketplace installation is unavailable with the current read-only configuration.",
+  "files": [
+    {
+      "path": "skills/direct-style-scala/100-resource-management.md",
+      "gitBlobSha": "570cf93e1042dc264b6aad096f964ef0ef12f231"
+    },
+    {
+      "path": "skills/direct-style-scala/110-background-processes.md",
+      "gitBlobSha": "88dcc714193e8d8328c1c474e165074c0854deaf"
+    },
+    {
+      "path": "skills/direct-style-scala/120-type-safe-configuration.md",
+      "gitBlobSha": "b50f4a174dd6d607b10958fa5934d5e9320129da"
+    },
+    {
+      "path": "skills/direct-style-scala/130-compile-time-dependency-injection.md",
+      "gitBlobSha": "ceea7645f81691d94e686c35fca8a6132cfc38f8"
+    },
+    {
+      "path": "skills/direct-style-scala/140-new-project-setup.md",
+      "gitBlobSha": "b32e45ef25551b61a7ead97627f12a74adc5be81"
+    },
+    {
+      "path": "skills/direct-style-scala/150-shared-state-across-threads.md",
+      "gitBlobSha": "c2d427b6cb8653e4ea136fff62e786af17527ffd"
+    },
+    {
+      "path": "skills/direct-style-scala/160-code-organization.md",
+      "gitBlobSha": "32da3bb773a589a9dbff5a74fa1cff4d329e2a7f"
+    },
+    {
+      "path": "skills/direct-style-scala/170-subprocesses-and-external-streams.md",
+      "gitBlobSha": "5668c8615ac0994402caa998bc7a6efb8f94d61c"
+    },
+    {
+      "path": "skills/direct-style-scala/200-error-handling.md",
+      "gitBlobSha": "0661b509312133bcf1d08c8663b7ae022a8bbd18"
+    },
+    {
+      "path": "skills/direct-style-scala/210-error-output-customisation.md",
+      "gitBlobSha": "15e23be10bdff51c1988a3e952c790d620fa99fe"
+    },
+    {
+      "path": "skills/direct-style-scala/220-decode-failure-handling.md",
+      "gitBlobSha": "1561c23af8cde0e12c104e5f5a86ad9be0970cdd"
+    },
+    {
+      "path": "skills/direct-style-scala/300-authentication.md",
+      "gitBlobSha": "115c8f5985ec653824a5ce7ffdb3cd360f028dd2"
+    },
+    {
+      "path": "skills/direct-style-scala/310-http-server-configuration.md",
+      "gitBlobSha": "b7b842f6c35ce730a98bbfc99c2c488e59318280"
+    },
+    {
+      "path": "skills/direct-style-scala/320-version-api.md",
+      "gitBlobSha": "158d61eab6f9ee0f79894826d1c50778582e76a7"
+    },
+    {
+      "path": "skills/direct-style-scala/330-compile-time-openapi-generation.md",
+      "gitBlobSha": "ed7d6fcc318a65ecf38bca3d156e0ba06085ee46"
+    },
+    {
+      "path": "skills/direct-style-scala/340-soap-with-scalaxb.md",
+      "gitBlobSha": "cd047c5b9bcb54e6f479cc9d961d16be4a8718db"
+    },
+    {
+      "path": "skills/direct-style-scala/350-json-bodies.md",
+      "gitBlobSha": "a7aa744923d2375a6751529fd313b4e55d090e54"
+    },
+    {
+      "path": "skills/direct-style-scala/360-endpoint-inputs.md",
+      "gitBlobSha": "f36f0c00dcd981147aafad19c48202764bd29c19"
+    },
+    {
+      "path": "skills/direct-style-scala/400-sql-persistence.md",
+      "gitBlobSha": "d7aad8f2716abbeca8e1b14d05a4fc4cfe4743ee"
+    },
+    {
+      "path": "skills/direct-style-scala/410-sending-emails.md",
+      "gitBlobSha": "9b3513300b62fdf359a181a565e5e226c065cfa1"
+    },
+    {
+      "path": "skills/direct-style-scala/420-kafka-streaming.md",
+      "gitBlobSha": "d86b0056fa80344e6e12b0eb795d6e79276fa449"
+    },
+    {
+      "path": "skills/direct-style-scala/500-testing-http-endpoints.md",
+      "gitBlobSha": "c1e007fb63c7f25ad7383d8ace4ebb4602047790"
+    },
+    {
+      "path": "skills/direct-style-scala/510-opentelemetry-observability.md",
+      "gitBlobSha": "33aa06c419949333aed5543405c7e486ba6cdaab"
+    },
+    {
+      "path": "skills/direct-style-scala/CONTRIBUTING.md",
+      "gitBlobSha": "dc60b26688ad6ae71d5f51b55debaa32de91aa77"
+    },
+    {
+      "path": "skills/direct-style-scala/README.md",
+      "gitBlobSha": "54ac2c84ba1bf8faac41cce71b88a2a62f557679"
+    },
+    {
+      "path": "skills/direct-style-scala/SKILL.md",
+      "gitBlobSha": "96b361456fed406d95c689321f8e3ff8129b05f3"
+    }
+  ]
+}

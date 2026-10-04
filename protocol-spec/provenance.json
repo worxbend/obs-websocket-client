@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/obsproject/obs-websocket",
+  "revision": "073a294cd0646fa1744b0ebf3293bfa63a869b50",
+  "source": "docs/generated/protocol.json",
+  "sha256": "042e8c42da2dfd6d78fa0f695b2b59495d8254d5fe718b0f20d0e2e6f58a6993",
+  "retrieved": "2026-10-04",
+  "license": "Upstream GNU GPL version 2 text preserved in LICENSE.upstream; schema-derived output licensing requires review before publication",
+  "requests": 147,
+  "events": 60,
+  "enums": 7
+}

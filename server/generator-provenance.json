@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-10-04",
+  "endpoint": "https://adopt-tapir.softwaremill.com/api/v1/starter.zip",
+  "settings": {
+    "projectName": "obs-websocket-client",
+    "groupId": "com.worxbend.obs.websocket.client",
+    "stack": "OxStack",
+    "implementation": "Netty",
+    "addDocumentation": true,
+    "addMetrics": false,
+    "json": "Jsoniter",
+    "scalaVersion": "Scala3",
+    "builder": "Sbt"
+  },
+  "sha256": "37e3a5eb6732899d1798de8c9f996931bf5660e75874f9ac99419f2e09c7180f",
+  "migration": "Temporary sbt starter migrated to Mill; no sbt build retained."
+}

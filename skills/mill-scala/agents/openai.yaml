@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mill Scala"
+  short_description: "Build Scala 3 and Java 25 projects with Mill"
+  default_prompt: "Use $mill-scala to build and verify this direct-style Scala project with Mill."

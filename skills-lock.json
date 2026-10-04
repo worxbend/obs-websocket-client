@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "clean-code-principles": {
+      "source": "asyrafhussin/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/clean-code-principles/SKILL.md",
+      "computedHash": "4c22dca6110d58f1454523dc3f192ef20d91f538233da9132b407edd041a4762"
+    },
+    "code-documenter": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-documenter/SKILL.md",
+      "computedHash": "90b55b9af6f22e9f575d5fac32830d94c7228d773af5d1f35d5eb379efea485d"
+    }
+  }
+}

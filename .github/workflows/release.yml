@@ -1,0 +1,89 @@
+name: Release preflight and publish
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable release version (for example 0.1.0)
+        required: true
+        type: string
+      publish:
+        description: Publish signed artifacts after every preflight gate passes
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+env:
+  OBS_RELEASE_VERSION: ${{ inputs.version }}
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.publish && 'maven-central' || 'release-preflight' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify release version and tag
+        shell: bash
+        run: |
+          [[ "$OBS_RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          if [[ '${{ inputs.publish }}' == 'true' ]]; then
+            [[ "$GITHUB_REF" == "refs/tags/v$OBS_RELEASE_VERSION" ]]
+          fi
+      - name: Compile and verify formatting
+        run: |
+          ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.compile'
+          ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.checkFormat'
+          ./mill --no-server '{codegen,protocol,core,sttp,examples,server,integration}.test.checkFormat'
+      - name: Verify gate implementation and fresh coverage
+        run: |
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          tools/coverage.sh
+      - name: Regeneration and packaged consumer
+        run: |
+          python3 tools/check_generation.py
+          tools/consumer_smoke.sh
+      - name: Documentation, package hashes and dependency license inventory
+        run: |
+          ./mill --no-server integration.test.compile
+          ./mill --no-server site.build
+          ./mill --no-server release.packageReport
+          ./mill --no-server release.dependencyReport
+      - name: Upload preflight evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-preflight-${{ inputs.version }}
+          path: |
+            out/coverage-run.json
+            out/*/scoverage/xmlReport.dest/
+            out/*/test/testForked.dest/
+            out/release/
+            out/site/
+            out/*/jar.dest/
+            out/*/sourceJar.dest/
+            out/*/docJar.dest/
+          if-no-files-found: error
+      - name: Require release gates reviewed by the maintainer
+        if: inputs.publish
+        env:
+          NAMESPACE_VERIFIED: ${{ vars.MAVEN_NAMESPACE_VERIFIED }}
+          OBS_COMPATIBILITY_SHA: ${{ vars.OBS_COMPATIBILITY_SHA }}
+          SCHEMA_LICENSE_REVIEWED: ${{ vars.SCHEMA_LICENSE_REVIEWED }}
+        run: |
+          test "$NAMESPACE_VERIFIED" = 'com.worxbend.obs.websocket.client'
+          test "$OBS_COMPATIBILITY_SHA" = "$GITHUB_SHA"
+          schema_revision=$(python3 -c 'import json; print(json.load(open("protocol-spec/provenance.json"))["revision"])')
+          test "$SCHEMA_LICENSE_REVIEWED" = "$schema_revision"
+      - name: Publish the signed artifacts from this validated workspace
+        if: inputs.publish
+        env:
+          MILL_SONATYPE_USERNAME: ${{ secrets.MILL_SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.MILL_SONATYPE_PASSWORD }}
+          MILL_PGP_SECRET_BASE64: ${{ secrets.MILL_PGP_SECRET_BASE64 }}
+          MILL_PGP_PASSPHRASE: ${{ secrets.MILL_PGP_PASSPHRASE }}
+        run: >-
+          ./mill --no-server mill.javalib.SonatypeCentralPublishModule/
+          --publishArtifacts '{protocol,core,sttp}.publishArtifacts'
+          --shouldRelease true
