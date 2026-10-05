@@ -1,0 +1,85 @@
+{
+  "requests": [
+    {
+      "requestType": "Example",
+      "requestFields": [
+        {
+          "valueName": "requestType",
+          "valueType": "String",
+          "valueDescription": "Quoted */ docs"
+        },
+        {
+          "valueName": "parent.child",
+          "valueType": "Boolean",
+          "valueOptional": true
+        },
+        {
+          "valueName": "slot",
+          "valueType": "Object"
+        }
+      ],
+      "responseFields": [
+        {
+          "valueName": "result",
+          "valueType": "Number"
+        }
+      ],
+      "category": "config",
+      "description": "Example request.",
+      "initialVersion": "5.0.0",
+      "rpcVersion": "1",
+      "deprecated": true
+    },
+    {
+      "requestType": "Empty",
+      "requestFields": [],
+      "responseFields": []
+    }
+  ],
+  "events": [
+    {
+      "eventType": "Changed",
+      "dataFields": [
+        {
+          "valueName": "requestType",
+          "valueType": "String",
+          "valueDescription": "Quoted */ docs"
+        },
+        {
+          "valueName": "parent.child",
+          "valueType": "Boolean",
+          "valueOptional": true
+        },
+        {
+          "valueName": "slot",
+          "valueType": "Object"
+        }
+      ]
+    }
+  ],
+  "enums": [
+    {
+      "enumType": "Mask",
+      "enumIdentifiers": [
+        {
+          "enumIdentifier": "One",
+          "enumValue": "(1 << 0)"
+        },
+        {
+          "enumIdentifier": "All",
+          "enumValue": "(One)",
+          "description": "Mask alias."
+        }
+      ]
+    },
+    {
+      "enumType": "State",
+      "enumIdentifiers": [
+        {
+          "enumIdentifier": "Ready",
+          "enumValue": "OBS_READY"
+        }
+      ]
+    }
+  ]
+}

@@ -1,11 +1,19 @@
 package com.worxbend.obs.websocket.client.codegen
 
+import com.worxbend.obs.websocket.client.codegen.schema.*
 import munit.FunSuite
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import java.security.MessageDigest
 
 class GenerateSuite extends FunSuite:
+  private val firstBitExpression: String = "(1 << 0)"
+  private val combinedBitsExpression: String = "(One | Two)"
+  private val catalogPath: String = "Catalog.scala"
+  private val nestedRequestPath: String = "requests/Nested.scala"
+  private val zedRequestPath: String = "requests/Zed.scala"
+  private val temporaryDirectoryPrefix: String = "obs-codegen-test"
+
   private val provenance = Provenance(
     "https://github.com/obsproject/obs-websocket",
     "0123456789abcdef0123456789abcdef01234567",
@@ -23,6 +31,39 @@ class GenerateSuite extends FunSuite:
     List(SchemaEvent("Changed", allFields), SchemaEvent("EmptyEvent", Nil))
   )
   private val overrides = Overrides(List("Zed.request.field0", "Zed.response.field1"))
+
+  test("all output templates preserve the independently captured source fixtures"):
+    val directory = Files.createTempDirectory("obs-codegen-golden")
+    try
+      def resource(name: String): String =
+        val stream = getClass.getResourceAsStream(s"/golden/$name")
+        try new String(stream.readAllBytes(), UTF_8)
+        finally stream.close()
+      List("schema.json", "overrides.json", "provenance.json").foreach: name =>
+        val _ = Files.writeString(directory.resolve(name), resource(name), UTF_8)
+      val output = directory.resolve("output")
+      Generate.main(
+        Array(
+          directory.resolve("schema.json").toString,
+          output.toString,
+          directory.resolve("overrides.json").toString,
+          directory.resolve("provenance.json").toString
+        )
+      )
+      val names = List(
+        "requests/Example.scala",
+        "requests/Empty.scala",
+        "events/Changed.scala",
+        "enums/Mask.scala",
+        "enums/State.scala",
+        "Event.scala",
+        catalogPath,
+        "RequestApi.scala",
+        "catalog-inventory.tsv"
+      )
+      val expected = names.map(name => name -> resource(s"expected/$name")).toMap
+      assertEquals(snapshot(output), expected)
+    finally deleteRecursively(directory)
 
   test("category facades preserve names, optionality, selectors, and stable category ordering"):
     val categories = schema.copy(requests =
@@ -59,10 +100,10 @@ class GenerateSuite extends FunSuite:
     assertEquals(first, second)
     assert(first.exists((name, _) => name == "requests/Empty.scala"))
     assert(first.find(_._1 == "requests/Vendor.scala").get._2.contains("payloadRequestType"))
-    assert(first.find(_._1 == "requests/Zed.scala").get._2.contains("Option[BigDecimal]"))
+    assert(first.find(_._1 == zedRequestPath).get._2.contains("Option[BigDecimal]"))
     assert(
       first
-        .find(_._1 == "requests/Zed.scala")
+        .find(_._1 == zedRequestPath)
         .get
         ._2
         .contains(
@@ -74,7 +115,7 @@ class GenerateSuite extends FunSuite:
     val nullable = Schema(List(SchemaRequest("Nullable", List(SchemaField("slot", "String")), Nil)), Nil)
     val generated = Generate.generate(nullable, Overrides(List("Nullable.request.slot")), provenance).toMap
     assert(generated("requests/Nullable.scala").contains("def minimal: Nullable = Nullable(`slot` = None)"))
-    assert(generated("Catalog.scala").contains("requests.Nullable.minimal"))
+    assert(generated(catalogPath).contains("requests.Nullable.minimal"))
 
   test("unmatched nullable overrides fail with the offending key"):
     val error = intercept[IllegalArgumentException]:
@@ -129,9 +170,9 @@ class GenerateSuite extends FunSuite:
 
   test("an empty schema still generates a compilable catalog"):
     val generated = Generate.generate(Schema(Nil, Nil), Overrides(Nil), provenance).toMap
-    assert(generated("Catalog.scala").contains("Map.empty"))
+    assert(generated(catalogPath).contains("Map.empty"))
     assert(
-      !generated("Catalog.scala").contains(
+      !generated(catalogPath).contains(
         "Decoders: Map[String, JsonObject => Either[ProtocolError, Request[?]]] = \n"
       )
     )
@@ -153,10 +194,10 @@ class GenerateSuite extends FunSuite:
   test("dotted schema names stay legal backticked identifiers"):
     val dotted = Schema(List(SchemaRequest("Nested", List(SchemaField("keyModifiers.shift", "Boolean")), Nil)), Nil)
     val generated = Generate.generate(dotted, Overrides(Nil), provenance).toMap
-    assert(generated("requests/Nested.scala").contains("`keyModifiers.shift`: Boolean"))
-    assert(generated("requests/Nested.scala").contains("NestedFields.encode("))
+    assert(generated(nestedRequestPath).contains("`keyModifiers.shift`: Boolean"))
+    assert(generated(nestedRequestPath).contains("NestedFields.encode("))
     assert(
-      generated("requests/Nested.scala").contains(
+      generated(nestedRequestPath).contains(
         "NestedFields.required(data, \"keyModifiers.shift\", ValueCodec.boolean)"
       )
     )
@@ -168,7 +209,7 @@ class GenerateSuite extends FunSuite:
     )
     val generated = Generate.generate(nested, Overrides(), provenance).toMap
     assert(
-      generated("requests/Nested.scala").contains(
+      generated(nestedRequestPath).contains(
         "NestedFields.field(data, \"parent.child\", ValueCodec.boolean, false)"
       )
     )
@@ -195,7 +236,7 @@ class GenerateSuite extends FunSuite:
     assert(error.getMessage.contains("Unknown.request.x"))
 
   test("entrypoint writes deterministic offline outputs"):
-    val directory = Files.createTempDirectory("obs-codegen-test")
+    val directory = Files.createTempDirectory(temporaryDirectoryPrefix)
     try
       val schemaBytes =
         """{"requests":[{"requestType":"GetVersion","description":"Version info.","requestFields":[],"responseFields":[]}],"events":[]}"""
@@ -226,7 +267,7 @@ class GenerateSuite extends FunSuite:
     finally deleteRecursively(directory)
 
   test("entrypoint failures name the offending file"):
-    val directory = Files.createTempDirectory("obs-codegen-test")
+    val directory = Files.createTempDirectory(temporaryDirectoryPrefix)
     try
       val missing = directory.resolve("missing.json")
       val unreadable = intercept[IllegalArgumentException]:
@@ -242,7 +283,7 @@ class GenerateSuite extends FunSuite:
     finally deleteRecursively(directory)
 
   test("entrypoint rejects schema and provenance checksum drift"):
-    val directory = Files.createTempDirectory("obs-codegen-test")
+    val directory = Files.createTempDirectory(temporaryDirectoryPrefix)
     try
       val input = directory.resolve("schema.json")
       val _ = Files.writeString(input, """{"requests":[],"events":[]}""")
@@ -261,9 +302,9 @@ class GenerateSuite extends FunSuite:
       SchemaEnum(
         "Mask",
         List(
-          SchemaEnumEntry("One", SchemaEnumValue("(1 << 0)")),
+          SchemaEnumEntry("One", SchemaEnumValue(firstBitExpression)),
           SchemaEnumEntry("Two", SchemaEnumValue("(1 << 1)"), "Bitmask member."),
-          SchemaEnumEntry("All", SchemaEnumValue("(One | Two)"))
+          SchemaEnumEntry("All", SchemaEnumValue(combinedBitsExpression))
         )
       ),
       SchemaEnum("State", List(SchemaEnumEntry("Started", SchemaEnumValue("OBS_STARTED")))),
@@ -280,7 +321,7 @@ class GenerateSuite extends FunSuite:
       SchemaEnum(
         "Combo",
         List(
-          SchemaEnumEntry("One", SchemaEnumValue("(1 << 0)")),
+          SchemaEnumEntry("One", SchemaEnumValue(firstBitExpression)),
           SchemaEnumEntry("Type", SchemaEnumValue("(1 << 1)")),
           SchemaEnumEntry("Both", SchemaEnumValue("(One & Type)")),
           SchemaEnumEntry("Single", SchemaEnumValue("(One)"))
@@ -305,14 +346,14 @@ class GenerateSuite extends FunSuite:
     val unknown = SchemaEnum(
       "UnknownRef",
       List(
-        SchemaEnumEntry("One", SchemaEnumValue("(1 << 0)")),
-        SchemaEnumEntry("All", SchemaEnumValue("(One | Two)"))
+        SchemaEnumEntry("One", SchemaEnumValue(firstBitExpression)),
+        SchemaEnumEntry("All", SchemaEnumValue(combinedBitsExpression))
       )
     )
     val unknownError = intercept[IllegalArgumentException]:
       Generate.generate(schema.copy(enums = List(unknown)), overrides, provenance)
     assert(unknownError.getMessage.contains("UnknownRef"))
-    assert(unknownError.getMessage.contains("(One | Two)"))
+    assert(unknownError.getMessage.contains(combinedBitsExpression))
     assert(unknownError.getMessage.contains("Two"))
 
   test("a schema field named after a renamed payload field fails generation"):
@@ -339,7 +380,7 @@ class GenerateSuite extends FunSuite:
 
   test("the response round-trip dispatch is generated package-private while request decode stays public"):
     val generated = Generate.generate(schema, overrides, provenance).toMap
-    val catalog = generated("Catalog.scala")
+    val catalog = generated(catalogPath)
     assert(catalog.contains("private[protocol] def roundTripResponse("))
     assert(!catalog.contains("\n  def roundTripResponse("))
     assert(catalog.contains("\n  def decodeRequest("))
@@ -391,8 +432,8 @@ class GenerateSuite extends FunSuite:
       )
     )
     assert(source.contains(s"sha256: ${provenance.sha256}"))
-    assert(generated("requests/Zed.scala").contains("/** Generated binding for Zed."))
-    assert(!generated("requests/Zed.scala").contains("initial version"))
+    assert(generated(zedRequestPath).contains("/** Generated binding for Zed."))
+    assert(!generated(zedRequestPath).contains("initial version"))
 
   test("schema enum codecs accept upstream mixed strings and numeric values"):
     import com.github.plokhotnyuk.jsoniter_scala.core.*
@@ -426,7 +467,7 @@ class GenerateSuite extends FunSuite:
         .filter(Files.isRegularFile(_))
         .toList
         .asScala
-        .map(path => directory.relativize(path).toString -> Files.readString(path, UTF_8))
+        .map(path => directory.relativize(path).toString.replace('\\', '/') -> Files.readString(path, UTF_8))
         .toMap
     finally stream.close()
 

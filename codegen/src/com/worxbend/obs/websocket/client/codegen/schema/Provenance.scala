@@ -1,4 +1,4 @@
-package com.worxbend.obs.websocket.client.codegen
+package com.worxbend.obs.websocket.client.codegen.schema
 
 /** Pinned schema provenance. Extra keys in `provenance.json` (retrieval date, counts, license notes) are
   * documentation-only and skipped by the derived codec.

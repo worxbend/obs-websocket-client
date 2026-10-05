@@ -161,6 +161,8 @@ OBS failures map to HTTP 503 with the generic `ApiFailure` response. Swagger and
 
 ## Generated protocol and verification boundaries
 
+The [generator architecture and contributor guide](code-generation.md) describes the CLI, schema normalization, immutable models, and per-output Scala templates. The [design decision](ideas/codegen-templates.md) records the template tradeoffs.
+
 The generator reads the checked-in schema, overrides, and provenance, verifies the schema checksum, and emits sources under Mill's `out/` directory. The pinned inventory contains 147 requests, 60 events, and seven enum groups. `Field` distinguishes omitted, null, and present optional values; numbers retain exact `BigDecimal` values within decoder limits. Loose upstream object shapes remain validated `JsonObject` values.
 
 Generated catalog coverage does not establish that every operation works against every OBS 5.x release. The [compatibility matrix](compatibility.md) records the tested OBS 30.2.3 / obs-websocket 5.5.2 scope and newer-schema limitations. Local peer tests exercise transport faults; real OBS tests are a separate opt-in layer. Historical coverage totals in the implementation report are measured evidence, not measurements newly produced by this architecture review.

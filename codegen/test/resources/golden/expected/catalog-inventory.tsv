@@ -1,0 +1,4 @@
+kind	name	initial-version	status	restrictions
+event	Changed		generated; live OBS verification deferred	
+request	Empty		generated; live OBS verification deferred	
+request	Example	5.0.0	generated; live OBS verification deferred	
