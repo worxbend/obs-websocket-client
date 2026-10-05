@@ -43,15 +43,16 @@ object StudioMonitor:
 
   /** Dropped-frame counters from a [[GetStreamStatusResponse]] snapshot. OBS semantics guarantee
     * `outputSkippedFrames <= outputTotalFrames`; there is deliberately no clamp, so a violating server
-    * surfaces in the rendered line instead of being silently corrected.
+    * surfaces in the rendered line instead of being silently corrected. Counters render with `toPlainString`
+    * because the wire parser preserves exponent form, which `BigDecimal.toString` would print as `1E+6`.
     */
   def describeStatus(status: GetStreamStatusResponse): String =
     val dropped = status.outputSkippedFrames
     val total   = status.outputTotalFrames
     val ratio   =
       if total > 0 then (dropped / total * 100).setScale(2, BigDecimal.RoundingMode.HALF_UP) else BigDecimal(0)
-    s"stream health: skipped $dropped of $total frames ($ratio%), " +
-      s"congestion ${status.outputCongestion}, ${status.outputBytes} bytes sent"
+    s"stream health: skipped ${dropped.bigDecimal.toPlainString} of ${total.bigDecimal.toPlainString} frames ($ratio%), " +
+      s"congestion ${status.outputCongestion.bigDecimal.toPlainString}, ${status.outputBytes.bigDecimal.toPlainString} bytes sent"
 
   /** One event-triggered [[GetStreamStatus]] read; failures degrade to a log line instead of ending the monitor. */
   private def snapshot(session: ObsSession, report: String => Unit): Unit =

@@ -12,7 +12,7 @@ import scala.collection.mutable
 import scala.concurrent.duration.*
 
 class StudioMonitorSuite extends FunSuite:
-  private def greet(socket: Socket): Unit =
+  private def greet(socket: Socket, availableRequests: String = "\"GetVersion\",\"GetStreamStatus\""): Unit =
     LocalWebSocketPeer.upgrade(socket = socket)
     LocalWebSocketPeer.send(socket = socket, text = """{"op":0,"d":{"obsWebSocketVersion":"5.7.0","rpcVersion":1}}""")
     val _ = LocalWebSocketPeer.receive(socket = socket) // Identify
@@ -23,7 +23,7 @@ class StudioMonitorSuite extends FunSuite:
     LocalWebSocketPeer.send(
       socket = socket,
       text   =
-        s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"obsVersion":"32.0","obsWebSocketVersion":"5.7.0","rpcVersion":1,"availableRequests":["GetVersion","GetStreamStatus"],"supportedImageFormats":["png"],"platform":"linux","platformDescription":"test peer"}}}""",
+        s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"obsVersion":"32.0","obsWebSocketVersion":"5.7.0","rpcVersion":1,"availableRequests":[$availableRequests],"supportedImageFormats":["png"],"platform":"linux","platformDescription":"test peer"}}}""",
     )
 
   private def sendEvent(socket: Socket, eventType: String, intent: Int, data: String): Unit =
@@ -42,7 +42,8 @@ class StudioMonitorSuite extends FunSuite:
     assertEquals(kind, "GetStreamStatus")
     val status =
       if result then """{"result":true,"code":100}"""
-      else """{"result":false,"code":500,"comment":"encoder overloaded"}"""
+      else
+        """{"result":false,"code":702,"comment":"encoder overloaded"}""" // RequestProcessingFailed (comment required)
     val data =
       if result then
         s""","responseData":{"outputActive":true,"outputReconnecting":true,"outputTimecode":"00:00:10.000","outputDuration":10000,"outputCongestion":0.25,"outputBytes":123456,"outputSkippedFrames":$skipped,"outputTotalFrames":$total}"""
@@ -126,6 +127,54 @@ class StudioMonitorSuite extends FunSuite:
     assertEquals(lines(1), "stream: OBS_WEBSOCKET_OUTPUT_RECONNECTING (active=true)")
     assert(lines(2).startsWith("stream status unavailable: RequestRejected"), lines)
     assertEquals(lines.last, "obs is shutting down")
+    assertEquals(lines.size, 4)
+
+  test("snapshots degrade to log lines when the server does not advertise GetStreamStatus"):
+    val lines                       = mutable.Buffer.empty[String]
+    def serve(socket: Socket): Unit =
+      greet(socket = socket, availableRequests = "\"GetVersion\"")
+      // Snapshots are rejected locally by the capability gate, so no request ever reaches the wire and the
+      // peer cannot observe when the subscription is live. Spaced repeats absorb that registration window:
+      // early copies may be dropped, later ones are delivered, and each delivered event yields exactly one
+      // event line plus one degraded-snapshot line.
+      sendEvent(
+        socket,
+        "StreamStateChanged",
+        64,
+        s"""{"outputActive":true,"outputState":"${StudioMonitor.StreamReconnectingState}"}""",
+      )
+      Thread.sleep(200)
+      sendEvent(
+        socket,
+        "StreamStateChanged",
+        64,
+        s"""{"outputActive":true,"outputState":"${StudioMonitor.StreamReconnectingState}"}""",
+      )
+      Thread.sleep(200)
+      // A single ExitStarted suffices: the RECONNECTING repeats above already absorbed the registration
+      // window, and the first delivered ExitStarted ends the monitor and tears down the connection.
+      sendEvent(socket, "ExitStarted", 1, """{}""")
+      expectClose(socket = socket)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      StudioMonitor.run(config = ObsConfig(uri = uri), report = lines += _)
+    assertEquals(result, Right(()))
+    assert(lines.head.startsWith("stream status unavailable: UnsupportedRequest"), lines)
+    assertEquals(lines.last, "obs is shutting down")
+    val middle      = lines.drop(1).dropRight(1)
+    val streamLines = middle.filter(_.startsWith("stream: "))
+    assert(streamLines.nonEmpty, lines)
+    assert(
+      streamLines.forall(_ == s"stream: ${StudioMonitor.StreamReconnectingState} (active=true)"),
+      lines,
+    )
+    val unavailable = middle.filter(_.startsWith("stream status unavailable: UnsupportedRequest"))
+    assertEquals(streamLines.size, unavailable.size, lines)
+    assert(
+      middle.forall(line =>
+        line.startsWith("stream: ") || line.startsWith("stream status unavailable: UnsupportedRequest")
+      ),
+      lines,
+    )
 
   test("a dead connection fails the monitor once the read-idle deadline passes"):
     val lines                       = mutable.Buffer.empty[String]
@@ -138,24 +187,27 @@ class StudioMonitorSuite extends FunSuite:
         64,
         """{"outputActive":true,"outputState":"OBS_WEBSOCKET_OUTPUT_STARTED"}""",
       )
-    // Script ends without a close handshake: the socket dies mid-subscription. Liveness detection
-    // (readIdleTimeout) rescues the monitor; without it the event loop would stall on the dead socket.
-    // Which signal wins is a race — the read-idle deadline (Timeout) or the TCP EOF (Transport 1006) —
-    // so the test accepts either; both mean the monitor escaped the dead socket instead of hanging.
+      // Hold the socket open but silent past the read-idle deadline: only liveness detection can end the
+      // monitor. Closing here would let TCP EOF (Transport 1006) win the race every time and mask a
+      // readIdleTimeout regression behind an always-green either-error assertion.
+      Thread.sleep(4000)
     val result = LocalWebSocketPeer.run(server = serve): uri =>
       StudioMonitor.run(
         config  = ObsConfig(uri = uri),
         report  = lines += _,
-        options = SttpOptions(readIdleTimeout = Some(1.second)),
+        options = SttpOptions(readIdleTimeout = Some(2.seconds)),
       )
-    assert(
-      lines.headOption.contains("stream health: skipped 0 of 0 frames (0%), congestion 0.25, 123456 bytes sent"),
-      lines,
+    assertEquals(
+      lines.toVector,
+      Vector(
+        "stream health: skipped 0 of 0 frames (0%), congestion 0.25, 123456 bytes sent",
+        "stream: OBS_WEBSOCKET_OUTPUT_STARTED (active=true)",
+      ),
     )
     assert(
       result.left.toOption.exists {
-        case _: ObsError.Timeout | _: ObsError.Transport => true
-        case _                                           => false
+        case _: ObsError.Timeout => true
+        case _                   => false
       },
       result,
     )
@@ -193,7 +245,9 @@ class StudioMonitorSuite extends FunSuite:
       SttpObsClient.connect(config = ObsConfig(uri = uri)): session =>
         ox.supervised:
           val _ = ox.fork:
-            baselineSeen.await()
+            // Bounded wait: if the monitor fails before its baseline report, close anyway after 5s
+            // instead of parking this fork until the harness timeout masks the real failure.
+            val _ = baselineSeen.await(5, java.util.concurrent.TimeUnit.SECONDS)
             session.close()
           StudioMonitor.monitor(
             session = session,
@@ -227,25 +281,26 @@ class StudioMonitorSuite extends FunSuite:
     val classpath  = runtimeClasspath
     val output     = Files.createTempFile("obs-monitor-exit", ".log")
     val executable = Paths.get(System.getProperty("java.home"), "bin", "java").toString
-    val process    = new ProcessBuilder(
-      executable,
-      "-cp",
-      classpath,
-      "com.worxbend.obs.websocket.client.examples.StudioMonitor",
-      "invalid",
-    )
-      .redirectErrorStream(true)
-      .redirectOutput(output.toFile)
-      .start()
     try
-      assert(process.waitFor(15, TimeUnit.SECONDS), "CLI process did not terminate within its test budget")
-      assertEquals(process.exitValue(), 1)
-      val diagnostic = Files.readString(output)
-      assert(diagnostic.contains("OBS monitor failed: InvalidConfiguration"), diagnostic)
-    finally
-      val _ = process.destroyForcibly()
-      val _ = process.waitFor(5, TimeUnit.SECONDS)
-      Files.delete(output)
+      val process = new ProcessBuilder(
+        executable,
+        "-cp",
+        classpath,
+        "com.worxbend.obs.websocket.client.examples.StudioMonitor",
+        "invalid",
+      )
+        .redirectErrorStream(true)
+        .redirectOutput(output.toFile)
+        .start()
+      try
+        assert(process.waitFor(15, TimeUnit.SECONDS), "CLI process did not terminate within its test budget")
+        assertEquals(process.exitValue(), 1)
+        val diagnostic = Files.readString(output)
+        assert(diagnostic.contains("OBS monitor failed: InvalidConfiguration"), diagnostic)
+      finally
+        val _ = process.destroyForcibly()
+        val _ = process.waitFor(5, TimeUnit.SECONDS)
+    finally Files.delete(output)
 
   test("status description guards an empty frame window"):
     val status = GetStreamStatusResponse(
