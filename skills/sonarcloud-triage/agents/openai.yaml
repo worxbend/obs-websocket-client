@@ -1,0 +1,7 @@
+interface:
+  display_name: "SonarCloud Triage"
+  short_description: "Audit every Sonar finding against actual code"
+  default_prompt: "Use $sonarcloud-triage to review all open findings and distinguish defects from justified exceptions."
+
+policy:
+  allow_implicit_invocation: true

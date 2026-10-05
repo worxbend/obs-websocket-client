@@ -8,6 +8,10 @@ Protocol models depend on jsoniter. Core owns session behavior using Ox. The stt
 
 ## Useful commands
 
+See [code generation](code-generation.md) for the parser/model/template boundaries, indentation conventions, and golden-fixture workflow.
+
+The [SonarCloud review](quality/sonarcloud-review-2026-10-05.md) records all 55 findings from the reviewed baseline, their local fixes, and justified exceptions. Apply the versioned [prevention skill](../skills/sonar-issue-prevention/SKILL.md) when editing Scala, Python tooling, or workflows; it is also installed as a global Codex skill in the review environment.
+
 ```sh
 ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.compile'
 ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.test'

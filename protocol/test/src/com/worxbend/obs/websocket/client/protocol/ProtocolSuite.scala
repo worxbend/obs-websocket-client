@@ -5,6 +5,8 @@ import com.worxbend.obs.websocket.client.protocol.requests.*
 import scala.language.implicitConversions
 
 class ProtocolSuite extends FunSuite:
+  private val malformedJsonMessage: String = "Malformed JSON"
+
   test("wire JSON preserves decimal precision and unknown settings"):
     val text =
       """{"op":6,"d":{"requestId":"α","nested":{"fraction":0.123456789012345678901234567890,"huge":9223372036854775808},"list":[true,false,null,"x"]}}"""
@@ -13,7 +15,7 @@ class ProtocolSuite extends FunSuite:
 
   test("malformed JSON never leaks its content"):
     List("secret", "{\"password\":\"secret\"", "[1,}").foreach: input =>
-      assertEquals(JsonValue.parse(input), Left(ProtocolError("$", "Malformed JSON")))
+      assertEquals(JsonValue.parse(input), Left(ProtocolError("$", malformedJsonMessage)))
 
   test("structural policy violations report their fixed safe reason"):
     assertEquals(JsonValue.parse("{\"x\":1,\"x\":2}"), Left(ProtocolError("$", "duplicate JSON key")))
@@ -22,8 +24,8 @@ class ProtocolSuite extends FunSuite:
     assertEquals(JsonValue.parse("1e6179"), Left(ProtocolError("$", "value exceeds limit for scale")))
 
   test("decode failures from throwables with null or unrelated messages stay Malformed JSON"):
-    assertEquals(JsonValue.decodeFailure(new RuntimeException()), ProtocolError("$", "Malformed JSON"))
-    assertEquals(JsonValue.decodeFailure(new RuntimeException("unrelated")), ProtocolError("$", "Malformed JSON"))
+    assertEquals(JsonValue.decodeFailure(new RuntimeException()), ProtocolError("$", malformedJsonMessage))
+    assertEquals(JsonValue.decodeFailure(new RuntimeException("unrelated")), ProtocolError("$", malformedJsonMessage))
 
   test("wire envelope rejects malformed fields"):
     List("[]", "{}", "{\"op\":1.5,\"d\":{}}", "{\"op\":2147483648,\"d\":{}}", "{\"op\":6,\"d\":false}").foreach:

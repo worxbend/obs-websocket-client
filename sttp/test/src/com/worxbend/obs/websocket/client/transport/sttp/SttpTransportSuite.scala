@@ -12,6 +12,9 @@ import munit.FunSuite
 import scala.concurrent.duration.*
 
 class SttpTransportSuite extends FunSuite:
+  private val incomingSizeLimitMessage: String = "Incoming message exceeds configured byte limit"
+  private val closedWebSocketMessage: String = "WebSocket closed"
+
   private final class Peer(frames: List[WebSocketFrame], failure: Option[Exception] = None) extends WebSocket[Identity]:
     private var remaining = frames
     var sent: List[WebSocketFrame] = Nil
@@ -48,7 +51,7 @@ class SttpTransportSuite extends FunSuite:
     val peer = new Peer(List(WebSocketFrame.Text("é", false, None), WebSocketFrame.text("é")))
     assertEquals(
       transport(peer, 3).receive(),
-      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+      Left(ObsError.MessageTooLarge(incomingSizeLimitMessage))
     )
 
   test("exact byte limit is accepted"):
@@ -63,17 +66,17 @@ class SttpTransportSuite extends FunSuite:
   test("close frame preserves status without reflecting peer-controlled text"):
     assertEquals(
       transport(new Peer(List(WebSocketFrame.Close(4009, "secret")))).receive(),
-      Left(ObsError.Transport("WebSocket closed", Some(4009)))
+      Left(ObsError.Transport(closedWebSocketMessage, Some(4009)))
     )
 
   test("backend close exception preserves status"):
     val peer = new Peer(Nil, Some(WebSocketClosed(Some(WebSocketFrame.Close(4011, "secret")))))
-    assertEquals(transport(peer).receive(), Left(ObsError.Transport("WebSocket closed", Some(4011))))
+    assertEquals(transport(peer).receive(), Left(ObsError.Transport(closedWebSocketMessage, Some(4011))))
 
   test("abrupt close without a frame is represented"):
     assertEquals(
       transport(new Peer(Nil, Some(WebSocketClosed(None)))).receive(),
-      Left(ObsError.Transport("WebSocket closed", None))
+      Left(ObsError.Transport(closedWebSocketMessage, None))
     )
 
   test("I/O exception diagnostics are redacted"):
@@ -153,7 +156,7 @@ class SttpTransportSuite extends FunSuite:
     assertEquals(transport(new Peer(List(WebSocketFrame.text(lone))), 4).receive(), Right(lone))
     assertEquals(
       transport(new Peer(List(WebSocketFrame.text(lone))), 3).receive(),
-      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+      Left(ObsError.MessageTooLarge(incomingSizeLimitMessage))
     )
 
   test("multi-byte characters at the exact limit pass while one byte over fails"):
@@ -162,12 +165,12 @@ class SttpTransportSuite extends FunSuite:
     assertEquals(transport(new Peer(List(WebSocketFrame.text(threeBytes))), 3).receive(), Right(threeBytes))
     assertEquals(
       transport(new Peer(List(WebSocketFrame.text(threeBytes))), 2).receive(),
-      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+      Left(ObsError.MessageTooLarge(incomingSizeLimitMessage))
     )
     assertEquals(transport(new Peer(List(WebSocketFrame.text(fourBytes))), 4).receive(), Right(fourBytes))
     assertEquals(
       transport(new Peer(List(WebSocketFrame.text(fourBytes))), 3).receive(),
-      Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+      Left(ObsError.MessageTooLarge(incomingSizeLimitMessage))
     )
 
   test("outgoing byte limit accepts multi-byte text exactly at the limit"):

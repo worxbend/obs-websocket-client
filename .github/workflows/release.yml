@@ -102,4 +102,5 @@ jobs:
       - name: Create GitHub Release for the published tag
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "v${{ inputs.version }}" --verify-tag --generate-notes
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "v$OBS_RELEASE_VERSION" --verify-tag --generate-notes

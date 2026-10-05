@@ -76,6 +76,43 @@ def stray_instrumentation(root):
                   and (directory / 'scoverage').is_dir())
 
 
+def validate_counts(module, counts):
+    errors = []
+    statements, covered_statements, branches, covered_branches = counts
+    if statements <= 0:
+        errors.append(f'{module}: nonempty production module has no measured statements')
+    if min(counts) < 0 or covered_statements > statements or covered_branches > branches:
+        errors.append(f'{module}: invalid measured counts')
+    if statements != covered_statements or branches != covered_branches:
+        errors.append(f'{module}: coverage below 100%')
+    return errors
+
+
+def verify_report(root, module, path, started_ns):
+    errors = []
+    if path.stat().st_mtime_ns < started_ns:
+        errors.append(f'{module}: stale coverage XML')
+    report = ET.parse(path).getroot()
+    entries = report.findall('.//statement')
+    inventory = Counter(statement_key(root, entry.attrib) for entry in entries)
+    if inventory != instrumented_statements(root, module):
+        errors.append(f'{module}: report does not match instrumented statement inventory')
+    if any(entry.attrib.get(key) not in {'true', 'false'} for entry in entries for key in ('branch', 'ignored')):
+        errors.append(f'{module}: malformed statement classification')
+    branches_entries = [entry for entry in entries if entry.attrib['branch'] == 'true']
+    counts = [int(report.attrib['statement-count']), int(report.attrib['statements-invoked']),
+              len(branches_entries), sum(int(entry.attrib['invocation-count']) > 0 for entry in branches_entries)]
+    if len(entries) != counts[0] or sum(int(entry.attrib['invocation-count']) > 0 for entry in entries) != counts[1]:
+        errors.append(f'{module}: statement inventory disagrees with totals')
+    if any(entry.attrib.get('ignored') == 'true' for entry in entries):
+        errors.append(f'{module}: ignored production statements are forbidden')
+    errors.extend(validate_counts(module, counts))
+    statements, covered_statements, branches, covered_branches = counts
+    row = (f'{module}: statements {covered_statements}/{statements}; branches ' +
+           (f'{covered_branches}/{branches}' if branches else 'not applicable (0 branches)'))
+    return counts, row, errors
+
+
 def verify(root, report_paths, manifest_path):
     manifest = json.loads(manifest_path.read_text())
     errors = []
@@ -94,34 +131,21 @@ def verify(root, report_paths, manifest_path):
         if path is None or not path.is_file():
             errors.append(f'{module}: missing coverage XML')
             continue
-        if path.stat().st_mtime_ns < started_ns:
-            errors.append(f'{module}: stale coverage XML')
-        report = ET.parse(path).getroot()
-        entries = report.findall('.//statement')
-        inventory = Counter(statement_key(root, entry.attrib) for entry in entries)
-        if inventory != instrumented_statements(root, module):
-            errors.append(f'{module}: report does not match instrumented statement inventory')
-        if any(entry.attrib.get(key) not in {'true', 'false'} for entry in entries for key in ('branch', 'ignored')):
-            errors.append(f'{module}: malformed statement classification')
-        branches_entries = [entry for entry in entries if entry.attrib['branch'] == 'true']
-        counts = [int(report.attrib['statement-count']), int(report.attrib['statements-invoked']),
-                  len(branches_entries), sum(int(entry.attrib['invocation-count']) > 0 for entry in branches_entries)]
-        if len(entries) != counts[0] or sum(int(entry.attrib['invocation-count']) > 0 for entry in entries) != counts[1]:
-            errors.append(f'{module}: statement inventory disagrees with totals')
-        if any(entry.attrib.get('ignored') == 'true' for entry in entries):
-            errors.append(f'{module}: ignored production statements are forbidden')
-        statements, covered_statements, branches, covered_branches = counts
-        if statements <= 0:
-            errors.append(f'{module}: nonempty production module has no measured statements')
-        if min(counts) < 0 or covered_statements > statements or covered_branches > branches:
-            errors.append(f'{module}: invalid measured counts')
-        if statements != covered_statements or branches != covered_branches:
-            errors.append(f'{module}: coverage below 100%')
+        counts, row, report_errors = verify_report(root, module, path, started_ns)
+        errors.extend(report_errors)
         totals = [a + b for a, b in zip(totals, counts)]
-        rows.append(f'{module}: statements {covered_statements}/{statements}; branches ' +
-                    (f'{covered_branches}/{branches}' if branches else 'not applicable (0 branches)'))
+        rows.append(row)
     rows.append(f'aggregate: statements {totals[1]}/{totals[0]}; branches {totals[3]}/{totals[2]}')
     return rows, errors
+
+
+def manifest_destination(root, destination):
+    """Only generated output under the repository out/ tree may be overwritten."""
+    output_root = root.resolve() / 'out'
+    path = destination.resolve()
+    if path == output_root or not path.is_relative_to(output_root):
+        raise ValueError('Coverage manifests must be written beneath repository out/')
+    return path
 
 
 def main():
@@ -132,15 +156,16 @@ def main():
     args = parser.parse_args()
     if args.start:
         import time
-        args.manifest.parent.mkdir(parents=True, exist_ok=True)
         try:
+            manifest = manifest_destination(ROOT, args.manifest)
+            manifest.parent.mkdir(parents=True, exist_ok=True)
             digests = instrumentation_digests(ROOT)
-        except OSError as error:
+        except (OSError, ValueError) as error:
             print(f'Coverage start failed: {error}; run ./mill --no-server coverage.reset first', file=sys.stderr)
             return 1
-        args.manifest.write_text(json.dumps({'source_sha256': source_digest(ROOT), 'started_ns': time.time_ns(), 'instrumentation_sha256': digests}, indent=2))
+        manifest.write_text(json.dumps({'source_sha256': source_digest(ROOT), 'started_ns': time.time_ns(), 'instrumentation_sha256': digests}, indent=2))
         return 0
-    paths = dict(item.split('=', 1) for item in args.report)
+    paths = {module: path for module, path in (item.split('=', 1) for item in args.report)}
     reports = {module: Path(path) for module, path in paths.items()}
     try:
         for module in MODULES:

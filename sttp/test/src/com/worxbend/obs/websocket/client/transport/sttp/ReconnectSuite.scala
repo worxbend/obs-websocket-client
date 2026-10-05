@@ -193,9 +193,10 @@ class ReconnectSuite extends FunSuite:
     val connector = new Connector
     var delays = Vector.empty[FiniteDuration]
     val timing = ReconnectTiming(() => 0.5, delay => delays = delays :+ delay)
-    val result = ReconnectingObsClient.withConnector(connector, ObsConfig(), policy, timing, _ => ()): (generation, _) =>
-      if generation.value <= 5 then ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
-      else ReconnectDecision.Complete(generation.value)
+    val result = ReconnectingObsClient.withConnector(connector, ObsConfig(), policy, timing, _ => ()):
+      (generation, _) =>
+        if generation.value <= 5 then ReconnectDecision.Retry(transient, ObsConfig().eventSubscriptions)
+        else ReconnectDecision.Complete(generation.value)
     assertEquals(result, Right(6L))
     assertEquals(connector.calls, 6)
     assertEquals(delays, Vector.fill(5)(1.millis))

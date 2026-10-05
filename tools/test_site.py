@@ -73,8 +73,9 @@ class SiteTests(unittest.TestCase):
         for diagram in diagrams:
             with self.subTest(digest=sha256(diagram.encode()).hexdigest()):
                 self.assertIn('<img src="assets/architecture/', code_html('mermaid', diagram.splitlines()))
+                changed_lines = (diagram + '\n%% changed').splitlines()
                 with self.assertRaises(ValueError):
-                    code_html('mermaid', (diagram + '\n%% changed').splitlines())
+                    code_html('mermaid', changed_lines)
         with self.assertRaises(ValueError):
             code_html('mermaid', ['%% asset: ../outside.svg', 'flowchart LR'])
 

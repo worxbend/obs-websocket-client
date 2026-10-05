@@ -5,6 +5,8 @@ import munit.FunSuite
 import java.nio.charset.StandardCharsets.UTF_8
 
 class ObjectModelSuite extends FunSuite:
+  private val sceneId: String = "scene-id"
+
   private def resource(name: String): JsonValue =
     val stream = getClass.getResourceAsStream(name)
     try JsonValue.parse(String(stream.readAllBytes(), UTF_8)).toOption.get
@@ -130,9 +132,9 @@ class ObjectModelSuite extends FunSuite:
     val scene = SceneRef.byName(" Main ").toOption.get
     assertEquals(scene.name, Field.Value(" Main "))
     assertEquals(scene.uuid, Field.Missing)
-    val sceneUuid = SceneRef.byUuid("scene-id").toOption.get
+    val sceneUuid = SceneRef.byUuid(sceneId).toOption.get
     assertEquals(sceneUuid.name, Field.Missing)
-    assertEquals(sceneUuid.uuid, Field.Value("scene-id"))
+    assertEquals(sceneUuid.uuid, Field.Value(sceneId))
     val input = InputRef.byName("Microphone").toOption.get
     assertEquals(input.name, Field.Value("Microphone"))
     assertEquals(input.uuid, Field.Missing)
@@ -148,7 +150,7 @@ class ObjectModelSuite extends FunSuite:
     assertEquals(SceneItemId.from(large).toOption.get.value, large)
 
   test("validated references build requests without conflicting name and UUID selectors"):
-    val scene = SceneRef.byUuid("scene-id").toOption.get
+    val scene = SceneRef.byUuid(sceneId).toOption.get
     val sceneRequests = Vector(
       scene.setProgram,
       scene.setPreview,
@@ -157,7 +159,7 @@ class ObjectModelSuite extends FunSuite:
       scene.findItem("Camera", Field.Value(BigDecimal(1)))
     )
     sceneRequests.foreach: request =>
-      assertEquals(request.requestData.fields.get("sceneUuid"), Some(JsonValue.Str("scene-id")))
+      assertEquals(request.requestData.fields.get("sceneUuid"), Some(JsonValue.Str(sceneId)))
       assert(!request.requestData.fields.contains("sceneName"))
     val id = SceneItemId.from(BigDecimal(7)).toOption.get
     assertEquals(scene.show(id).sceneItemEnabled, true)

@@ -19,31 +19,8 @@ object JsonValue:
     private def read(in: JsonReader, depth: Int): JsonValue =
       if depth > 64 then in.decodeError("JSON nesting exceeds 64")
       in.nextToken() match
-        case '{' =>
-          val fields = Map.newBuilder[String, JsonValue]
-          if !in.isNextToken('}') then
-            in.rollbackToken()
-            // Duplicate detection shares one mutable set: HashSet.add hashes once per key and
-            // allocates nothing per key, unlike rebuilding an immutable Set per entry.
-            val keys = scala.collection.mutable.HashSet.empty[String]
-            var more = true
-            while more do
-              val key = in.readKeyAsString()
-              if !keys.add(key) then in.decodeError("duplicate JSON key")
-              val _ = fields += key -> read(in, depth + 1)
-              more = in.isNextToken(',')
-            if !in.isCurrentToken('}') then in.decodeError("expected object end")
-          JsonObject(fields.result())
-        case '[' =>
-          val values = Vector.newBuilder[JsonValue]
-          if !in.isNextToken(']') then
-            in.rollbackToken()
-            var more = true
-            while more do
-              val _ = values += read(in, depth + 1)
-              more = in.isNextToken(',')
-            if !in.isCurrentToken(']') then in.decodeError("expected array end")
-          Arr(values.result())
+        case '{' => readObject(in, depth)
+        case '[' => readArray(in, depth)
         case '"' =>
           in.rollbackToken()
           Str(in.readString(null))
@@ -55,6 +32,36 @@ object JsonValue:
           in.rollbackToken()
           // Reject excessive numbers rather than silently rounding beyond DECIMAL128 precision.
           Num(in.readBigDecimal(null, java.math.MathContext.UNLIMITED, 6178, 308))
+
+    /** Reads fields after the opening token, rejecting duplicates before decoding their values. */
+    private def readObject(in: JsonReader, depth: Int): JsonObject =
+      val fields = Map.newBuilder[String, JsonValue]
+      if !in.isNextToken('}') then
+        in.rollbackToken()
+        // Duplicate detection shares one mutable set: HashSet.add hashes once per key and
+        // allocates nothing per key, unlike rebuilding an immutable Set per entry.
+        val keys = scala.collection.mutable.HashSet.empty[String]
+        var more = true
+        while more do
+          val key = in.readKeyAsString()
+          if !keys.add(key) then in.decodeError("duplicate JSON key")
+          val _ = fields += key -> read(in, depth + 1)
+          more = in.isNextToken(',')
+        if !in.isCurrentToken('}') then in.decodeError("expected object end")
+      JsonObject(fields.result())
+
+    /** Reads elements after the opening token using the same nesting budget as objects. */
+    private def readArray(in: JsonReader, depth: Int): Arr =
+      val values = Vector.newBuilder[JsonValue]
+      if !in.isNextToken(']') then
+        in.rollbackToken()
+        var more = true
+        while more do
+          val _ = values += read(in, depth + 1)
+          more = in.isNextToken(',')
+        if !in.isCurrentToken(']') then in.decodeError("expected array end")
+      Arr(values.result())
+
     def encodeValue(value: JsonValue, out: JsonWriter): Unit = value match
       case JsonObject(fields) =>
         out.writeObjectStart()

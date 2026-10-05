@@ -7,6 +7,8 @@ import _root_.sttp.tapir.client.sttp4.SttpClientInterpreter
 import _root_.sttp.tapir.server.stub4.TapirSyncStubInterpreter
 
 class EndpointsSuite extends munit.FunSuite:
+  private val httpEndpoint: _root_.sttp.model.Uri = uri"http://localhost"
+
   // sttp's close only shuts down the client executor and leaves JDK keep-alive
   // connections open, which would block the server's graceful stop for its full
   // default window. An owned java.net.http.HttpClient really closes them.
@@ -36,7 +38,7 @@ class EndpointsSuite extends munit.FunSuite:
 
   test("health endpoint returns a JSON liveness response without OBS"):
     val response = SttpClientInterpreter()
-      .toRequestThrowDecodeFailures(Endpoints.health, Some(uri"http://localhost"))
+      .toRequestThrowDecodeFailures(Endpoints.health, Some(httpEndpoint))
       .apply(())
       .send(backend(Left(ObsError.Closed)))
     assertEquals(response.body, Right(Health("ok")))
@@ -44,14 +46,14 @@ class EndpointsSuite extends munit.FunSuite:
   test("read-only version endpoint returns OBS versions"):
     val expected = VersionInformation("32.0.0", "5.6.3")
     val response = SttpClientInterpreter()
-      .toRequestThrowDecodeFailures(Endpoints.version, Some(uri"http://localhost"))
+      .toRequestThrowDecodeFailures(Endpoints.version, Some(httpEndpoint))
       .apply(())
       .send(backend(Right(expected)))
     assertEquals(response.body, Right(expected))
 
   test("OBS failures produce a redacted 503 JSON error"):
     val response = SttpClientInterpreter()
-      .toRequestThrowDecodeFailures(Endpoints.version, Some(uri"http://localhost"))
+      .toRequestThrowDecodeFailures(Endpoints.version, Some(httpEndpoint))
       .apply(())
       .send(backend(Left(ObsError.Authentication("sensitive upstream detail"))))
     assertEquals(
@@ -61,7 +63,7 @@ class EndpointsSuite extends munit.FunSuite:
 
   test("unchecked service defects produce the same redacted 503 JSON error"):
     val response = SttpClientInterpreter()
-      .toRequestThrowDecodeFailures(Endpoints.version, Some(uri"http://localhost"))
+      .toRequestThrowDecodeFailures(Endpoints.version, Some(httpEndpoint))
       .apply(())
       .send(backend(new ObsReadService:
         def version(): Either[ObsError, VersionInformation] = throw new RuntimeException("sensitive upstream detail")))

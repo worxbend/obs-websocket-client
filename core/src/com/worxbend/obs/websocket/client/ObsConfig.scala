@@ -51,10 +51,7 @@ final case class ObsConfig(
       .left
       .map(_ => ObsError.InvalidConfiguration("Invalid WebSocket URI"))
       .flatMap: parsed =>
-        if !Set("ws", "wss").contains(parsed.getScheme) || Option(parsed.getHost).isEmpty ||
-          Option(parsed.getUserInfo).nonEmpty || Option(parsed.getQuery).nonEmpty ||
-          Option(parsed.getFragment).nonEmpty
-        then
+        if !hasWebSocketAddress(parsed) || hasPrivateComponents(parsed) then
           Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
         else if parsed.getPort != -1 && (parsed.getPort < 1 || parsed.getPort > 65535) then
           Left(ObsError.InvalidConfiguration("Explicit WebSocket port must be between 1 and 65535"))
@@ -63,6 +60,12 @@ final case class ObsConfig(
         else if List(maxInFlight, outgoingCapacity, subscriptionCapacity, maxMessageBytes).exists(_ <= 0) then
           Left(ObsError.InvalidConfiguration("All buffer and message limits must be positive"))
         else readiness.map(_.validate).getOrElse(Right(())).map(_ => this)
+
+  private def hasWebSocketAddress(parsed: URI): Boolean =
+    Set("ws", "wss").contains(parsed.getScheme) && Option(parsed.getHost).nonEmpty
+
+  private def hasPrivateComponents(parsed: URI): Boolean =
+    Option(parsed.getUserInfo).nonEmpty || Option(parsed.getQuery).nonEmpty || Option(parsed.getFragment).nonEmpty
 
   /** Validation forbids credentials, queries and fragments, so a valid URI never carries secrets and renders as-is.
     * Unvalidated copies still have those components stripped defensively; passwords never render.

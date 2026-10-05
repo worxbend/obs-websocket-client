@@ -8,6 +8,13 @@ import ox.channels.{Actor, Channel, ChannelClosed}
 import scala.concurrent.duration.*
 
 class SessionSuite extends FunSuite:
+  private val inFlightLimitResource: String = "in-flight requests"
+  private val closedWebSocketMessage: String = "WebSocket closed"
+  private val interruptedRegistrationId: String = "interrupted-registration"
+  private val httpEndpoint: String = "http://localhost"
+  private val cleanupDefectMessage: String = "cleanup defect"
+  private val unexpectedCallbackMessage: String = "Must not reach callback"
+
   private val empty = JsonObject.empty
   // Production-default budgets: fork scheduling under instrumented, saturated machines needs headroom.
   // Only tests that exercise deadline behavior tighten budgets explicitly via config.copy.
@@ -224,7 +231,7 @@ class SessionSuite extends FunSuite:
     val peer = new Peer
     peer.hello(Some(auth))
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail("Must not reach callback"))
+      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -232,7 +239,7 @@ class SessionSuite extends FunSuite:
     val peer = new Peer
     peer.hello(rpc = 0)
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail("Must not reach callback"))
+      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -240,14 +247,14 @@ class SessionSuite extends FunSuite:
     val peer = new Peer
     peer.emit(2, empty)
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail("Must not reach callback"))
+      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("a missing hello times out and closes"):
     val peer = new Peer
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail("Must not reach callback"))
+      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -275,7 +282,7 @@ class SessionSuite extends FunSuite:
       connected()(_ => ())((_, _) => throw new IllegalStateException("callback defect")).discard
 
   test("http URIs are rejected for the WebSocket client"):
-    assert(config.copy(uri = "http://localhost").validate.isLeft)
+    assert(config.copy(uri = httpEndpoint).validate.isLeft)
 
   test("URIs with embedded credentials are rejected"):
     assert(config.copy(uri = "ws://a:b@localhost").validate.isLeft)
@@ -413,8 +420,8 @@ class SessionSuite extends FunSuite:
       supervised:
         val pending = forkCancellable(session.rawRequest("First"))
         observed.receive()
-        assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow("in-flight requests")))
-        assertEquals(session.batch(Vector(RawRequest("Second", empty))), Left(ObsError.Overflow("in-flight requests")))
+        assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow(inFlightLimitResource)))
+        assertEquals(session.batch(Vector(RawRequest("Second", empty))), Left(ObsError.Overflow(inFlightLimitResource)))
         pending.cancel().discard
         release.send(())
         assertEquals(session.rawRequest("Second"), Right(empty))
@@ -487,7 +494,7 @@ class SessionSuite extends FunSuite:
     )
 
   test("close code 4009 after identification keeps its transport classification"):
-    val failure = ObsError.Transport("WebSocket closed", Some(4009))
+    val failure = ObsError.Transport(closedWebSocketMessage, Some(4009))
     val result = connected() { peer =>
       peer.sent.receive().discard
       peer.inbound.send(Left(failure))
@@ -659,10 +666,10 @@ class SessionSuite extends FunSuite:
 
   test("other close codes during the handshake keep their transport classification"):
     val peer = new Peer
-    peer.inbound.send(Left(ObsError.Transport("WebSocket closed", Some(4000))))
+    peer.inbound.send(Left(ObsError.Transport(closedWebSocketMessage, Some(4000))))
     assertEquals(
       ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Transport("WebSocket closed", Some(4000)))
+      Left(ObsError.Transport(closedWebSocketMessage, Some(4000)))
     )
 
   private val versionRead: Request[JsonObject] = new Request[JsonObject]:
@@ -827,14 +834,14 @@ class SessionSuite extends FunSuite:
       throw error
 
   test("a nonfatal close defect does not replace the typed configuration failure"):
-    val peer = closeFailure(new IllegalStateException("cleanup defect"))
-    val invalid = config.copy(uri = "http://localhost")
+    val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
+    val invalid = config.copy(uri = httpEndpoint)
     assertEquals(ObsClient.withTransport(peer, invalid)(_ => ()), invalid.validate.map(_ => ()))
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("a nonfatal close defect preserves a successful callback result"):
     supervised:
-      val peer = closeFailure(new IllegalStateException("cleanup defect"))
+      val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
       forkDiscard:
         peer.hello()
         peer.identify().discard
@@ -846,7 +853,7 @@ class SessionSuite extends FunSuite:
     val cancelled = new InterruptedException("cancelled")
     val observed = captureInterruption:
       supervised:
-        val peer = closeFailure(new IllegalStateException("cleanup defect"))
+        val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
         forkDiscard:
           peer.hello()
           peer.identify().discard
@@ -858,14 +865,14 @@ class SessionSuite extends FunSuite:
     val interrupted = new InterruptedException("close interrupted")
     val peer = closeFailure(interrupted)
     val observed = captureInterruption:
-      ObsClient.withTransport(peer, config.copy(uri = "http://localhost"))(_ => ()).discard
+      ObsClient.withTransport(peer, config.copy(uri = httpEndpoint))(_ => ()).discard
     assert(observed eq interrupted)
 
   test("fatal transport close errors propagate"):
     val fatal = new java.lang.InternalError("synthetic fatal cleanup error")
     val peer = closeFailure(fatal)
     val observed = try
-      ObsClient.withTransport(peer, config.copy(uri = "http://localhost"))(_ => ()).discard
+      ObsClient.withTransport(peer, config.copy(uri = httpEndpoint))(_ => ()).discard
       fail("Expected the fatal cleanup error to propagate")
     catch case error: java.lang.InternalError => error
     assert(observed eq fatal)
@@ -929,7 +936,7 @@ class SessionSuite extends FunSuite:
           val pending = fork(session.rawRequest("First"))
           observed.receive()
           val before = session.statistics.toOption.get
-          assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow("in-flight requests")))
+          assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow(inFlightLimitResource)))
           val after = session.statistics.toOption.get
           // The peer observing the frame does not imply the writer fork's traffic(Sent) ask has landed:
           // that accounting races these snapshots, so only the request-finish counters are compared
@@ -978,7 +985,7 @@ class SessionSuite extends FunSuite:
       val session = new ObsSession(
         ConnectionMetadata("5.6.3", 1, Set.empty),
         config,
-        SessionDependencies(nextRequestId = () => "interrupted-registration"),
+        SessionDependencies(nextRequestId = () => interruptedRegistrationId),
         logic
       )
       // Drive the handshake so a registration can succeed.
@@ -1017,7 +1024,7 @@ class SessionSuite extends FunSuite:
       // The queued register ran and the unconditional cancel removed the pending entry again: the
       // request id is unknown to the writer guard, nothing was accounted, yet the message did queue —
       // proving the enqueue-then-interrupt path (not a registration that never landed) was exercised.
-      val orphaned = WireMessage(6, JsonObject(Map("requestId" -> JsonValue.Str("interrupted-registration"))))
+      val orphaned = WireMessage(6, JsonObject(Map("requestId" -> JsonValue.Str(interruptedRegistrationId))))
       assertEquals(logic.ask(_.canSend(orphaned)), false)
       assertEquals(logic.ask(_.statistics), SessionStats())
-      assert(outgoing.tryReceive().exists(_.data.string("requestId").contains("interrupted-registration")))
+      assert(outgoing.tryReceive().exists(_.data.string("requestId").contains(interruptedRegistrationId)))

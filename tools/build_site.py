@@ -15,6 +15,8 @@ from zipfile import ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'out/site'
 BASE = '/obs-websocket-client/'
+HTML_SUFFIX = '.html'
+LIST_END = '</ul>'
 GUIDES = [('README', 'Home'), ('quickstart', 'Getting started'),
           ('guides/read-version-and-scenes', 'Read version and scenes'),
           ('architecture', 'Architecture'), ('decisions', 'Architecture decisions'),
@@ -25,7 +27,7 @@ GUIDES = [('README', 'Home'), ('quickstart', 'Getting started'),
           ('feature-expansion', 'Feature comparison'),
           ('requests', 'Requests'),
           ('events', 'Events'), ('recipes', 'Recipes'), ('compatibility', 'Compatibility'), ('server', 'HTTP sample'),
-          ('contributing', 'Contributing'), ('releases', 'Releases')]
+          ('contributing', 'Contributing'), ('code-generation', 'Code generation'), ('releases', 'Releases')]
 
 
 def target(link, page='README'):
@@ -33,12 +35,12 @@ def target(link, page='README'):
     if parsed.scheme or parsed.netloc:
         return link
     if not parsed.path:
-        filename = ('index' if page == 'README' else page) + '.html'
+        filename = ('index' if page == 'README' else page) + HTML_SUFFIX
         return parsed._replace(path=filename).geturl() if parsed.fragment else link
     if parsed.path.startswith('/'):
         return link
     path = posixpath.normpath(posixpath.join('docs', posixpath.dirname(page), parsed.path))
-    pages = {f'docs/{name}.md': ('index' if name == 'README' else name) + '.html'
+    pages = {f'docs/{name}.md': ('index' if name == 'README' else name) + HTML_SUFFIX
              for name, _ in GUIDES}
     if path in pages:
         path = pages[path]
@@ -47,18 +49,38 @@ def target(link, page='README'):
     return parsed._replace(path=path).geturl()
 
 
+INLINE_PATTERNS = (
+    ('code', re.compile(r'`([^`]+)`')),
+    ('link', re.compile(r'\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)')),
+    ('strong', re.compile(r'\*\*(.+?)\*\*')),
+)
+
+
+def inline_tokens(text):
+    """Consume the earliest complete construct, so code and link contents stay intact."""
+    matches = {kind: pattern.search(text) for kind, pattern in INLINE_PATTERNS}
+    while candidates := [(kind, match) for kind, match in matches.items() if match is not None]:
+        kind, match = min(candidates, key=lambda candidate: candidate[1].start())
+        yield kind, match
+        position = match.end()
+        for token_kind, pattern in INLINE_PATTERNS:
+            pending = matches[token_kind]
+            if pending is not None and pending.start() < position:
+                matches[token_kind] = pattern.search(text, position)
+
+
 def inline(text, page='README'):
-    tokens = re.compile(r'`([^`]+)`|\[([^\]]+)\]\(((?:[^()]|\([^()]*\))+)\)|\*\*(.+?)\*\*')
     rendered, end = [], 0
-    for match in tokens.finditer(text):
+    for kind, match in inline_tokens(text):
         rendered.append(escape(text[end:match.start()]))
-        code, label, link, strong = match.groups()
-        if code is not None:
+        if kind == 'code':
+            code = match[1]
             rendered.append('<code>' + escape(code) + '</code>')
-        elif label is not None:
+        elif kind == 'link':
+            label, link = match.groups()
             rendered.append(f'<a href="{escape(target(link, page), quote=True)}">{inline(label, page)}</a>')
         else:
-            rendered.append('<strong>' + inline(strong, page) + '</strong>')
+            rendered.append('<strong>' + inline(match[1], page) + '</strong>')
         end = match.end()
     rendered.append(escape(text[end:]))
     return ''.join(rendered)
@@ -100,74 +122,101 @@ def code_html(language, lines):
     return '<pre><button class="copy" aria-label="Copy code">Copy</button><code>' + escape(source) + '</code></pre>'
 
 
+class MarkdownRenderer:
+    """State of one document; block transitions own their pending content."""
+    def __init__(self, page):
+        self.page = page
+        self.result = []
+        self.paragraph = []
+        self.table = []
+        self.code = None
+        self.language = ''
+        self.in_list = False
+
+    def flush_paragraph(self):
+        if self.paragraph:
+            self.result.append('<p>' + inline(' '.join(self.paragraph), self.page) + '</p>')
+            self.paragraph.clear()
+
+    def flush_table(self):
+        if self.table:
+            self.result.append(table_html(self.table, self.page))
+            self.table.clear()
+
+    def close_list(self):
+        if self.in_list:
+            self.result.append(LIST_END)
+            self.in_list = False
+
+    def fence(self, line):
+        self.flush_paragraph()
+        if self.code is None:
+            self.code = []
+            self.language = line[3:].strip()
+        else:
+            self.result.append(code_html(self.language, self.code))
+            self.code = None
+
+    def heading(self, line):
+        level = len(line) - len(line.lstrip('#'))
+        if level == 0 or line[level:level + 1] != ' ':
+            return False
+        self.flush_paragraph()
+        title = line[level:].strip()
+        anchor = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+        self.result.append(f'<h{min(level, 6)} id="{anchor}">{inline(title, self.page)}</h{min(level, 6)}>')
+        return True
+
+    def prose(self, line):
+        if not line.startswith('- '):
+            self.close_list()
+        if self.heading(line):
+            return
+        if line.startswith('- '):
+            self.flush_paragraph()
+            if not self.in_list:
+                self.result.append('<ul>')
+                self.in_list = True
+            self.result.append('<li>' + inline(line[2:], self.page) + '</li>')
+        elif not line:
+            self.flush_paragraph()
+        else:
+            self.paragraph.append(line)
+
+    def line(self, line):
+        if self.code is None and line.startswith('|'):
+            self.flush_paragraph()
+            self.close_list()
+            self.table.append(line)
+            return
+        self.flush_table()
+        if line.startswith('```'):
+            self.fence(line)
+        elif self.code is not None:
+            self.code.append(line)
+        else:
+            self.prose(line)
+
+    def render(self, source):
+        if source.startswith('---\n'):
+            metadata, separator, source = source[4:].partition('\n---\n')
+            title = re.search(r'^title: "(.+)"$', metadata, re.M)
+            if not separator or not title:
+                raise ValueError('Guide frontmatter needs a quoted title and closing separator')
+            self.result.append('<h1>' + escape(title[1]) + '</h1>')
+        for line in source.splitlines():
+            self.line(line)
+        self.flush_paragraph()
+        self.flush_table()
+        self.close_list()
+        if self.code is not None:
+            raise ValueError('Unclosed code fence')
+        return '\n'.join(self.result)
+
+
 def markdown(source, page='README'):
     # Support the constructs used by the offline guides; fail on malformed tables/fences.
-    result, paragraph, code = [], [], None
-    language = ''
-    if source.startswith('---\n'):
-        metadata, separator, source = source[4:].partition('\n---\n')
-        title = re.search(r'^title: "(.+)"$', metadata, re.M)
-        if not separator or not title:
-            raise ValueError('Guide frontmatter needs a quoted title and closing separator')
-        result.append('<h1>' + escape(title[1]) + '</h1>')
-    in_list = False
-    table = []
-    def flush():
-        if paragraph:
-            result.append('<p>' + inline(' '.join(paragraph), page) + '</p>')
-            paragraph.clear()
-    for line in source.splitlines():
-        if code is None and line.startswith('|'):
-            flush()
-            if in_list:
-                result.append('</ul>')
-                in_list = False
-            table.append(line)
-            continue
-        if table:
-            result.append(table_html(table, page))
-            table.clear()
-        if line.startswith('```'):
-            flush()
-            if code is None:
-                code = []
-                language = line[3:].strip()
-            else:
-                result.append(code_html(language, code))
-                code = None
-            continue
-        if code is not None:
-            code.append(line)
-            continue
-        if not line.startswith('- ') and in_list:
-            result.append('</ul>')
-            in_list = False
-        if line.startswith('#'):
-            level = len(line) - len(line.lstrip('#'))
-            if line[level:level + 1] == ' ':
-                flush()
-                title = line[level:].strip()
-                anchor = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-                result.append(f'<h{min(level, 6)} id="{anchor}">{inline(title, page)}</h{min(level, 6)}>')
-                continue
-        if line.startswith('- '):
-            flush()
-            if not in_list:
-                result.append('<ul>')
-                in_list = True
-            result.append('<li>' + inline(line[2:], page) + '</li>')
-        elif not line:
-            flush()
-        else:
-            paragraph.append(line)
-    flush()
-    if table:
-        result.append(table_html(table, page))
-    if in_list:
-        result.append('</ul>')
-    if code is not None:
-        raise ValueError('Unclosed code fence')
-    return '\n'.join(result)
+    return MarkdownRenderer(page).render(source)
 
 
 CSS = '''
@@ -193,7 +242,7 @@ document.querySelector('#search').addEventListener('input',event=>{const query=e
 
 
 def layout(title, name, body, filename=None):
-    filename = filename or ('index' if name == 'README' else name) + '.html'
+    filename = filename or ('index' if name == 'README' else name) + HTML_SUFFIX
     nav = ''.join(f'<a href="{("index" if slug == "README" else slug)}.html"' +
                   (' aria-current="page"' if slug == name else '') + f'>{label}</a>' for slug, label in GUIDES)
     api = ''.join(f'<a href="api/{module}/index.html">{module} API</a>' for module in ('protocol', 'core', 'sttp'))
@@ -210,30 +259,32 @@ class Links(HTMLParser):
                 self.links.append(value)
 
 
+def local_link_error(path, link, uses_site_base):
+    parsed = urlparse(link)
+    if parsed.scheme or link.startswith('#'):
+        return None
+    relative = unquote(parsed.path)
+    if relative.startswith('/'):
+        if not relative.startswith(BASE):
+            return f'{path.name}: escapes repository base path: {link}'
+        destination = OUT / relative[len(BASE):]
+    else:
+        # Guides use the site base; Scaladoc retains relative asset locations.
+        destination = (OUT if uses_site_base else path.parent) / relative
+    if not destination.exists():
+        return f'{path.name}: missing {link}'
+    return None
+
+
 def check_links():
     errors = []
-    # Check guide and generated API links and assets under the repository prefix.
     for path in OUT.rglob('*.html'):
         parser = Links()
         source = path.read_text()
         parser.feed(source)
         uses_site_base = f'<base href="{BASE}">' in source
-        for link in parser.links:
-            parsed = urlparse(link)
-            if parsed.scheme or link.startswith('#'):
-                continue
-            relative = unquote(parsed.path)
-            if relative.startswith('/'):
-                if not relative.startswith(BASE):
-                    errors.append(f'{path.name}: escapes repository base path: {link}')
-                    continue
-                dest = OUT / relative[len(BASE):]
-            else:
-                # Every generated guide uses <base href="/obs-websocket-client/">.
-                # Scaladoc pages retain their own relative asset layout.
-                dest = (OUT if uses_site_base else path.parent) / relative
-            if not dest.exists():
-                errors.append(f'{path.name}: missing {link}')
+        errors.extend(error for link in parser.links
+                      if (error := local_link_error(path, link, uses_site_base)) is not None)
     if errors:
         raise ValueError('\n'.join(errors))
 
@@ -263,7 +314,7 @@ def main(argv):
     search = []
     for name, title in GUIDES:
         source = (ROOT / 'docs' / f'{name}.md').read_text()
-        filename = ('index' if name == 'README' else name) + '.html'
+        filename = ('index' if name == 'README' else name) + HTML_SUFFIX
         destination = OUT / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(layout(title, name, markdown(source, name)))

@@ -14,6 +14,13 @@ file hashes are recorded in `skills/upstream-scala.json`. This is a project-loca
 snapshot, not a global Codex marketplace installation. Preserve upstream files
 and adapt their build-tool examples to Mill using the companion project skill.
 
+For Scala, Python tooling, or GitHub Actions changes, apply
+`skills/sonar-issue-prevention/SKILL.md` and its relevant reference. For SonarQube
+Cloud audits, use `skills/sonarcloud-triage/SKILL.md`: inspect every reported issue
+against the analyzed revision, preserve justified security fixtures and frozen
+benchmark baselines, and distinguish local fixes from verified cloud resolution.
+These versioned skills are also suitable for installation in global skill directories.
+
 Agreed choices: Mill, latest stable Scala 3, Java 25, Ox, sttp, jsoniter-scala,
 and package `com.worxbend.obs.websocket.client`. No effect-system runtime.
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Sonar Issue Prevention"
+  short_description: "Prevent recurring Scala, Python and CI findings"
+  default_prompt: "Use $sonar-issue-prevention while editing Scala, Python tooling, or GitHub Actions; preserve behavior and verify relevant rules."
+
+policy:
+  allow_implicit_invocation: true

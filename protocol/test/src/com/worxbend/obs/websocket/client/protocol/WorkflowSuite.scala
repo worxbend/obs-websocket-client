@@ -7,8 +7,10 @@ import java.util.Base64
 import munit.FunSuite
 
 class WorkflowSuite extends FunSuite:
+  private val threeByteScreenshot: String = "data:image/png;base64,AQID"
+
   test("screenshot decoding retains MIME and immutable compressed bytes"):
-    val screenshot = Screenshot.decode("data:image/png;base64,AQID").toOption.get
+    val screenshot = Screenshot.decode(threeByteScreenshot).toOption.get
     assertEquals(screenshot.mediaType, "image/png")
     assertEquals(screenshot.bytes, Vector[Byte](1, 2, 3))
     assertEquals(
@@ -28,9 +30,9 @@ class WorkflowSuite extends FunSuite:
     assert(Screenshot.decode("data:image/png;base64,").isLeft)
 
   test("screenshot decoding enforces decoded and encoded allocation limits"):
-    assert(Screenshot.decode("data:image/png;base64,AQID", 0).isLeft)
+    assert(Screenshot.decode(threeByteScreenshot, 0).isLeft)
     assert(Screenshot.decode("data:image/png;base64,AQIDAQID", 1).isLeft)
-    assert(Screenshot.decode("data:image/png;base64,AQID", 1).isLeft)
+    assert(Screenshot.decode(threeByteScreenshot, 1).isLeft)
     assertEquals(
       Screenshot.fromResponse(GetSourceScreenshotResponse("data:image/png;base64,AQ=="), 1).toOption.get.bytes,
       Vector[Byte](1)

@@ -4,6 +4,8 @@ import com.worxbend.obs.websocket.client.protocol.requests.TriggerHotkeyByKeySeq
 import munit.FunSuite
 
 class NestedFieldsSuite extends FunSuite:
+  private val nestedLeafPath: String = "outer.inner.leaf"
+
   test("hotkey modifiers encode as nested JSON and validate through the real request decoder"):
     val request = TriggerHotkeyByKeySequence(keyId = Field.Value("OBS_KEY_A"), `keyModifiers.shift` = Field.Value(true))
     val expected = JsonValue.parse("""{"keyId":"OBS_KEY_A","keyModifiers":{"shift":true}}""").toOption.get
@@ -32,12 +34,12 @@ class NestedFieldsSuite extends FunSuite:
     assert(TriggerHotkeyByKeySequence.decode(wrong).isLeft)
 
   test("nested paths support deeper objects and required leaf decoding"):
-    val data = NestedFields.encode(Map("outer.inner.leaf" -> JsonValue.Str("value"), "top" -> JsonValue.Bool(true)))
-    assertEquals(NestedFields.required(data, "outer.inner.leaf", ValueCodec.string), Right("value"))
-    assertEquals(NestedFields.field(data, "outer.inner.leaf", ValueCodec.string, false), Right(Field.Value("value")))
+    val data = NestedFields.encode(Map(nestedLeafPath -> JsonValue.Str("value"), "top" -> JsonValue.Bool(true)))
+    assertEquals(NestedFields.required(data, nestedLeafPath, ValueCodec.string), Right("value"))
+    assertEquals(NestedFields.field(data, nestedLeafPath, ValueCodec.string, false), Right(Field.Value("value")))
     assertEquals(NestedFields.field(data, "missing.leaf", ValueCodec.string, false), Right(Field.Missing))
     assert(NestedFields.required(data, "missing.leaf", ValueCodec.string).isLeft)
-    assert(NestedFields.required(data, "outer.inner.leaf", ValueCodec.number).isLeft)
+    assert(NestedFields.required(data, nestedLeafPath, ValueCodec.number).isLeft)
     assert(
       NestedFields
         .field(JsonObject(Map("outer" -> JsonValue.Bool(false))), "outer.leaf", ValueCodec.string, false)

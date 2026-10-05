@@ -16,6 +16,8 @@ import ox.timeoutOption
 
 /** Opt-in discovery plus separately enabled disposable scene mutations; absence is an explicit skip. */
 class RealObsSuite extends FunSuite:
+  private val disposableObsRequired: String = "Disposable OBS is required"
+
   private def disposableConfig(): ObsConfig =
     val url = sys.env.get("OBS_WS_URL").filter(_.nonEmpty).getOrElse(fail("Explicit OBS_WS_URL is required"))
     val password =
@@ -23,7 +25,7 @@ class RealObsSuite extends FunSuite:
     ObsConfig(uri = url, passwordProvider = PasswordProvider.fixed(Some(password)))
 
   test("disposable real OBS rejects an incorrect password"):
-    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")
+    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
     val configured = disposableConfig()
     val config = configured.copy(passwordProvider =
       PasswordProvider.fixed(Some("deliberately-wrong-" + java.util.UUID.randomUUID().toString))
@@ -48,7 +50,7 @@ class RealObsSuite extends FunSuite:
     println(s"Verified read-only OBS ${actual._1}, WebSocket ${actual._2}, ${actual._3} scenes")
 
   test("disposable real OBS acknowledges subscription updates without disconnecting"):
-    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")
+    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
     val result = SttpObsClient.connect(disposableConfig()): session =>
       // Each request after a reidentify forces its uncorrelated Identified ack to arrive first (the server
       // processes frames in order), so a zero observed backlog proves the ack was actually received.
@@ -67,7 +69,7 @@ class RealObsSuite extends FunSuite:
     println("Verified Reidentify acknowledgements preserve the live OBS session")
 
   test("empty disposable OBS scene switching broadcasts a typed event and cleans up"):
-    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), "Disposable OBS is required")
+    assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
     assume(
       sys.env.get("OBS_INTEGRATION_SCENE_MUTATIONS").contains("true"),
       "Only the isolated Docker smoke launcher enables temporary scene mutations"

@@ -7,6 +7,8 @@ import munit.FunSuite
 import scala.concurrent.duration.*
 
 class SttpOptionsSuite extends FunSuite:
+  private val testHeaderName: String = "X-Test"
+
   test("upgrade headers accept HTTP token names and visible ASCII values"):
     val headers = HandshakeHeaders.create(Vector("Authorization" -> "Bearer secret", "X-Trace" -> "\tvalue"))
     assertEquals(headers.toOption.get.entries.size, 2)
@@ -17,10 +19,10 @@ class SttpOptionsSuite extends FunSuite:
     val invalid = Vector(
       "" -> "value",
       "Bad Name" -> "value",
-      "X-Test" -> "secret\r\nInjected: true",
-      "X-Test" -> "secret\u0000",
-      "X-Test" -> "secret\u007f",
-      "X-Test" -> "é",
+      testHeaderName -> "secret\r\nInjected: true",
+      testHeaderName -> "secret\u0000",
+      testHeaderName -> "secret\u007f",
+      testHeaderName -> "é",
       "Connection" -> "upgrade",
       "Upgrade" -> "websocket",
       "HOST" -> "other.example",

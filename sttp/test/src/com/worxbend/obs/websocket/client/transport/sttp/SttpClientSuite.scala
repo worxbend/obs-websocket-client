@@ -7,6 +7,8 @@ import scala.concurrent.duration.*
 import _root_.sttp.client4.testing.WebSocketSyncBackendStub
 
 class SttpClientSuite extends FunSuite:
+  private val noConnectionMessage: String = "No connection acquired"
+
   private val hello = """{"op":0,"d":{"obsWebSocketVersion":"5.6.3","rpcVersion":1}}"""
   private val identified = """{"op":2,"d":{"negotiatedRpcVersion":1}}"""
 
@@ -59,7 +61,7 @@ class SttpClientSuite extends FunSuite:
     val result = SttpObsClient.withBackend(
       WebSocketSyncBackendStub,
       ObsConfig(uri = "ws://localhost:invalid"),
-      () => fail("No connection acquired")
+      () => fail(noConnectionMessage)
     )(_ => ())
     assertEquals(
       result,
@@ -80,13 +82,13 @@ class SttpClientSuite extends FunSuite:
     val result = SttpObsClient.withBackend(
       backend,
       ObsConfig(connectionTimeout = 10.millis),
-      () => fail("No connection acquired")
+      () => fail(noConnectionMessage)
     )(_ => ())
     assertEquals(result, Left(ObsError.Timeout("connection")))
 
   test("non-handshake connection errors are typed and redacted"):
     val backend = WebSocketSyncBackendStub.whenAnyRequest.thenThrow(new java.net.ConnectException("secret"))
-    val result = SttpObsClient.withBackend(backend, ObsConfig(), () => fail("No connection acquired"))(_ => ())
+    val result = SttpObsClient.withBackend(backend, ObsConfig(), () => fail(noConnectionMessage))(_ => ())
     assertEquals(result, Left(ObsError.Transport("WebSocket connection failed")))
 
   test("injected backend remains usable after a rejected connection"):
@@ -101,7 +103,7 @@ class SttpClientSuite extends FunSuite:
         socket.getOutputStream.flush()
       for _ <- 1 to 2 do
         val result = LocalWebSocketPeer.run(reject): uri =>
-          SttpObsClient.withBackend(backend, ObsConfig(uri = uri), () => fail("No connection acquired"))(_ => ())
+          SttpObsClient.withBackend(backend, ObsConfig(uri = uri), () => fail(noConnectionMessage))(_ => ())
         assertEquals(result, Left(ObsError.Transport("WebSocket upgrade rejected")))
 
   test("positive submillisecond deadlines construct the real backend without truncation errors"):
