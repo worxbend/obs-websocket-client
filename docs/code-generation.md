@@ -65,4 +65,4 @@ tools/coverage.sh
 
 When intentionally changing output, review the generated API and full fixture diff before updating expected files. Never refresh fixtures just to make a failing comparison pass. A schema upgrade must also update its reviewed provenance and overrides. Normal generation never fetches an upstream branch.
 
-The [design decision](ideas/codegen-templates.md) records why Scala interpolation was selected. Test and coverage outcomes must be measured independently; this document does not establish a passing coverage result.
+Scala interpolation was selected for templates because it gives compiler-checked context references and source-shaped layouts without a template compiler or runtime dependency. Test and coverage outcomes must be measured independently; this document does not establish a passing coverage result.

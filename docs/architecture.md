@@ -2,7 +2,7 @@
 
 The client is a Scala 3 library that owns an OBS WebSocket connection for the lifetime of an application callback. Generated protocol bindings describe messages; an Ox actor coordinates requests and events; a pluggable backend adapter handles the socket. The HTTP server is a separate consumer of that library.
 
-This page describes the implementation inspected on 2026-10-04, not the target design in [PLAN.md](../PLAN.md). It does not claim a published release or broader OBS compatibility. Existing test measurements and release gates remain in [IMPLEMENTATION.md](../IMPLEMENTATION.md).
+This page reflects the implementation as of 2026-10-04. It does not claim a published release or broader OBS compatibility; tested versions and operations are listed in the [compatibility matrix](compatibility.md).
 
 ## Module boundaries
 
@@ -168,7 +168,7 @@ OBS failures map to HTTP 503 with the generic `ApiFailure` response. Swagger and
 
 ## Generated protocol and verification boundaries
 
-The [generator architecture and contributor guide](code-generation.md) describes the CLI, schema normalization, immutable models, and per-output Scala templates. The [design decision](ideas/codegen-templates.md) records the template tradeoffs.
+The [generator architecture and contributor guide](code-generation.md) describes the CLI, schema normalization, immutable models, and per-output Scala templates, including the template trade-offs.
 
 The generator reads the checked-in schema, overrides, and provenance, verifies the schema checksum, and emits sources under Mill's `out/` directory. The pinned inventory contains 147 requests, 60 events, and seven enum groups. `Field` distinguishes omitted, null, and present optional values; numbers retain exact `BigDecimal` values within decoder limits. Loose upstream object shapes remain validated `JsonObject` values.
 

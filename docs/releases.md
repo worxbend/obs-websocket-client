@@ -1,6 +1,6 @@
 # Releases
 
-The project is licensed under MIT. Bundled third-party specifications and skills retain their own attribution and licenses. No public library artifact or documentation deployment has been performed by this implementation run.
+The project is licensed under MIT. Bundled third-party specifications retain their own attribution and licenses. No public library artifact or documentation deployment has been performed yet.
 
 ## Pre-release checklist
 

@@ -8,8 +8,8 @@ Status: Accepted design; validation is reported separately from implementation.
 
 Consumers need a choice of WebSocket backend: the existing JDK `HttpClient` sync backend,
 an OkHttp sync backend, and the streaming backends sttp exposes for ZIO
-(`ZioWebSockets`), fs2 (`Fs2WebSockets`), and Pekko (`Flow`). ADR-001 and PLAN.md §1
-previously ruled out Cats Effect, ZIO, and any effect-polymorphic API outright. That
+(`ZioWebSockets`), fs2 (`Fs2WebSockets`), and Pekko (`Flow`). ADR-001
+originally ruled out Cats Effect, ZIO, and any effect-polymorphic API outright. That
 rule exists to keep the session engine direct-style and Ox-owned; it does not need to
 forbid optional adapter artifacts that pull an effect runtime in transitively.
 
@@ -40,7 +40,7 @@ transport. This is a source-breaking package move, acceptable while the only pub
 version is `0.1.0-SNAPSHOT`.
 
 Every new module meets the same gates as the existing ones: 100% statement and branch
-coverage per PLAN §23, warnings-as-errors, Scalafix/Scalafmt checks, and inclusion in
+coverage, warnings-as-errors, Scalafix/Scalafmt checks, and inclusion in
 the release, consumer-smoke, and API-site module enumerations. Documented behavioral
 differences discovered during implementation (error mapping for upgrade rejections,
 framework-level ping handling and close-code surfacing on Pekko, and effect-thread
@@ -67,7 +67,7 @@ must be documented so ZIO/fs2/Pekko users are not surprised. The package name
 and `transport.pekko` needed no `_root_` imports in practice: neither module references
 the shadowed root package it shares a name with.
 
-Post-implementation review (quorum remediation) refined the design further:
+Post-implementation review refined the design further:
 
 - The four transports' duplicated frame loops were extracted into
   `transport.AbstractObsTransport` over the neutral `transport.TransportFrame` ADT in

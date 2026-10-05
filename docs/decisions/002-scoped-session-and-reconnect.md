@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted; retrospective record of PLAN sections 8, 11, and 12.
+Accepted; recorded 2026-10-04.
 
 ## Date
 

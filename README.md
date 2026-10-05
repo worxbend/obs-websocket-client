@@ -9,8 +9,6 @@
 <p align="center">
   <a href="docs/README.md">Guides</a> ·
   <a href="docs/architecture.md">Architecture</a> ·
-  <a href="IMPLEMENTATION.md">Verification report</a> ·
-  <a href="PLAN.md">Plan</a> ·
   <a href="LICENSE">MIT</a>
 </p>
 
@@ -102,16 +100,14 @@ The clean local coverage gate enforces exactly 100% statements and 100% branches
 every production module — ten modules checked by `tools/check_coverage.py`, including
 generator logic, generated bindings, backend adapters, and examples. It rejects missing, stale, or
 inconsistent evidence. It does not establish real OBS compatibility or certify a public
-CI run. Current measurements are recorded in the
-[verification report](IMPLEMENTATION.md) and in CI artifacts.
+CI run; fresh measurements are produced by `tools/coverage.sh` and archived as CI artifacts.
 
-The verification report also records executed checks, remote workflow
-evidence, and open release gates. CI workflows cover validation, documentation,
-compatibility checks, disposable OBS checks, and explicit release preflight/publication.
+CI workflows cover validation, documentation, compatibility checks, disposable OBS
+checks, and explicit release preflight/publication.
 
 ## Contributing and licensing
 
-Read [AGENTS.md](AGENTS.md), the [contributor guide](docs/contributing.md), and [PLAN.md](PLAN.md).
+Read the [contributor guide](docs/contributing.md).
 The reusable dependency direction is `protocol ← core ← {sttp, zio, fs2, pekko}`, with
 `sttp ← okhttp`; server and examples remain separate. Ordinary builds generate offline
 from the pinned schema.
@@ -121,8 +117,8 @@ connection establishment, request/event dispatch, and reconnect ownership.
 [Decision records](docs/decisions.md) explain these boundaries and their trade-offs.
 
 First-party code uses the [MIT License](LICENSE), as selected by the maintainer.
-Bundled upstream skills and the [OBS schema](protocol-spec/README.md) retain their own
-attribution and licenses. Review of schema-derived output licensing is a publication gate.
+The bundled [OBS schema](protocol-spec/README.md) retains its upstream attribution
+and license. Review of schema-derived output licensing is a publication gate.
 
 Inspired by [ktobs](https://github.com/Rejeq/ktobs) and the
 [VirtusLab Scala Stack](https://vss.virtuslab.com/). The project mark is original.

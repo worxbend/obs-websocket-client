@@ -1,6 +1,6 @@
 # Contributing
 
-Read the repository's AGENTS.md and PLAN.md before changing code. Mill is the only maintained build. The native module layout is `<module>/src` and `<module>/test/src`. Follow the project-local direct-style Scala skill and its Mill companion; preserve the upstream skill snapshot.
+Mill is the only maintained build. The native module layout is `<module>/src` and `<module>/test/src`. Code follows direct-style Scala: synchronous calls, Ox for concurrency and scoped resources, and `Either` for expected errors.
 
 ## Module boundaries
 
@@ -10,7 +10,7 @@ Protocol models depend on jsoniter. Core owns session behavior using Ox, plus th
 
 See [code generation](code-generation.md) for the parser/model/template boundaries, indentation conventions, and golden-fixture workflow.
 
-The [SonarCloud review](quality/sonarcloud-review-2026-10-05.md) records all 55 findings from the reviewed baseline, their local fixes, and justified exceptions. Apply the versioned [prevention skill](../skills/sonar-issue-prevention/SKILL.md) when editing Scala, Python tooling, or workflows; it is also installed as a global Codex skill in the review environment.
+Static analysis findings are tracked in [SonarQube Cloud](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client); changes should not add findings. Justified exceptions (test fixtures with synthetic credentials, the frozen legacy benchmark) are documented where they occur.
 
 ```sh
 ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
@@ -102,7 +102,7 @@ The profile was compared with these public configurations on 2026-10-05:
 | [Ox](https://github.com/softwaremill/ox/blob/master/.scalafmt.conf) | Scala 3 and optional-brace removal; automatic end markers are not part of this project's existing style. |
 
 This is a project-specific combination, not a verbatim copy of another repository. The formatter excludes the frozen
-benchmark, upstream skill snapshots, generated output, and independent fixtures. Template margin indentation may move,
+benchmark, generated output, and independent fixtures. Template margin indentation may move,
 but the generation checks require the rendered bytes to stay identical. Mill module `reformat` and `checkFormat` tasks
 use this same config locally and in CI. The build definition is formatted with Mill’s Scalafmt CLI task and checked
 with its `--test build.mill` option; do not configure a competing IDE style. See the

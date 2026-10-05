@@ -24,5 +24,4 @@ __pycache__/
 *.pyc
 
 # Local agent tooling configuration
-.agents/
 .claude/

@@ -1,6 +1,6 @@
 # Architecture decisions
 
-These records capture decisions already agreed in [PLAN.md](../PLAN.md) and implemented in the repository. The record date is 2026-10-04; it is not an assertion about when the original decision was made. Alternatives describe trade-offs, not an invented history of benchmark results or team votes.
+These records document the library's major design decisions and their trade-offs. The record date is 2026-10-04; it is not an assertion about when the original decision was made. Alternatives describe trade-offs, not an invented history of benchmark results or team votes.
 
 | Record | Decision | Status |
 | --- | --- | --- |

@@ -34,4 +34,5 @@ Use a disposable container with an empty home/configuration directory and no hos
 OBS configuration mounts for automated live tests. Do not launch the installed
 Flatpak with only `XDG_CONFIG_HOME` overrides: Flatpak can replace reserved XDG
 paths and cause OBS to load its normal profile. An attempted launch exposed this
-behavior during implementation; see the repository's OBS-INTEGRATION-NOTE.md.
+behavior during development: Flatpak replaced the overridden `XDG_CONFIG_HOME` with its
+normal application configuration directory, so the temporary profile was never used.

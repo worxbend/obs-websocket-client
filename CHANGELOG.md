@@ -10,11 +10,11 @@
 - Hardening: fix `server.run` Netty lifecycle leak, consolidate the error taxonomy (non-fatal `MessageTooLarge`, `UnsupportedMessage`, `InternalError`), make capability gating and raw escape hatches coherent across single/batch APIs, unify duplicate raw-event types, and harden the generator (override validation, duplicate detection, literal escaping, upstream-linked Scaladoc).
 - **Breaking refactor:** subscription `next()` reads now return tri-state `Next.Item` / `Next.Failed` / `Next.Ended` instead of overloading `Left(ObsError.Closed)` for clean end-of-stream; clean source end no longer error-closes sampled streams. `Field`'s companion provides a given `Conversion[A, Field[A]]`, so optional request fields accept plain values.
 
-### Quorum remediation: correctness hardening, deduplication, and API parity (2026-10-05)
+### Review hardening: transport deduplication, correctness, and API parity (2026-10-05)
 
 #### Changed
 
-- **Transport deduplication (review's top finding):** the four transports' duplicated frame loops are extracted into `transport.AbstractObsTransport` over the neutral `transport.TransportFrame` ADT in core; adapters keep only frame/error mapping. A cross-backend contract suite (`BackendContractSuite` in `sttp/test` with per-backend subclasses) replaces the cloned client/reconnecting suites and pins shared wire behavior, including close-code preservation, clean-close surfacing, and a real reconnect-after-drop case per backend.
+- **Transport deduplication:** the four transports' duplicated frame loops are extracted into `transport.AbstractObsTransport` over the neutral `transport.TransportFrame` ADT in core; adapters keep only frame/error mapping. A cross-backend contract suite (`BackendContractSuite` in `sttp/test` with per-backend subclasses) replaces the cloned client/reconnecting suites and pins shared wire behavior, including close-code preservation, clean-close surfacing, and a real reconnect-after-drop case per backend.
 - **Post-abort correctness guard:** after a transport abort, a non-fatal failure of an in-flight operation (for example a foreign `CancellationException`) reports `ObsError.Transport` instead of flipping an already-computed retryable `Timeout` into a terminal defect.
 - **API parity:** new `OkHttpReconnectingObsClient` wrapper; `JdkClientOptions` moved from the sttp module to core's `transport` package (pre-release package move), giving zio/fs2 `connect` proxy/TLS parity; `transport.okhttp.OkHttpOptions` type alias so okhttp consumers need not import the sttp module; `OkHttpClientOptions`/`JdkClientOptions` redact only sensitive fields and render innocuous deadlines.
 - **Robustness:** bounded 5s Pekko actor-system termination with unique monotonic system names; fs2 dispatcher release registered at allocation; zio/fs2/pekko validate configuration before allocating clients/runtimes/systems.
@@ -65,6 +65,6 @@
 - `release.yml` provisions Temurin 25.0.3 via setup-java and adds a separate tag-gated GitHub Release job with generated notes; its failure does not fail the publication.
 - Dead actionlint configuration removed.
 - `build.mill` now asserts that Mill itself runs on Java 25 and points at the wrapper when it does not.
-- Documentation aligned with the current implementation; interim agent artifacts removed (an unpinned skills lock file and a dated review report superseded by docs/architecture.md and IMPLEMENTATION.md).
+- Documentation aligned with the current implementation; interim planning artifacts removed.
 
-This entry describes local implementation, not a published release. See IMPLEMENTATION.md for measured evidence and remaining gates.
+This entry describes local implementation, not a published release.

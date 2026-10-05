@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted; retrospective record of PLAN sections 9, 13, 15, and 23.
+Accepted; recorded 2026-10-04.
 
 ## Date
 
@@ -20,7 +20,7 @@ Include generator logic and generated production bindings in the exact statement
 
 ## Alternatives considered
 
-Hand-maintaining the entire catalog duplicates schema work and increases drift. Fetching a moving upstream branch during compilation makes identical checkouts build differently. Treating every numeric field as an integer or collapsing null and omission loses wire semantics. Broadly excluding generated code from coverage would violate the agreed measurement rules.
+Hand-maintaining the entire catalog duplicates schema work and increases drift. Fetching a moving upstream branch during compilation makes identical checkouts build differently. Treating every numeric field as an integer or collapsing null and omission loses wire semantics. Broadly excluding generated code from coverage would weaken the measurement rules this project enforces.
 
 ## Consequences
 
@@ -28,4 +28,4 @@ Ordinary builds do not need an upstream schema download. Upgrades require review
 
 ## Evidence
 
-See [provenance.json](../../protocol-spec/provenance.json), [Generate.scala](../../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala), [Field.scala](../../protocol/src/com/worxbend/obs/websocket/client/protocol/Field.scala), and [check_generation.py](../../tools/check_generation.py). The [compatibility matrix](../compatibility.md) and [verification report](../../IMPLEMENTATION.md) distinguish tested behavior from catalog scope.
+See [provenance.json](../../protocol-spec/provenance.json), [Generate.scala](../../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala), [Field.scala](../../protocol/src/com/worxbend/obs/websocket/client/protocol/Field.scala), and [check_generation.py](../../tools/check_generation.py). The [compatibility matrix](../compatibility.md) distinguishes tested behavior from catalog scope.

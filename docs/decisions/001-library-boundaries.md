@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted; retrospective record of PLAN sections 1, 3, 7, and 21.
+Accepted; recorded 2026-10-04.
 
 ## Date
 
@@ -26,4 +26,4 @@ The core depends on a small `ObsTransport` interface and can use scripted transp
 
 ## Evidence
 
-See [build.mill](../../build.mill), [ObsTransport.scala](../../core/src/com/worxbend/obs/websocket/client/ObsTransport.scala), and [the architecture overview](../architecture.md). Publication remains subject to the gates in [IMPLEMENTATION.md](../../IMPLEMENTATION.md).
+See [build.mill](../../build.mill), [ObsTransport.scala](../../core/src/com/worxbend/obs/websocket/client/ObsTransport.scala), and [the architecture overview](../architecture.md). Publication remains subject to the pre-release checklist in [releases](../releases.md).

@@ -2,7 +2,9 @@
 
 A Scala 3 library for scoped, typed control of OBS Studio. Built with Java 25 virtual threads, Ox, sttp, jsoniter-scala, and Mill.
 
-The library is under active implementation and has no published release. Measured verification and open gates are recorded in [the implementation report](../IMPLEMENTATION.md). The exact scope remains in [PLAN.md](../PLAN.md).
+The library is under active development and has no published release. Its
+[current architecture](architecture.md) and [decision records](decisions.md)
+describe the implemented design.
 
 - [Getting started](quickstart.md)
 - [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md)
