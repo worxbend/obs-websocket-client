@@ -18,9 +18,9 @@ Tests should retain independent expectations. A test-local expected diagnostic i
 
 Prepare arguments outside an exception assertion so the block contains only the intended throwing operation. Assert relevant error context when it matters. Keep redaction, invalid-URI, Unicode-authentication, and missing-password cases. Use clearly synthetic, test-only values that do not authenticate to real services; document this when a security rule misclassifies them.
 
-## Small Python improvements: S7494, S9409
+## Small Python improvements: S7494, S7500, S9409
 
-Prefer a dictionary comprehension when it clearly expresses key/value construction, preserving duplicate-key and ordering semantics. Use `extend` for a coherent consecutive group of list elements. Avoid these rewrites when they obscure evaluation order or comprehension side effects.
+Prefer a dictionary comprehension when it transforms keys or values, preserving duplicate-key and ordering semantics. If an iterable already contains the desired key/value pairs, `dict(pairs)` is clearer than an identity comprehension. Avoid cycling between S7494 and S7500: combine adjacent construction and transformation into one meaningful comprehension when appropriate. Use `extend` for a coherent consecutive group of list elements. Avoid these rewrites when they obscure evaluation order or comprehension side effects.
 
 ## Verification
 

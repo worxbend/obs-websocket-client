@@ -30,6 +30,25 @@ class RealObsSmokeTests(unittest.TestCase):
         log = '9' * 200_000 + ' failure\n' + MARKERS + '\n0 failed, 0 ignored, 4 total'
         smoke.validate_phase_log(log, 'after-restart')
 
+    def test_malformed_candidate_before_valid_summary_on_same_line(self):
+        log = '8 failed, broken ignored, 3 total; prefix0 failed, 0 ignored, 4 total'
+        self.assertEqual(smoke.parse_test_summary(log), (0, 0, 4))
+
+    def test_incomplete_and_nondecimal_summaries_are_absent(self):
+        for log in ('no summary', ' failed, 0 ignored, 4 total',
+                    '0 failed, 0 ignored, 4', '0 failed, ² ignored, 4 total',
+                    '0 failed, 0 ignored, broken total'):
+            with self.subTest(log=log):
+                self.assertIsNone(smoke.parse_test_summary(log))
+                phase_log = MARKERS + '\n' + log
+                with self.assertRaises(RuntimeError):
+                    smoke.validate_phase_log(phase_log, 'before-restart')
+
+    def test_summary_preserves_decimal_unicode_and_first_match(self):
+        self.assertEqual(smoke.parse_test_summary('٠ failed, ٠ ignored, ٤ total'), (0, 0, 4))
+        self.assertEqual(smoke.parse_test_summary('1 failed, 0 ignored, 4 total; '
+                                           '0 failed, 0 ignored, 4 total'), (1, 0, 4))
+
     def test_container_inspection_rejects_mounts_and_public_bindings(self):
         valid = {'Mounts': [], 'NetworkSettings': {'Ports': {'4455/tcp': [
             {'HostIp': '127.0.0.1', 'HostPort': '12345'}]}}}

@@ -10,7 +10,6 @@ import datetime
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import signal
 import socket
@@ -94,14 +93,29 @@ def wait_for_xvfb(name):
         raise RuntimeError('Private Xvfb did not become ready')
 
 
+def parse_test_summary(phase_log):
+    """Read the first complete summary, visiting each delimiter-bounded segment once."""
+    segments = phase_log.split(' failed, ')
+    for before, after in zip(segments, segments[1:]):
+        start = len(before)
+        while start > 0 and before[start - 1].isdecimal():
+            start -= 1
+        failed = before[start:]
+        ignored, ignored_separator, remainder = after.partition(' ignored, ')
+        total, total_separator, _ = remainder.partition(' total')
+        if (ignored_separator and total_separator
+                and all(value.isdecimal() for value in (failed, ignored, total))):
+            return int(failed), int(ignored), int(total)
+    return None
+
+
 def validate_phase_log(phase_log, phase):
-    # Never restart a match inside a failed digit run; near misses stay linear.
-    summary = re.search(r'(?<!\d)(\d+) failed, (\d+) ignored, (\d+) total', phase_log)
+    summary = parse_test_summary(phase_log)
     markers = ('Verified incorrect-password authentication rejection with close code 4009',
                'Verified read-only OBS ',
                'Verified Reidentify acknowledgements preserve the live OBS session',
                'Verified disposable scene creation, switching, event delivery, restoration and removal')
-    if (summary is None or int(summary[1]) != 0 or int(summary[2]) != 0 or int(summary[3]) < 4
+    if (summary is None or summary[0] != 0 or summary[1] != 0 or summary[2] < 4
             or any(marker not in phase_log for marker in markers)):
         raise RuntimeError(f'{phase}: required non-skipped integration checks were not reported')
 

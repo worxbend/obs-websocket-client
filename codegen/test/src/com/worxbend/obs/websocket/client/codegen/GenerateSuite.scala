@@ -7,6 +7,11 @@ import java.nio.file.{Files, Path}
 import java.security.MessageDigest
 
 class GenerateSuite extends FunSuite:
+  private val schemaFile: String = "schema.json"
+  private val overridesFile: String = "overrides.json"
+  private val provenanceFile: String = "provenance.json"
+  private val maskEnumPath: String = "enums/Mask.scala"
+  private val eventDispatchPath: String = "Event.scala"
   private val firstBitExpression: String = "(1 << 0)"
   private val combinedBitsExpression: String = "(One | Two)"
   private val catalogPath: String = "Catalog.scala"
@@ -39,24 +44,24 @@ class GenerateSuite extends FunSuite:
         val stream = getClass.getResourceAsStream(s"/golden/$name")
         try new String(stream.readAllBytes(), UTF_8)
         finally stream.close()
-      List("schema.json", "overrides.json", "provenance.json").foreach: name =>
+      List(schemaFile, overridesFile, provenanceFile).foreach: name =>
         val _ = Files.writeString(directory.resolve(name), resource(name), UTF_8)
       val output = directory.resolve("output")
       Generate.main(
         Array(
-          directory.resolve("schema.json").toString,
+          directory.resolve(schemaFile).toString,
           output.toString,
-          directory.resolve("overrides.json").toString,
-          directory.resolve("provenance.json").toString
+          directory.resolve(overridesFile).toString,
+          directory.resolve(provenanceFile).toString
         )
       )
       val names = List(
         "requests/Example.scala",
         "requests/Empty.scala",
         "events/Changed.scala",
-        "enums/Mask.scala",
+        maskEnumPath,
         "enums/State.scala",
-        "Event.scala",
+        eventDispatchPath,
         catalogPath,
         "RequestApi.scala",
         "catalog-inventory.tsv"
@@ -241,13 +246,13 @@ class GenerateSuite extends FunSuite:
       val schemaBytes =
         """{"requests":[{"requestType":"GetVersion","description":"Version info.","requestFields":[],"responseFields":[]}],"events":[]}"""
           .getBytes(UTF_8)
-      val input = directory.resolve("schema.json")
+      val input = directory.resolve(schemaFile)
       val _ = Files.write(input, schemaBytes)
-      val config = directory.resolve("overrides.json")
+      val config = directory.resolve(overridesFile)
       // Documentation-only override keys are tolerated without naming a schema field.
       val _ = Files.writeString(config, """{"numberPolicy":"documentation only","nullableFields":[]}""")
       val digest = MessageDigest.getInstance("SHA-256").digest(schemaBytes).map(byte => f"${byte & 0xff}%02x").mkString
-      val pinned = directory.resolve("provenance.json")
+      val pinned = directory.resolve(provenanceFile)
       val _ = Files.writeString(
         pinned,
         s"""{"repository":"https://example.com/obs","revision":"abc123","sha256":"$digest"}"""
@@ -257,8 +262,8 @@ class GenerateSuite extends FunSuite:
       Generate.main(Array(input.toString, first.toString, config.toString, pinned.toString))
       Generate.main(Array(input.toString, second.toString, config.toString, pinned.toString))
       assertEquals(snapshot(first), snapshot(second))
-      assert(snapshot(first).contains("Event.scala"))
-      assert(snapshot(first)("Event.scala").contains(s"sha256: $digest"))
+      assert(snapshot(first).contains(eventDispatchPath))
+      assert(snapshot(first)(eventDispatchPath).contains(s"sha256: $digest"))
       assert(
         snapshot(first)("requests/GetVersion.scala")
           .contains("https://example.com/obs/blob/abc123/docs/generated/protocol.md#getversion")
@@ -285,11 +290,11 @@ class GenerateSuite extends FunSuite:
   test("entrypoint rejects schema and provenance checksum drift"):
     val directory = Files.createTempDirectory(temporaryDirectoryPrefix)
     try
-      val input = directory.resolve("schema.json")
+      val input = directory.resolve(schemaFile)
       val _ = Files.writeString(input, """{"requests":[],"events":[]}""")
-      val config = directory.resolve("overrides.json")
+      val config = directory.resolve(overridesFile)
       val _ = Files.writeString(config, """{"nullableFields":[]}""")
-      val pinned = directory.resolve("provenance.json")
+      val pinned = directory.resolve(provenanceFile)
       val _ =
         Files.writeString(pinned, """{"repository":"https://example.com/obs","revision":"abc123","sha256":"00"}""")
       val error = intercept[IllegalArgumentException]:
@@ -311,8 +316,8 @@ class GenerateSuite extends FunSuite:
       SchemaEnum("Status", List(SchemaEnumEntry("Success", SchemaEnumValue("100"))))
     )
     val generated = Generate.generate(schema.copy(enums = enums), overrides, provenance).toMap
-    assert(generated("enums/Mask.scala").contains("(`One`.value | `Two`.value)"))
-    assert(generated("enums/Mask.scala").contains("/** Bitmask member. */"))
+    assert(generated(maskEnumPath).contains("(`One`.value | `Two`.value)"))
+    assert(generated(maskEnumPath).contains("/** Bitmask member. */"))
     assert(generated("enums/State.scala").contains("value: String"))
     assert(generated("enums/Status.scala").contains("value: Long"))
 

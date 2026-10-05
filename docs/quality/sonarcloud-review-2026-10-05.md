@@ -14,7 +14,7 @@ Sonar impacts: 1 blocker, 39 high, 11 medium, 4 low. Quality categories: 40 main
 - **7 false-positive candidates**: synthetic credential/redaction cases in tests. Their assertions remain intact.
 - **2 intentional exceptions**: a frozen legacy benchmark and the required Xvfb socket path inside an isolated container.
 
-These are local code/review dispositions. No cloud issue status, quality profile, exclusion, or suppression was changed. A new cloud analysis must establish which local fixes are recognized as resolved; do not infer a clean dashboard from this ledger.
+These are local code/review dispositions. No cloud issue status, quality profile, exclusion, or suppression was changed manually. A new cloud analysis must establish which local fixes are recognized as resolved; do not infer a clean dashboard from this ledger.
 
 ## Priorities and caveats
 
@@ -31,6 +31,20 @@ Refactoring the benchmark would alter what it measures. Synthetic password strin
 Preserve the complete generated catalog byte-for-byte and use full golden fixtures. Run Scala module tests, exact fresh coverage, formatting, Python tests, documentation compilation and site links. The Python review additionally compares old/new Markdown rendering with identical navigation, checks escaping output symlinks, exercises long regex near misses, and mocks container validation/cleanup. Global skill guidance is structurally validated and independently evaluated against actual repository examples.
 
 The versioned prevention skills are [sonar-issue-prevention](../../skills/sonar-issue-prevention/SKILL.md) and [sonarcloud-triage](../../skills/sonarcloud-triage/SKILL.md); standalone global copies are installed in the user's Codex skills directory. Skills improve future decisions but do not replace CI or guarantee zero findings.
+
+## First cloud follow-up
+
+SonarCloud analyzed pushed revision `3b1059d7e1e3160106299e823008640f9eb899e4` at `2026-10-05T07:38:49+0000`. All **46 original findings targeted by fixes were no longer open**. The nine documented disposition candidates remained, and the analyzer reported seven new findings. This is observed cloud evidence, not an inference from local tests.
+
+The follow-up changes address those seven findings locally; their resolution requires analysis of the subsequent revision. The extra fixture-path literals are now suite-local constants. Coverage report paths are constructed and transformed in one comprehension. Structured test summaries are parsed with explicit delimiter scans, removing the remaining regex-performance diagnostic while retaining supported log syntax. The prevention skill now covers identity-comprehension churn and the difference between regex performance proofs and analyzer recognition.
+
+- [AaELAIXCZsicJxPTC_gw](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIXCZsicJxPTC_gw) — python:S7500: Replace this comprehension with passing the iterable to the dict constructor call
+- [AaELAIaQZsicJxPTC_gx](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIaQZsicJxPTC_gx) — python:S8786: Simplify this regular expression to reduce its runtime, as it has super-linear performance due to backtracking.
+- [AaELAIdEZsicJxPTC_gz](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIdEZsicJxPTC_gz) — scaladre:S1192: Define a constant instead of duplicating this literal "overrides.json" 4 times.
+- [AaELAIdFZsicJxPTC_g1](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIdFZsicJxPTC_g1) — scaladre:S1192: Define a constant instead of duplicating this literal "provenance.json" 4 times.
+- [AaELAIdFZsicJxPTC_g2](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIdFZsicJxPTC_g2) — scaladre:S1192: Define a constant instead of duplicating this literal "schema.json" 4 times.
+- [AaELAIdEZsicJxPTC_gy](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIdEZsicJxPTC_gy) — scaladre:S1192: Define a constant instead of duplicating this literal "enums/Mask.scala" 3 times.
+- [AaELAIdEZsicJxPTC_g0](https://sonarcloud.io/project/issues?id=worxbend_obs-websocket-client&open=AaELAIdEZsicJxPTC_g0) — scaladre:S1192: Define a constant instead of duplicating this literal "Event.scala" 3 times.
 
 ## Complete issue ledger
 

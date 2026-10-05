@@ -165,8 +165,7 @@ def main():
             return 1
         manifest.write_text(json.dumps({'source_sha256': source_digest(ROOT), 'started_ns': time.time_ns(), 'instrumentation_sha256': digests}, indent=2))
         return 0
-    paths = {module: path for module, path in (item.split('=', 1) for item in args.report)}
-    reports = {module: Path(path) for module, path in paths.items()}
+    reports = {module: Path(path) for module, path in (item.split('=', 1) for item in args.report)}
     try:
         for module in MODULES:
             if module not in reports:
