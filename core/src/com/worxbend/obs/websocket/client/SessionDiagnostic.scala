@@ -1,7 +1,11 @@
 package com.worxbend.obs.websocket.client
 
+/** How a finished request ended. `Cancelled` means the caller abandoned it (e.g. interruption) before an outcome was
+  * recorded.
+  */
 enum DiagnosticOutcome:
   case Succeeded, Failed, Cancelled
+  /** The server rejected the request; `code` is the peer's status code. */
   case Rejected(code: Int)
 
 object DiagnosticOutcome:
@@ -10,6 +14,7 @@ object DiagnosticOutcome:
     case Left(ObsError.RequestRejected(_, _, code, _)) => Rejected(code = code)
     case Left(_)                                       => Failed
 
+/** Whether bytes were written to or read from the socket. */
 enum TrafficDirection:
   case Sent, Received
 
@@ -26,6 +31,7 @@ enum SessionDiagnostic:
     */
   case PlaintextCredentials
 
+/** Monotonically increasing lifetime counters for a session. Bytes are logical UTF-8 JSON, not frame sizes. */
 final case class SessionStats(
   sentMessages:        Long = 0L,
   sentBytes:           Long = 0L,

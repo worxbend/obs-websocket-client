@@ -2,7 +2,7 @@
 
 The client is a Scala 3 library that owns an OBS WebSocket connection for the lifetime of an application callback. Generated protocol bindings describe messages; an Ox actor coordinates requests and events; a pluggable backend adapter handles the socket. The HTTP server is a separate consumer of that library.
 
-This page reflects the implementation as of 2026-10-04. It does not claim a published release or broader OBS compatibility; tested versions and operations are listed in the [compatibility matrix](compatibility.md).
+This page reflects the implementation as of 2026-10-06. It does not claim a published release or broader OBS compatibility; tested versions and operations are listed in the [compatibility matrix](compatibility.md).
 
 ## Module boundaries
 
@@ -35,7 +35,7 @@ The dependency declarations are in [build.mill](../build.mill). Seven modules ar
 | `fs2` | Bridged cats-effect/fs2 adapter; internal `IORuntime` and dispatcher | [Fs2ObsClient.scala](../fs2/src/com/worxbend/obs/websocket/client/transport/fs2/Fs2ObsClient.scala) |
 | `pekko` | Bridged Pekko adapter; owned `ActorSystem` behind the blocking `ObsTransport` | [PekkoObsClient.scala](../pekko/src/com/worxbend/obs/websocket/client/transport/pekko/PekkoObsClient.scala) |
 | `codegen` | Validate pinned inputs and emit Scala plus catalog inventory | [Generate.scala](../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala) |
-| `examples` | Runnable version and scene discovery | [Quickstart.scala](../examples/src/com/worxbend/obs/websocket/client/examples/Quickstart.scala) |
+| `examples` | Runnable version and scene discovery, plus an event-driven studio monitor | [Quickstart.scala](../examples/src/com/worxbend/obs/websocket/client/examples/Quickstart.scala), [StudioMonitor.scala](../examples/src/com/worxbend/obs/websocket/client/examples/StudioMonitor.scala) |
 | `server` | Local HTTP sample and generated Swagger/OpenAPI | [Endpoints.scala](../server/src/com/worxbend/obs/websocket/client/server/Endpoints.scala) |
 
 All four adapters implement the blocking `ObsTransport` contract over a shared bounded-deadline frame loop in core — `transport.AbstractObsTransport` over the neutral `transport.TransportFrame` ADT — keeping only their frame and error mapping per backend; the loop includes a post-abort guard that keeps foreign failures from flipping an already-computed retryable result into a defect. The async adapters bridge that seam over the monadic `sttp.ws.WebSocket[F]` shape: an internal ZIO `Runtime` for `zio`, an `IORuntime` plus `Dispatcher` for `fs2`, and an owned `ActorSystem` for `pekko`. The reconnect family (`ReconnectPolicy`, `ReconnectTiming`, `ReconnectDecision`, `ReconnectNotice`, `ConnectionGeneration`, `ReconnectConnector`, and the generic loop `Reconnect.run`), `HandshakeHeaders`, `JdkClientOptions`, and the text-fragment/byte-limit `MessageAssembler` live in `core` — packages `com.worxbend.obs.websocket.client.reconnect` and `...transport` — so every backend adapter, present and future, shares them without depending on the JDK sync backend.

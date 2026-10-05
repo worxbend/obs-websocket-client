@@ -130,6 +130,6 @@ These repository checks use a local scripted WebSocket peer and compile the docu
 ./mill --no-server integration.test.compile
 ```
 
-The seven companion tests cover discovery values, printed success, invalid input, blank-password handling, explicit/default configuration, and the CLI exit status. The peer also checks the Close frame. These checks do not establish live compatibility; the [compatibility matrix](../compatibility.md) records the tested OBS versions and operations.
+The Quickstart companion's seven tests cover discovery values, printed success, invalid input, blank-password handling, explicit/default configuration, and the CLI exit status. The peer also checks the Close frame. These checks do not establish live compatibility; the [compatibility matrix](../compatibility.md) records the tested OBS versions and operations.
 
 Follow the [architecture's source map](../architecture.md) to see how the sttp entrypoint, core session, and generated protocol implement this workflow. For the next application operation, see [typed requests](../requests.md) or [scoped events](../events.md).

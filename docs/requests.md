@@ -28,6 +28,25 @@ The outer `Either` describes the request outcome; the inner `Either` describes t
 
 `ObsError` distinguishes configuration, authentication, protocol negotiation, malformed payload, local invalid requests, unexpected messages, oversized messages, unsupported incoming frames, OBS request rejection, timeout, bounded-capacity overflow, unsupported request, transport closure, ambiguous batch outcome, internal invariant violations, and closed session failures.
 
+| Case | Meaning | Retry classification |
+| --- | --- | --- |
+| `InvalidConfiguration` | Invalid URI, nonpositive deadline or budget, or invalid reconnect policy; nothing was attempted | Terminal: deterministic |
+| `Transport` | Socket or connection failure, optionally carrying the peer's close code | Retryable without a close code or with a transient code (1001, 1006, 1011, 1012, 1013); terminal on normal closure (1000) and OBS application codes (4009, 4010, 4011) |
+| `Authentication` | Challenge failure, or OBS close 4009/4011 during identification | Terminal |
+| `IncompatibleProtocol` | Negotiated RPC version is unsupported (OBS close 4010) | Terminal |
+| `MalformedPayload` | An incoming message failed structural decoding | Terminal |
+| `UnexpectedMessage` | A message arrived in an incompatible connection state | Terminal |
+| `InvalidRequest` | Local catalog validation rejected the request before anything was sent | Terminal: deterministic |
+| `MessageTooLarge` | A message exceeded the configured byte limit; outbound fails only that operation, inbound fails the session | Terminal: deterministic |
+| `UnsupportedMessage` | An incoming frame the client can never use, such as binary in JSON mode; session-fatal | Terminal: deterministic |
+| `InternalError` | A violated library invariant — a bug or broken injected dependency | Terminal: deterministic |
+| `RequestRejected` | OBS rejected the request; carries type, request ID, status code, and optional comment | Terminal |
+| `Timeout` | A configured deadline expired | Retryable |
+| `Overflow` | A bounded budget — pending requests, outgoing queue, subscriber buffer — saturated | Terminal |
+| `UnsupportedRequest` | The typed request is absent from the discovered capability set | Terminal |
+| `AmbiguousBatchOutcome` | A batch's server-side outcome is uncertain after submission; wraps the cause | Terminal |
+| `Closed` | The session or subscription is already closed | Terminal |
+
 The protocol module reports structural decode failures as `ProtocolError(path, message)`. It is part of the public `Request` trait so custom request types can compose the generated decoders; payload contents and credentials are never included. The session maps local catalog validation failures to `ObsError.InvalidRequest` and incoming decode failures to `ObsError.MalformedPayload`, so session operations return `ObsError` while independent model/helper validation retains `ProtocolError`.
 
 An OBS rejection preserves request type, request ID, status code, and optional comment. Do not log complete request/settings objects. Configuration rendering redacts the password provider and shows the URI: validation forbids credentials, query, and fragment components, so a valid URI never carries secrets, and unvalidated copies still have those components stripped defensively. Transport diagnostics omit peer-controlled exception text.
@@ -42,7 +61,7 @@ Retry classification for the opt-in reconnect entrypoint: transport failures wit
 
 ## Deadlines and backpressure
 
-Connection, identification, request, and shutdown deadlines are configured separately. Pending requests, the outgoing queue, message size, and each subscriber buffer are bounded. Saturation returns a typed overflow error. Concurrent responses correlate by request ID, independent of arrival order. Late or duplicate responses cannot revive completed requests.
+Connection, identification, request, and shutdown deadlines are configured separately: the `ObsConfig` fields `connectionTimeout`, `handshakeTimeout`, and `requestTimeout` each default to `10.seconds`, and `shutdownTimeout` defaults to `3.seconds`. Pending requests, the outgoing queue, message size, and each subscriber buffer are bounded. Saturation returns a typed overflow error. Concurrent responses correlate by request ID, independent of arrival order. Late or duplicate responses cannot revive completed requests.
 
 `RequestOptions` overrides the session default for a complete exchange, including actor registration and response waiting. It applies to `request`, `rawRequest`, `batch`, and `typedBatch`. Use `withOptions` to apply it through category methods:
 

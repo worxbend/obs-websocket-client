@@ -3,7 +3,10 @@ package com.worxbend.obs.websocket.client.reconnect
 import com.worxbend.obs.websocket.client.ObsError
 import scala.concurrent.duration.*
 
-/** A bounded retry budget for the explicitly selected reconnect entrypoint. */
+/** A bounded retry budget for the explicitly selected reconnect entrypoint. Exponential backoff: `initialDelay`
+  * doubles per retry, capped at `maxDelay`, with symmetric jitter of ±`jitterFraction` applied to each delay.
+  * Construction is only through [[ReconnectPolicy.create]]; the constructor is private.
+  */
 final class ReconnectPolicy private (
   val maxRetries:     Int,
   val initialDelay:   FiniteDuration,
@@ -20,6 +23,9 @@ final class ReconnectPolicy private (
       Right(nanos.nanos)
 
 object ReconnectPolicy:
+  /** The only way in. Validates: nonnegative `maxRetries`, positive `initialDelay` with `maxDelay` covering it, and a
+    * finite `jitterFraction` between zero and one. Defaults: 5 retries, 250 ms initial delay, 10 s cap, 0.2 jitter.
+    */
   def create(
     maxRetries:     Int = 5,
     initialDelay:   FiniteDuration = 250.millis,

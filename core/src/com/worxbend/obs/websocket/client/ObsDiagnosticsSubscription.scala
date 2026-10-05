@@ -21,4 +21,5 @@ final class ObsDiagnosticsSubscription private[client] (channel: Channel[Session
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
   def flow: Flow[Either[ObsError, SessionDiagnostic]] = Next.drain(() => read())
 
+  /** Total records dropped because the consumer fell behind; session counters remain complete. */
   def droppedDiagnostics: Long = losses()

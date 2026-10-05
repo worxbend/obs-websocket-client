@@ -18,6 +18,9 @@ final class SampledSubscription[K] private[client] (
   drops:   AtomicLong,
   source:  ObsSubscription,
 ):
+  /** `Next.Ended` means clean end-of-stream; a terminal source failure or a key-function defect surfaces as
+    * `Next.Failed` with its concrete `ObsError`.
+    */
   def next(): Next[EventWindow[K]] = channel.receiveOrClosed() match
     case window: EventWindow[?]                        => Next.Item(value = window.asInstanceOf[EventWindow[K]])
     case ChannelClosed.Error(error: SessionTerminated) => Next.Failed(error = error.error)
@@ -26,8 +29,11 @@ final class SampledSubscription[K] private[client] (
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
   def flow: Flow[Either[ObsError, EventWindow[K]]] = Next.drain(() => next())
 
+  /** Total windows replaced before the consumer read them, retained after the stream ends. */
   def droppedWindows: Long = drops.get()
-  def droppedEvents: Long  = source.droppedEvents
+
+  /** Total explicit policy drops on the underlying source subscription. */
+  def droppedEvents: Long = source.droppedEvents
 
 private[client] object SampledSubscription:
   def use[K, A](source: ObsSubscription, interval: FiniteDuration, maxKeys: Int, nanoTime: () => Long)(

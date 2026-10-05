@@ -5,8 +5,14 @@ import com.worxbend.obs.websocket.client.protocol.Request
 /** Preserve each result type in a heterogeneous tuple passed to typedBatch. */
 final case class BatchCall[A](request: Request[A])
 
+/** Typed counterpart of [[BatchResult]]: results retain their submitted position; a halted batch marks unexecuted
+  * entries explicitly.
+  */
 enum TypedBatchResult[+A]:
+  /** The entry executed; `result` is the decoded response or its concrete failure. */
   case Completed(result: Either[ObsError, A])
+
+  /** The entry never ran because a halted batch stopped before it. */
   case NotExecuted
 
 type BatchResults[Calls <: Tuple] <: Tuple = Calls match

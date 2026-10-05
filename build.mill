@@ -195,6 +195,8 @@ object pekko extends LibraryModule:
 
 object examples extends ProjectModule:
   def moduleDeps = Seq(sttp)
+  // Keeps `./mill examples.run` unambiguous; StudioMonitor runs via `examples.runMain`.
+  def mainClass  = Some("com.worxbend.obs.websocket.client.examples.Quickstart")
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
 

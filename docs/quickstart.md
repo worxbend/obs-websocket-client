@@ -45,3 +45,5 @@ session.withEvents(Set("CurrentProgramSceneChanged")): subscription =>
 ```
 
 This waits for a future matching event. Arrange a deadline in your application when waiting is optional. Subscriptions broadcast independently and have bounded buffers. The default overflow policy fails that subscription; see [Events and ownership](events.md).
+
+A runnable event-driven companion lives in [StudioMonitor.scala](../examples/src/com/worxbend/obs/websocket/client/examples/StudioMonitor.scala): it blocks on a subscription, reacts to stream and record state events, and snapshots stream health only when an event makes it meaningful. Run it with `./mill --no-server examples.runMain com.worxbend.obs.websocket.client.examples.StudioMonitor`. Typed selectors are covered under [typed subscriptions](events.md#typed-subscriptions); high-volume feeds such as `InputVolumeMeters` additionally require their explicit server event-subscription intent in `ObsConfig.eventSubscriptions`.

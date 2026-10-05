@@ -5,8 +5,24 @@ import ox.channels.{Channel, ChannelClosed}
 import ox.flow.Flow
 import scala.concurrent.duration.FiniteDuration
 
+/** How a subscription's bounded per-subscriber queue (sized by `ObsConfig.subscriptionCapacity`) behaves when the
+  * consumer falls behind and it fills.
+  */
 enum OverflowPolicy:
-  case Fail, DropNewest, DropOldest
+  /** Fail this subscription with `ObsError.Overflow("event subscription")` and remove it. The consumer observes
+    * `Next.Failed`; the session and other subscriptions keep running.
+    */
+  case Fail
+
+  /** Discard the incoming event. The consumer keeps the oldest queued events and observes the loss via
+    * `droppedEvents`.
+    */
+  case DropNewest
+
+  /** Evict the oldest queued event to make room for the incoming one. The consumer keeps the newest events and
+    * observes the loss via `droppedEvents`.
+    */
+  case DropOldest
 
 /** One subscription read: an item, a concrete failure, or clean end-of-stream. */
 enum Next[+A]:

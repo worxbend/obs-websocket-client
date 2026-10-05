@@ -28,7 +28,8 @@ object PekkoObsClient:
   /** Create and terminate a private actor system and Pekko backend together with the OBS connection. Abortion shuts
     * down the owned system's connection pools, which promptly and idempotently force-closes this connection and
     * unblocks pending reads and writes; repeated invocation is harmless. Scope exit terminates the system and waits
-    * for `whenTerminated` before returning.
+    * for `whenTerminated`, bounded at 5 seconds, before returning; after expiry termination continues in the
+    * background.
     */
   def connect[A](
     config:  ObsConfig,

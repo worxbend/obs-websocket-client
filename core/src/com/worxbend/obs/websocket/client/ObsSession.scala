@@ -7,7 +7,10 @@ import ox.either.catching
 import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 
-/** A session belongs to the callback passed to ObsClient.withTransport. */
+/** A live, identified connection to one OBS server. The session belongs to the `ObsClient.withTransport` callback and
+  * is closed when that scope exits; do not leak it. All methods are thread-safe — calls serialize through the session
+  * actor — and report expected failures as `Left(ObsError)` rather than throwing.
+  */
 final class ObsSession private[client] (
   val metadata: ConnectionMetadata,
   config:       ObsConfig,
@@ -39,6 +42,7 @@ final class ObsSession private[client] (
     */
   def request[A](request: Request[A]): Either[ObsError, A] = requestEnvelope(request = request).flatMap(_.decoded)
 
+  /** As [[request]], with a per-call [[RequestOptions]] override (e.g. a custom timeout budget). */
   def request[A](request: Request[A], options: RequestOptions): Either[ObsError, A] =
     requestEnvelope(request = request, options = options).flatMap(_.decoded)
 
@@ -46,6 +50,9 @@ final class ObsSession private[client] (
   def withOptions(options: RequestOptions): RequestApi[ObsError] = new RequestApi[ObsError]:
     def request[A](value: Request[A]): Either[ObsError, A] = ObsSession.this.request(request = value, options = options)
 
+  /** As [[request]], but returns a [[ResponseEnvelope]] retaining the raw response JSON alongside the decoded value,
+    * so callers can inspect fields the typed catalog does not model.
+    */
   def requestEnvelope[A](
     request: Request[A],
     options: RequestOptions = RequestOptions(),
@@ -196,15 +203,19 @@ final class ObsSession private[client] (
   /** Observation hook for tests: reidentify acknowledgements the server has not sent yet. Not public API. */
   private[client] def pendingReidentifyAcks: Either[ObsError, Int] = ask(s => Right(s.pendingReidentifyAcks))
 
-  /** Each subscriber receives future matching events independently. User code runs on its caller. */
+  /** Each subscriber receives future matching events independently. The callback and all event consumption run on the
+    * calling thread.
+    */
   def withEvents[A](eventTypes: Set[String] = Set.empty, policy: OverflowPolicy = OverflowPolicy.Fail)(
     use: ObsSubscription => A
   ): Either[ObsError, A] =
     subscribe(eventTypes = eventTypes, policy = policy, representation = EventRepresentation.Typed)(use = use)
 
+  /** Typed view of one event type selected by `selector`; uses the `Fail` overflow policy. */
   def withEvents[E <: Event, A](selector: EventSelector[E])(use: TypedObsSubscription[E] => A): Either[ObsError, A] =
     withEvents(selector = selector, policy = OverflowPolicy.Fail)(use = use)
 
+  /** As above, with an explicit overflow policy for the shared event queue. */
   def withEvents[E <: Event, A](selector: EventSelector[E], policy: OverflowPolicy)(
     use: TypedObsSubscription[E] => A
   ): Either[ObsError, A] =
@@ -371,6 +382,9 @@ final class ObsSession private[client] (
   /** Session lifetime counters include identification and capability discovery; bytes are logical UTF-8 JSON. */
   def statistics: Either[ObsError, SessionStats] = ask(s => Right(s.statistics))
 
+  /** Scoped stream of session diagnostics (traffic, request outcomes, state changes), bounded at `capacity`; a slow
+    * consumer drops records.
+    */
   def withDiagnostics[A](capacity: Int = 128)(use: ObsDiagnosticsSubscription => A): Either[ObsError, A] =
     if capacity <= 0 then Left(ObsError.InvalidConfiguration(message = "Diagnostic capacity must be positive"))
     else
@@ -386,6 +400,7 @@ final class ObsSession private[client] (
           )
       finally uninterruptible(tellSafely(f = _.unsubscribeDiagnostics(id = id, owner = channel)))
 
+  /** The current connection phase, for observing lifecycle transitions without subscribing to diagnostics. */
   def state: Either[ObsError, ConnectionState] = ask(s => Right(s.phase))
 
   /** Completes all outstanding requests and subscriptions immediately. Uninterruptible so a close in flight cannot be

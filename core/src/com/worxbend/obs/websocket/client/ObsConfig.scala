@@ -8,15 +8,21 @@ import ox.either.catching
 
 /** Supplies credentials at connection time. Rendering never evaluates or exposes the secret. */
 trait PasswordProvider:
+  /** Resolve the password once per connection attempt; `None` attempts an unauthenticated session. */
   def password(): Either[ObsError, Option[String]]
   final override def toString: String = "PasswordProvider(<redacted>)"
 
 object PasswordProvider:
-  val none: PasswordProvider                         = fixed(value = None)
+  /** No password; connect unauthenticated. */
+  val none: PasswordProvider = fixed(value = None)
+
+  /** Always resolves to the same value. */
   def fixed(value: Option[String]): PasswordProvider = new PasswordProvider:
     def password(): Either[ObsError, Option[String]] = Right(value)
 
-/** OBS's normal-volume event categories; meter subscriptions must be explicit. */
+/** OBS's normal-volume event categories; meter subscriptions must be explicit. To compose a custom mask, combine the
+  * category bits exposed as `EventSubscription.*.value` and pass the result to [[EventSubscriptions.fromLong]].
+  */
 final case class EventSubscriptions private (value: Long)
 object EventSubscriptions:
   val none: EventSubscriptions = new EventSubscriptions(value = 0L)
@@ -27,24 +33,42 @@ object EventSubscriptions:
     if value >= 0 then Right(new EventSubscriptions(value = value))
     else Left(ObsError.InvalidConfiguration(message = "Event subscription mask must be nonnegative"))
 
+/** Connection and session tuning for a single OBS connection. The client connects, identifies (authenticating when a
+  * password is supplied), discovers the server's capabilities, and serves the session for exactly one callback's
+  * lifetime; there is no pooling and no automatic reconnect. [[validate]] runs before any connection attempt.
+  */
 final case class ObsConfig(
+  /** WebSocket endpoint: `ws`/`wss` only, with a host and no userinfo, query or fragment. */
   uri:                  String = "ws://localhost:4455",
+  /** Credentials resolved at connection time; see [[PasswordProvider]]. */
   passwordProvider:     PasswordProvider = PasswordProvider.none,
+  /** Bounds the TCP/WebSocket upgrade. */
   connectionTimeout:    FiniteDuration = 10.seconds,
+  /** Bounds the Hello/Identify handshake after the socket is open. */
   handshakeTimeout:     FiniteDuration = 10.seconds,
+  /** Default per-request budget when `RequestOptions` does not override it. */
   requestTimeout:       FiniteDuration = 10.seconds,
+  /** Bounds the graceful WebSocket Close handshake on shutdown before the connection is force-aborted. */
   shutdownTimeout:      FiniteDuration = 3.seconds,
+  /** Maximum requests sent but not yet answered; excess submissions fail with `ObsError.Overflow`. */
   maxInFlight:          Int = 256,
+  /** Wire messages queued for the writer; unlike [[maxInFlight]] this bounds backlog, not concurrency. */
   outgoingCapacity:     Int = 256,
+  /** Per-subscription event queue bound; a full queue triggers the subscription's `OverflowPolicy`. */
   subscriptionCapacity: Int = 128,
   /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
     * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session and abort the connection
     * immediately, so a violating peer cannot keep it open.
     */
   maxMessageBytes:    Int = Protocol.defaultMaxBytes,
+  /** Initial event category mask sent in Identify. */
   eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
+  /** Opt-in bounded retry of server NotReady (207) rejections during capability discovery at connect time. */
   readiness:          Option[ReadinessPolicy] = None,
 ):
+  /** Rejects non-`ws`/`wss` schemes, missing hosts, userinfo/query/fragment components, explicit ports outside
+    * 1-65535, non-positive deadlines and limits, and an invalid [[ReadinessPolicy]]. On success returns this config.
+    */
   def validate: Either[ObsError, ObsConfig] =
     URI
       .create(uri)

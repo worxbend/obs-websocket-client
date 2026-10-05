@@ -7,6 +7,11 @@ import ox.channels.{Actor, BufferCapacity, Channel, ChannelClosed, ChannelClosed
 import ox.either.catching
 import scala.util.control.NonFatal
 
+/** Scoped single-connection entry point: [[withTransport]] owns one OBS connection for exactly the callback's
+  * lifetime, with all workers joined before it returns (Ox structured concurrency). There is no automatic reconnect
+  * and no request replay. Callers typically come in through a backend module (`transport.sttp`, `transport.okhttp`,
+  * …), which builds the transport; the `reconnect` package adds opt-in retry on top.
+  */
 object ObsClient:
   /** Reader and writer forks, user request fibers and cleanup tells all post to the actor; 256 in-flight requests can
     * each contribute a registration plus a completion tell in one burst. Invocations never block mid-invocation, so a

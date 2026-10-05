@@ -25,7 +25,7 @@ deployment has been performed. An isolated OBS 30.2.3 smoke test passed; see the
 - Scoped authentication and connection ownership; typed expected failures and separate deadlines.
 - Concurrent request correlation, typed heterogeneous batches, and explicit raw extension APIs.
 - Broadcast Ox flows, bounded subscriber buffers, overflow errors, and opt-in loss policies.
-- Opt-in reconnect with bounded jittered backoff, fresh generations, and event-gap notices.
+- Opt-in [reconnect](docs/events.md#opt-in-reconnect) with bounded jittered backoff, fresh generations, and event-gap notices.
 - A separate Tapir/Netty sample with Swagger and typed PureConfig/HOCON configuration.
 
 OBS WebSocket 5.x JSON text / RPC 1 is the target. Some newer catalog fields require
@@ -49,8 +49,10 @@ val scenes = SttpObsClient.connect(config)(_.request(GetSceneList())).flatten
 
 The callback owns the connection. On exit, the client closes the socket and joins
 its workers. Expected failures are returned as `Either[ObsError, A]`.
-See the [quickstart](docs/quickstart.md), [request guide](docs/requests.md), and
-[event guide](docs/events.md) for subscriptions, batches, cancellation, and reconnect.
+See the [quickstart](docs/quickstart.md), [request guide](docs/requests.md),
+[event guide](docs/events.md), and [recipes](docs/recipes.md) for subscriptions,
+batches, cancellation, and reconnect. The [HTTP sample](docs/server.md) serves the
+same client over Tapir/Netty with Swagger.
 
 ## Artifacts
 
@@ -84,7 +86,7 @@ tools/coverage.sh
 tools/consumer_smoke.sh
 ```
 
-Use `OBS_WS_PASSWORD` for the CLI. The HTTP sample reads `application.conf` through
+Use `OBS_WS_PASSWORD` for the CLI. The [HTTP sample](docs/server.md) reads `application.conf` through
 PureConfig, with `OBS_WS_URL`, `OBS_WS_PASSWORD`, `HTTP_HOST`, and `HTTP_PORT`
 overrides. It binds locally by default; Swagger is at `http://127.0.0.1:8080/docs/`.
 `--no-server` avoids a Mill worker-reuse failure observed in this development environment.

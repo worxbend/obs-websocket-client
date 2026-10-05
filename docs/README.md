@@ -8,14 +8,17 @@ describe the implemented design.
 
 - [Getting started](quickstart.md)
 - [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md)
+- [Choosing a WebSocket backend](guides/backends.md)
 - [Current architecture and diagrams](architecture.md)
 - [Architecture decisions](decisions.md)
 - [Peer comparison and feature expansion](feature-expansion.md)
 - [Requests and failures](requests.md)
 - [Events and ownership](events.md)
+- [Reconnect and recovery](events.md#opt-in-reconnect)
 - [Recipes](recipes.md)
 - [Protocol compatibility](compatibility.md)
 - [HTTP sample](server.md)
+- [Code generation](code-generation.md)
 - [Contributing](contributing.md)
 - [Releases](releases.md)
 
