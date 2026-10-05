@@ -10,6 +10,17 @@
 - Hardening: fix `server.run` Netty lifecycle leak, consolidate the error taxonomy (non-fatal `MessageTooLarge`, `UnsupportedMessage`, `InternalError`), make capability gating and raw escape hatches coherent across single/batch APIs, unify duplicate raw-event types, and harden the generator (override validation, duplicate detection, literal escaping, upstream-linked Scaladoc).
 - **Breaking refactor:** subscription `next()` reads now return tri-state `Next.Item` / `Next.Failed` / `Next.Ended` instead of overloading `Left(ObsError.Closed)` for clean end-of-stream; clean source end no longer error-closes sampled streams. `Field`'s companion provides a given `Conversion[A, Field[A]]`, so optional request fields accept plain values.
 
+### Backend modules (ADR-005, 2026-10-05)
+
+#### Added
+
+- New published backend artifacts: `obs-websocket-client-okhttp` (OkHttp sync adapter over `SttpObsClient.withBackend`), `obs-websocket-client-zio`, `obs-websocket-client-fs2`, and `obs-websocket-client-pekko` (bridged async adapters running a ZIO runtime, a cats-effect `IORuntime`/`Dispatcher`, or a private `ActorSystem` internally). Every adapter implements the blocking `ObsTransport` seam and presents the same `ObsSession` API, with per-adapter `connect`/`withBackend` entrypoints and reconnect wrappers delegating to core.
+
+#### Changed
+
+- **Breaking package moves (pre-release):** the reconnect family (`ReconnectPolicy`, `ReconnectTiming`, `ReconnectDecision`, `ReconnectNotice`, `ConnectionGeneration`, `ReconnectConnector`), `HandshakeHeaders`, and the text-fragment/byte-limit assembler moved from `transport.sttp` to core (`reconnect.*` and `transport.*` packages). `ReconnectingObsClient.withConnector` became `com.worxbend.obs.websocket.client.reconnect.Reconnect.run` with the identical parameter list; `ReconnectingObsClient.run` keeps its signature.
+- CI, coverage, packaging, consumer smoke, documentation site, and release workflows now enumerate all seven library artifacts.
+
 ### Release-readiness round (2026-10-05)
 
 #### Added

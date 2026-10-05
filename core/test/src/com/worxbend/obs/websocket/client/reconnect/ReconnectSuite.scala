@@ -1,4 +1,4 @@
-package com.worxbend.obs.websocket.client.transport.sttp
+package com.worxbend.obs.websocket.client.reconnect
 
 import com.worxbend.obs.websocket.client.*
 import com.worxbend.obs.websocket.client.protocol.*
@@ -104,7 +104,7 @@ class ReconnectSuite extends FunSuite:
     var delays    = Vector.empty[FiniteDuration]
     var notices   = Vector.empty[ReconnectNotice]
     val timing    = ReconnectTiming(() => 0.5, delay => delays = delays :+ delay)
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -130,7 +130,7 @@ class ReconnectSuite extends FunSuite:
     var notices  = Vector.empty[ReconnectNotice]
     var previous = Option.empty[ObsSession]
     val desired  = EventSubscriptions.fromLong(value = 65536).toOption.get
-    val result   = ReconnectingObsClient.withConnector(
+    val result   = Reconnect.run(
       connector = connector,
       config    = ObsConfig(passwordProvider = credentials),
       policy    = policy,
@@ -177,7 +177,7 @@ class ReconnectSuite extends FunSuite:
     )
     fatal.foreach: error =>
       val connector = new Connector(failures = List(error))
-      val result    = ReconnectingObsClient.withConnector(
+      val result    = Reconnect.run(
         connector = connector,
         config    = ObsConfig(),
         policy    = policy,
@@ -193,7 +193,7 @@ class ReconnectSuite extends FunSuite:
 
   test("retry budget includes every connection attempt and terminates"):
     val connector = new Connector(failures = List.fill(8)(transient))
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -211,7 +211,7 @@ class ReconnectSuite extends FunSuite:
       .create(maxRetries = 0, initialDelay = 1.millis, maxDelay = 4.millis, jitterFraction = 0.0)
       .toOption
       .get
-    val result = ReconnectingObsClient.withConnector(
+    val result = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = noRetries,
@@ -228,7 +228,7 @@ class ReconnectSuite extends FunSuite:
     val connector = new Connector
     var delays    = Vector.empty[FiniteDuration]
     val timing    = ReconnectTiming(() => 0.5, delay => delays = delays :+ delay)
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -245,7 +245,7 @@ class ReconnectSuite extends FunSuite:
   test("connection failures after a healthy generation consume a fresh budget"):
     val script    = List(Some(transient), Some(transient), None, Some(transient), Some(transient), Some(transient))
     val connector = new Connector(script = script)
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -260,7 +260,7 @@ class ReconnectSuite extends FunSuite:
     val connector = new Connector
     var notices   = Vector.empty[ReconnectNotice]
     val fatal     = ObsError.Authentication(message = "rejected")
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -274,7 +274,7 @@ class ReconnectSuite extends FunSuite:
 
   test("notice callback defects surface as internal errors within the either contract"):
     val connector = new Connector
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -290,7 +290,7 @@ class ReconnectSuite extends FunSuite:
     val connector   = new Connector(failures = List(transient))
     val interrupted =
       try
-        val _ = ReconnectingObsClient.withConnector(
+        val _ = Reconnect.run(
           connector = connector,
           config    = ObsConfig(),
           policy    = policy,
@@ -307,7 +307,7 @@ class ReconnectSuite extends FunSuite:
 
   test("application stop prevents retry even for a transient cause"):
     val connector = new Connector
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -321,7 +321,7 @@ class ReconnectSuite extends FunSuite:
   test("invalid injected jitter stops before sleep and another connection"):
     val connector = new Connector(failures = List(transient))
     val timing    = ReconnectTiming(() => Double.NaN, _ => fail("must not sleep"))
-    val result    = ReconnectingObsClient.withConnector(
+    val result    = Reconnect.run(
       connector = connector,
       config    = ObsConfig(),
       policy    = policy,
@@ -336,7 +336,7 @@ class ReconnectSuite extends FunSuite:
     val connector = new Connector(failures = List(transient))
     val timing    = ReconnectTiming(() => 0.5, _ => ox.never)
     val result    = ox.timeoutOption(100.millis):
-      ReconnectingObsClient.withConnector(
+      Reconnect.run(
         connector = connector,
         config    = ObsConfig(),
         policy    = policy,
@@ -350,7 +350,7 @@ class ReconnectSuite extends FunSuite:
   test("application failure propagates after closing the current scope without retry"):
     val connector = new Connector
     val _         = intercept[IllegalStateException]:
-      ReconnectingObsClient.withConnector(
+      Reconnect.run(
         connector = connector,
         config    = ObsConfig(),
         policy    = policy,
@@ -364,8 +364,8 @@ class ReconnectSuite extends FunSuite:
   test("invalid initial configuration never starts a connector"):
     val connector = new Connector
     assert(
-      ReconnectingObsClient
-        .withConnector(
+      Reconnect
+        .run(
           connector = connector,
           config    = ObsConfig(maxInFlight = 0),
           policy    = policy,
@@ -382,38 +382,3 @@ class ReconnectSuite extends FunSuite:
     val sample = live.nextJitter()
     assert(sample >= 0.0 && sample < 1.0)
     live.sleep(Duration.Zero)
-
-  test("opt-in public entrypoint owns a real sttp connection with defaults"):
-    def serve(socket: java.net.Socket): Unit =
-      LocalWebSocketPeer.upgrade(socket = socket)
-      LocalWebSocketPeer.send(socket = socket, text = """{"op":0,"d":{"obsWebSocketVersion":"5.7.0","rpcVersion":1}}""")
-      assertEquals(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.op, 1)
-      LocalWebSocketPeer.send(socket = socket, text = """{"op":2,"d":{"negotiatedRpcVersion":1}}""")
-      val request = Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get
-      val id      = request.data.string(name = "requestId").toOption.get
-      LocalWebSocketPeer.send(
-        socket = socket,
-        text   =
-          s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"availableRequests":[]}}}""",
-      )
-      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
-    val result = LocalWebSocketPeer.run(server = serve): uri =>
-      ReconnectingObsClient.run(config = ObsConfig(uri = uri), policy = policy): (generation, _) =>
-        ReconnectDecision.Complete(value = generation.value)
-    assertEquals(result, Right(1L))
-
-  test("documented event-recovery example compiles and validates config before connecting"):
-    def nextSceneChange(config: ObsConfig): Either[ObsError, Event] =
-      ReconnectPolicy
-        .create()
-        .flatMap: policy =>
-          ReconnectingObsClient.run(config = config, policy = policy): (_, session) =>
-            session.withEvents(eventTypes = Set("CurrentProgramSceneChanged"))(use = _.next()) match
-              case Right(Next.Item(event))   => ReconnectDecision.Complete(value = event)
-              case Right(Next.Failed(error)) =>
-                ReconnectDecision.Retry(cause = error, desiredSubscriptions = config.eventSubscriptions)
-              case Right(Next.Ended) =>
-                ReconnectDecision.Retry(cause = ObsError.Closed, desiredSubscriptions = config.eventSubscriptions)
-              case Left(error) =>
-                ReconnectDecision.Retry(cause = error, desiredSubscriptions = config.eventSubscriptions)
-    assert(nextSceneChange(config = ObsConfig(uri = "http://invalid")).isLeft)

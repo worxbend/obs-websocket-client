@@ -1,5 +1,6 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
+import com.worxbend.obs.websocket.client.transport.MessageAssembler
 import com.worxbend.obs.websocket.client.util.Utf8
 import com.worxbend.obs.websocket.client.{ObsError, ObsTransport}
 import _root_.sttp.client4.ws.SyncWebSocket
@@ -27,7 +28,9 @@ final private[sttp] class SttpTransport(
 ) extends ObsTransport:
   override def receive(): Either[ObsError, String] =
     readIdleTimeout match
-      case None => socketBoundary(operation = readMessage(text = new java.lang.StringBuilder, bytes = 0L)).flatten
+      case None =>
+        socketBoundary(operation = readMessage(assembler = new MessageAssembler(maxMessageBytes = maxMessageBytes)))
+          .flatten
       case Some(deadline) => boundedRead(deadline = deadline)
 
   override def send(text: String): Either[ObsError, Unit] =
@@ -66,7 +69,10 @@ final private[sttp] class SttpTransport(
   private def boundedRead(deadline: FiniteDuration): Either[ObsError, String] =
     supervised:
       val reading =
-        fork(socketBoundary(operation = readMessage(text = new java.lang.StringBuilder, bytes = 0L)).flatten)
+        fork(socketBoundary(operation =
+          readMessage(assembler = new MessageAssembler(maxMessageBytes = maxMessageBytes))
+        )
+          .flatten)
       try
         timeoutOption(deadline)(reading.join()).getOrElse:
           abortConnection()
@@ -77,24 +83,20 @@ final private[sttp] class SttpTransport(
           throw interrupted
 
   @tailrec
-  private def readMessage(text: java.lang.StringBuilder, bytes: Long): Either[ObsError, String] =
+  private def readMessage(assembler: MessageAssembler): Either[ObsError, String] =
     socket.receive() match
       case WebSocketFrame.Text(payload, finalFragment, _) =>
-        // Arithmetic per fragment, so no encoded array is materialized per fragment.
-        val total = bytes + Utf8.encodedLength(text = payload)
-        if total > maxMessageBytes then
-          Left(ObsError.MessageTooLarge(message = "Incoming message exceeds configured byte limit"))
-        else
-          val _ = text.append(payload)
-          if finalFragment then Right(text.toString)
-          else readMessage(text = text, bytes = total)
+        assembler.appendFragment(payload = payload, finalFragment = finalFragment) match
+          case Left(error)          => Left(error)
+          case Right(Some(message)) => Right(message)
+          case Right(None)          => readMessage(assembler = assembler)
       case WebSocketFrame.Ping(payload) =>
         boundedWrite(deadline = writeTimeout, stage = "write")(operation =
           socket.send(WebSocketFrame.Pong(payload))
         ) match
           case Left(error) => Left(error)
-          case Right(_)    => readMessage(text = text, bytes = bytes)
-      case _: WebSocketFrame.Pong      => readMessage(text = text, bytes = bytes)
+          case Right(_)    => readMessage(assembler = assembler)
+      case _: WebSocketFrame.Pong      => readMessage(assembler = assembler)
       case close: WebSocketFrame.Close =>
         Left(ObsError.Transport(message = "WebSocket closed", closeCode = Some(close.statusCode)))
       case _: WebSocketFrame.Binary =>

@@ -37,9 +37,9 @@ jobs:
           fi
       - name: Compile and verify formatting
         run: |
-          ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.compile'
-          ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.checkFormat'
-          ./mill --no-server '{codegen,protocol,core,sttp,examples,server,integration}.test.checkFormat'
+          ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
+          ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.checkFormat'
+          ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,integration}.test.checkFormat'
       - name: Verify gate implementation and fresh coverage
         run: |
           python3 -m unittest discover -s tools -p 'test_*.py'
@@ -89,7 +89,7 @@ jobs:
           MILL_PGP_PASSPHRASE: ${{ secrets.MILL_PGP_PASSPHRASE }}
         run: >-
           ./mill --no-server mill.javalib.SonatypeCentralPublishModule/
-          --publishArtifacts '{protocol,core,sttp}.publishArtifacts'
+          --publishArtifacts '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishArtifacts'
           --shouldRelease true
   github-release:
     if: inputs.publish

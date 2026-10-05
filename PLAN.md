@@ -8,7 +8,7 @@ Updated: 2026-10-04.
 - Build a Scala client for OBS WebSockets, inspired by the ergonomics and separation of concerns in [ktobs](https://github.com/Rejeq/ktobs).
 - Use **Mill** as the sole project build tool. This incorporates the user's correction to the earlier Scala CLI starter instructions.
 - Use the latest stable Scala 3 only. The [official release listing](https://www.scala-lang.org/download/all.html) currently identifies **3.9.0**; pin that version when bootstrapping and recheck if implementation starts later.
-- Compile, test, and run on **Java 25**, using virtual threads and **Ox** structured concurrency. Do not introduce Cats Effect, ZIO, or a public effect-polymorphic API.
+- Compile, test, and run on **Java 25**, using virtual threads and **Ox** structured concurrency. Do not introduce Cats Effect, ZIO, or a public effect-polymorphic API into `protocol`, `core`, or the `sttp`/`okhttp` modules; effect runtimes are confined to the opt-in `zio`/`fs2`/`pekko` adapter artifacts per [ADR-005](docs/decisions/005-backend-modules.md).
 - Use **sttp** for the WebSocket client and **jsoniter-scala** for JSON.
 - Use the corrected base package **`com.worxbend.obs.websocket.client`**. Use this as the provisional generator group ID; verify publishing namespace ownership before any release.
 - Provide a small Tapir application using **OxStack**, the **Netty synchronous server**, Swagger UI enabled, and metrics disabled. Keep it separate from the reusable client library.
@@ -140,6 +140,18 @@ core/
 sttp/
   src/com/worxbend/obs/websocket/client/transport/sttp/
   test/src/
+okhttp/
+  src/com/worxbend/obs/websocket/client/transport/okhttp/
+  test/src/
+zio/
+  src/com/worxbend/obs/websocket/client/transport/zio/
+  test/src/
+fs2/
+  src/com/worxbend/obs/websocket/client/transport/fs2/
+  test/src/
+pekko/
+  src/com/worxbend/obs/websocket/client/transport/pekko/
+  test/src/
 examples/
   src/com/worxbend/obs/websocket/client/examples/
 server/
@@ -152,9 +164,9 @@ docs/
 .github/workflows/
 ```
 
-Dependency direction: `protocol <- core <- sttp`; `server` and `examples` consume `sttp`; integration tests exercise the assembled client. `codegen` reads the pinned specification and produces protocol source inputs. Protocol models must not depend on HTTP server or AI packages.
+Dependency direction: `protocol <- core <- {sttp, zio, fs2, pekko}` and `sttp <- okhttp`; `server` and `examples` consume `sttp`; integration tests exercise the assembled client. `codegen` reads the pinned specification and produces protocol source inputs. Protocol models must not depend on HTTP server or AI packages. Each `transport.*` module publishes its own self-contained artifact per [ADR-005](docs/decisions/005-backend-modules.md).
 
-Avoid package-shadowing issues between the project's `transport.sttp` and upstream `sttp` imports; use explicit root imports where necessary.
+Avoid package-shadowing issues between the project's `transport.sttp`/`transport.zio`/`transport.fs2` and upstream imports; use explicit root imports where necessary.
 
 ## 8. Public API design
 
@@ -211,7 +223,7 @@ Project design:
 - Verify that shutdown interrupts or closes a blocked receive before joining worker scopes. A finalizer that runs only after a blocked join can deadlock.
 - Close resources in ownership order. An injected shared backend remains owned by its caller; a backend constructed internally is closed by the client.
 
-Abstract transport just enough to substitute deterministic scripted messages in tests. Do not build a generic networking framework or introduce an effect type parameter.
+Abstract transport just enough to substitute deterministic scripted messages in tests. Do not build a generic networking framework or introduce an effect type parameter. Alternative WebSocket backends (OkHttp, ZIO, fs2, Pekko) live in separate adapter modules that implement the same blocking `ObsTransport` seam; see §16 Phase 7 and [ADR-005](docs/decisions/005-backend-modules.md).
 
 ## 12. Events, overflow, and reconnect
 
@@ -334,6 +346,16 @@ Gate: a consumer example builds against the packaged artifacts, coverage gates p
 
 Evaluate sttp-ai, Orca, Parlance, and Besom independently after the client is stable. Each addition needs a concrete example, isolated dependencies, documented setup, and a test strategy. None should delay the core client release.
 
+### Phase 7 — Backend modules
+
+- [ ] Move backend-agnostic reconnect/handshake machinery from `transport.sttp` into `core`.
+- [ ] Add the `okhttp` sync adapter artifact (`obs-websocket-client-okhttp`).
+- [ ] Add the `zio`, `fs2`, and `pekko` bridged async adapter artifacts.
+- [ ] Wire every new module into coverage, Scalafix, release, consumer-smoke, API-site, and CI enumerations.
+- [ ] Document backend selection and coordinates in README, quickstart, and guides.
+
+Gate: each backend artifact compiles, passes its own 100% statement/branch coverage gate, and builds as a standalone consumer dependency per [ADR-005](docs/decisions/005-backend-modules.md).
+
 ## 17. CI and developer commands
 
 Planned module commands, to become executable after bootstrap:
@@ -398,7 +420,7 @@ Protocol research deliverable: a reviewed compatibility note listing the pinned 
 
 ## 21. Library packaging and OSS documentation
 
-Publish independently consumable Scala 3 artifacts for protocol models, core session logic, and the sttp implementation. Confirm final artifact names and Maven organization before release. The HTTP sample, database integrations, AI examples, and infrastructure code are not mandatory runtime dependencies of the library.
+Publish independently consumable Scala 3 artifacts: protocol models, core session logic, and one adapter artifact per supported WebSocket backend (JDK `sttp`, OkHttp, ZIO, fs2, Pekko) per [ADR-005](docs/decisions/005-backend-modules.md). Confirm final artifact names and Maven organization before release. The HTTP sample, database integrations, AI examples, and infrastructure code are not mandatory runtime dependencies of the library.
 
 The README is the front door: an original project mark, clear one-sentence purpose, compact truthful badges, a minimal working usage example once implemented, installation coordinates once published, links to guides/API docs, compatibility, development commands, roadmap, and contribution information. Label planned work honestly; do not show passing CI, 100% coverage, or a released version before those claims are verified.
 

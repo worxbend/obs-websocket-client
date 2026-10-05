@@ -1,6 +1,6 @@
 # Current architecture
 
-The client is a Scala 3 library that owns an OBS WebSocket connection for the lifetime of an application callback. Generated protocol bindings describe messages; an Ox actor coordinates requests and events; sttp handles the socket. The HTTP server is a separate consumer of that library.
+The client is a Scala 3 library that owns an OBS WebSocket connection for the lifetime of an application callback. Generated protocol bindings describe messages; an Ox actor coordinates requests and events; a pluggable backend adapter handles the socket. The HTTP server is a separate consumer of that library.
 
 This page describes the implementation inspected on 2026-10-04, not the target design in [PLAN.md](../PLAN.md). It does not claim a published release or broader OBS compatibility. Existing test measurements and release gates remain in [IMPLEMENTATION.md](../IMPLEMENTATION.md).
 
@@ -11,27 +11,34 @@ Solid arrows point from a consumer to its dependency. Dotted arrows show build-t
 ```mermaid
 %% asset: modules.svg
 flowchart TB
-    App["Your Scala application"] --> Sttp["sttp · WebSocket transport and reconnect"]
-    Examples["examples · CLI"] --> Sttp
-    Server["server · Tapir / Netty HTTP sample"] --> Sttp
-    Integration["integration · opt-in OBS tests and doc snippets"] --> Sttp
-    Sttp --> Core["core · session, requests, subscriptions"]
+    App["Your Scala application"] --> Backends["sttp · okhttp · zio · fs2 · pekko<br/>WebSocket backend adapters"]
+    Examples["examples · CLI"] --> Backends
+    Server["server · Tapir / Netty HTTP sample"] --> Backends
+    Integration["integration · opt-in OBS tests and doc snippets"] --> Backends
+    OkhttpNote["okhttp delegates to the sttp adapter"] -.-> Backends
+    Backends --> Core["core · session, requests, subscriptions,<br/>reconnect loop, handshake/message machinery"]
     Core --> Protocol["protocol · models, JSON, authentication"]
     Spec["protocol-spec · schema, overrides, provenance"] -.-> Generator["codegen · offline generator"]
     Generator -.-> Generated["Mill-managed generated Scala"]
     Generated -.-> Protocol
 ```
 
-The dependency declarations are in [build.mill](../build.mill). Only `protocol`, `core`, and `sttp` are publishable library modules. Tapir, Netty, PureConfig, and the sample's logging backend are confined to `server`; applications using the library do not acquire these server dependencies.
+The dependency declarations are in [build.mill](../build.mill). Seven modules are publishable libraries: `protocol`, `core`, and the backend adapters `sttp`, `okhttp`, `zio`, `fs2`, and `pekko`. Each backend adapter depends on `core` alone, except `okhttp`, which also depends on `sttp` because it delegates to `SttpObsClient.withBackend`. Tapir, Netty, PureConfig, and the sample's logging backend are confined to `server`; applications using the library do not acquire these server dependencies.
 
 | Component | Responsibility | Source entry point |
 | --- | --- | --- |
 | `protocol` | Wire envelopes, bounded JSON decoding, field semantics, authentication, generated catalog | [WireMessage.scala](../protocol/src/com/worxbend/obs/websocket/client/protocol/WireMessage.scala) |
-| `core` | Scoped connection engine and typed public session API | [ObsClient.scala](../core/src/com/worxbend/obs/websocket/client/ObsClient.scala), [ObsSession.scala](../core/src/com/worxbend/obs/websocket/client/ObsSession.scala) |
-| `sttp` | Upgrade, frame handling, physical shutdown, optional reconnect loop | [SttpObsClient.scala](../sttp/src/com/worxbend/obs/websocket/client/transport/sttp/SttpObsClient.scala) |
+| `core` | Scoped connection engine and typed public session API; backend-agnostic reconnect loop and handshake/message machinery | [ObsClient.scala](../core/src/com/worxbend/obs/websocket/client/ObsClient.scala), [ObsSession.scala](../core/src/com/worxbend/obs/websocket/client/ObsSession.scala) |
+| `sttp` | JDK `HttpClient` sync backend: upgrade, frame handling, physical shutdown, reconnect entrypoint | [SttpObsClient.scala](../sttp/src/com/worxbend/obs/websocket/client/transport/sttp/SttpObsClient.scala) |
+| `okhttp` | OkHttp sync adapter over the sttp module's `withBackend` seam | [OkHttpObsClient.scala](../okhttp/src/com/worxbend/obs/websocket/client/transport/okhttp/OkHttpObsClient.scala) |
+| `zio` | Bridged ZIO adapter; internal ZIO runtime behind the blocking `ObsTransport` | [ZioObsClient.scala](../zio/src/com/worxbend/obs/websocket/client/transport/zio/ZioObsClient.scala) |
+| `fs2` | Bridged cats-effect/fs2 adapter; internal `IORuntime` and dispatcher | [Fs2ObsClient.scala](../fs2/src/com/worxbend/obs/websocket/client/transport/fs2/Fs2ObsClient.scala) |
+| `pekko` | Bridged Pekko adapter; owned `ActorSystem` behind the blocking `ObsTransport` | [PekkoObsClient.scala](../pekko/src/com/worxbend/obs/websocket/client/transport/pekko/PekkoObsClient.scala) |
 | `codegen` | Validate pinned inputs and emit Scala plus catalog inventory | [Generate.scala](../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala) |
 | `examples` | Runnable version and scene discovery | [Quickstart.scala](../examples/src/com/worxbend/obs/websocket/client/examples/Quickstart.scala) |
 | `server` | Local HTTP sample and generated Swagger/OpenAPI | [Endpoints.scala](../server/src/com/worxbend/obs/websocket/client/server/Endpoints.scala) |
+
+The `zio`, `fs2`, and `pekko` modules implement the same blocking `ObsTransport` contract as the sync adapters through an internal effect-runtime bridge over the monadic `sttp.ws.WebSocket[F]` shape: an internal ZIO `Runtime` for `zio`, an `IORuntime` plus `Dispatcher` for `fs2`, and an owned `ActorSystem` for `pekko`. The reconnect family (`ReconnectPolicy`, `ReconnectTiming`, `ReconnectDecision`, `ReconnectNotice`, `ConnectionGeneration`, `ReconnectConnector`, and the generic loop `Reconnect.run`), `HandshakeHeaders`, and the text-fragment/byte-limit `MessageAssembler` live in `core` — packages `com.worxbend.obs.websocket.client.reconnect` and `...transport` — so every backend adapter, present and future, shares them without depending on the JDK sync backend.
 
 The build pins Mill 1.1.10, Scala 3.9.0, and Temurin Java 25.0.3. These are repository pins, not a claim about the latest available releases. The base package is `com.worxbend.obs.websocket.client`.
 
@@ -129,7 +136,7 @@ Batch requests share the correlation path. Serial realtime and serial frame exec
 
 ## Ownership and reconnect
 
-On callback exit, logical close completes pending operations and subscriptions, then transport close unblocks receive before Ox joins the workers. The default sttp entrypoint attempts a bounded WebSocket Close and force-shuts down its owned JDK client. `withBackend` leaves the shared backend with its caller; the caller must supply a prompt, idempotent `abortConnection` callback that closes only this connection and configure a finite upgrade deadline.
+On callback exit, logical close completes pending operations and subscriptions, then transport close unblocks receive before Ox joins the workers. The default sttp entrypoint attempts a bounded WebSocket Close and force-shuts down its owned JDK client; the other adapters tear down their owned client, dispatcher, runtime, or actor system with the same bounded-Close-then-force discipline. `withBackend` leaves the shared backend with its caller; the caller must supply a prompt, idempotent `abortConnection` callback that closes only this connection and configure a finite upgrade deadline.
 
 The optional reconnect wrapper runs outside each connection scope:
 
@@ -147,7 +154,7 @@ flowchart TD
     Delay --> Open
 ```
 
-Every successful attempt invokes the callback again with a new `ConnectionGeneration`; credentials are resolved afresh. The supplied server subscription mask survives an explicit `Retry`, but local `withEvents` subscriptions must be recreated inside the callback. Outstanding requests never move between generations. Authentication failures, incompatible protocols, malformed messages, and OBS application close codes are terminal; transient failures are classified by [ReconnectPolicy.scala](../sttp/src/com/worxbend/obs/websocket/client/transport/sttp/ReconnectPolicy.scala).
+Every successful attempt invokes the callback again with a new `ConnectionGeneration`; credentials are resolved afresh. The supplied server subscription mask survives an explicit `Retry`, but local `withEvents` subscriptions must be recreated inside the callback. Outstanding requests never move between generations. Authentication failures, incompatible protocols, malformed messages, and OBS application close codes are terminal; transient failures are classified by [ReconnectPolicy.scala](../core/src/com/worxbend/obs/websocket/client/reconnect/ReconnectPolicy.scala).
 
 `EventGap` is emitted only for a completed generation whose retry is committed, immediately before `RetryScheduled`. A terminal failure or an initial connection failure does not create an event-gap notice.
 
@@ -175,7 +182,7 @@ The following source-to-behavior map makes the diagrams auditable:
 | `ObsClient.run`, `SessionLogic.register` | Capability discovery precedes application use; correlation precedes send | Upgrade → handshake → discovery → callback → request |
 | `SessionLogic.event`, `ObsSubscription` | Subscribers have independent queues and caller-owned consumers | Reader → actor → matching queues → caller |
 | `SttpObsClient`, `SttpTransport.close` | Physical teardown has explicit backend ownership | Callback exit → logical close → socket close → worker join |
-| `ReconnectingObsClient.withConnector` | Retry owns a new connection scope | Old scope ends → backoff → new generation |
+| `Reconnect.run`, `ReconnectingObsClient.run` | Retry owns a new connection scope | Old scope ends → backoff → new generation |
 | `ObsReadService.version` | The sample uses request-scoped connections | HTTP request → scoped client → typed query → close |
 
 Design rationale is recorded in [architecture decisions](decisions.md). To exercise the public boundary, follow [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md).

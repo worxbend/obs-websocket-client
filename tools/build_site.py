@@ -19,11 +19,13 @@ HTML_SUFFIX = '.html'
 LIST_END = '</ul>'
 GUIDES = [('README', 'Home'), ('quickstart', 'Getting started'),
           ('guides/read-version-and-scenes', 'Read version and scenes'),
+          ('guides/backends', 'Choosing a backend'),
           ('architecture', 'Architecture'), ('decisions', 'Architecture decisions'),
           ('decisions/001-library-boundaries', 'ADR 001: Library boundaries'),
           ('decisions/002-scoped-session-and-reconnect', 'ADR 002: Session ownership'),
           ('decisions/003-pinned-protocol-generation', 'ADR 003: Protocol generation'),
           ('decisions/004-additive-peer-features', 'ADR 004: Peer-inspired features'),
+          ('decisions/005-backend-modules', 'ADR 005: Backend modules'),
           ('feature-expansion', 'Feature comparison'),
           ('requests', 'Requests'),
           ('events', 'Events'), ('recipes', 'Recipes'), ('compatibility', 'Compatibility'), ('server', 'HTTP sample'),
@@ -245,7 +247,7 @@ def layout(title, name, body, filename=None):
     filename = filename or ('index' if name == 'README' else name) + HTML_SUFFIX
     nav = ''.join(f'<a href="{("index" if slug == "README" else slug)}.html"' +
                   (' aria-current="page"' if slug == name else '') + f'>{label}</a>' for slug, label in GUIDES)
-    api = ''.join(f'<a href="api/{module}/index.html">{module} API</a>' for module in ('protocol', 'core', 'sttp'))
+    api = ''.join(f'<a href="api/{module}/index.html">{module} API</a>' for module in ('protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko'))
     return f'''<!doctype html><html lang="en"><head><base href="{BASE}"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)} · OBS WebSocket Client</title><meta name="description" content="Typed, scoped OBS Studio control with Scala 3, Java 25, and Ox."><meta property="og:image" content="https://worxbend.github.io{BASE}assets/banner.svg"><link rel="icon" href="assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"><script defer src="site.js"></script></head><body><a class="skip" href="{escape(filename)}#content">Skip to content</a><header><img src="assets/logo.svg" alt=""><a class="brand" href="index.html">OBS / Scala</a><label for="version">Version</label><select id="version" aria-label="Documentation version"><option>Development · unreleased</option></select><button id="theme" aria-label="Toggle color theme">Light / dark</button></header><div class="layout"><nav aria-label="Documentation"><label for="search">Search guides</label><input id="search" type="search" placeholder="Requests, events, setup…"><div id="results" class="search-results" aria-live="polite"></div><div class="links">{nav}{api}</div></nav><main id="content"><p class="status">Development documentation. No public release yet.</p>{body}</main></div><footer>MIT · Independent community client · <a href="https://github.com/worxbend/obs-websocket-client/blob/main/docs/{name}.md">Edit this page</a> · <a href="https://github.com/worxbend/obs-websocket-client">Source</a></footer></body></html>'''
 
 
@@ -296,7 +298,7 @@ def doc_jars(argv):
         if not separator:
             raise SystemExit(f'Expected module=docJar-path arguments, got {argument!r}')
         jars[module] = Path(path)
-    expected = {'protocol', 'core', 'sttp'}
+    expected = {'protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko'}
     if set(jars) != expected:
         raise SystemExit(f'Expected docJar paths for {sorted(expected)}, got {sorted(jars)}')
     for module, path in jars.items():
@@ -319,7 +321,7 @@ def main(argv):
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(layout(title, name, markdown(source, name)))
         search.append({'title': title, 'url': filename, 'text': source})
-    for module in ('protocol', 'core', 'sttp'):
+    for module in ('protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko'):
         target = OUT / 'api' / module
         with ZipFile(jars[module]) as archive:
             archive.extractall(target)
@@ -333,7 +335,7 @@ def main(argv):
     urls = ''.join(f'<url><loc>https://worxbend.github.io{BASE}{p["url"]}</loc></url>' for p in search)
     (OUT / 'sitemap.xml').write_text(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
     check_links()
-    print(f'Built {len(search)} guides plus 3 API references at {OUT}; local links passed for {BASE}')
+    print(f'Built {len(search)} guides plus {len(jars)} API references at {OUT}; local links passed for {BASE}')
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ cd obs-websocket-client
 ./mill --no-server examples.compile
 ```
 
-The example depends on the local `sttp` module, which brings in `core` and `protocol`; local artifact publication is unnecessary. The verified live target is OBS 30.2.3 with obs-websocket 5.5.2. Consult [compatibility](../compatibility.md) before assuming another 5.x server implements every field in the pinned schema.
+The example depends on the local `sttp` module, which brings in `core` and `protocol`; local artifact publication is unnecessary. The okhttp, zio, fs2, and pekko backend adapters offer the same session API if your stack favors them; see [choosing a WebSocket backend](backends.md). The verified live target is OBS 30.2.3 with obs-websocket 5.5.2. Consult [compatibility](../compatibility.md) before assuming another 5.x server implements every field in the pinned schema.
 
 ## Connect and read the version
 

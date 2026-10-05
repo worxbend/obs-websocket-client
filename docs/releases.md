@@ -16,14 +16,14 @@ The project is licensed under MIT. Bundled third-party specifications and skills
 
 ## Publication status
 
-The provisional group is `com.worxbend.obs.websocket.client`. Artifacts are `obs-websocket-client-protocol_3`, `obs-websocket-client-core_3`, and `obs-websocket-client-sttp_3`. Local snapshot publication is for development only. Do not copy these as published Maven Central coordinates.
+The provisional group is `com.worxbend.obs.websocket.client`. Artifacts are `obs-websocket-client-protocol_3`, `obs-websocket-client-core_3`, and the backend adapters `obs-websocket-client-sttp_3`, `obs-websocket-client-okhttp_3`, `obs-websocket-client-zio_3`, `obs-websocket-client-fs2_3`, and `obs-websocket-client-pekko_3`; an application declares exactly one backend adapter, with `sttp` as the default. Local snapshot publication is for development only. Do not copy these as published Maven Central coordinates.
 
 Maven credentials, signing, repository branch protection, and Pages enablement require the corresponding account setup. Release automation must fail before external publication when any gate fails; it must never overwrite an existing version.
 
 
 ## Executable preflight
 
-`./mill --no-server release.packageReport` builds the three libraries' binary, source and
+`./mill --no-server release.packageReport` builds the seven libraries' binary, source and
 Scaladoc JARs and writes their SHA-256 hashes under `out/release/`.
 `./mill --no-server release.dependencyReport` inventories resolved runtime dependencies,
 their hashes and cached POM license declarations. Missing declarations are
@@ -31,8 +31,8 @@ explicitly marked for review; this is not a license compatibility audit or a
 vulnerability scan. The server's dependencies are listed separately.
 
 `tools/consumer_smoke.sh` publishes to a temporary local Maven repository and
-compiles and runs a separate consumer with only the sttp artifact declared.
-It checks transitive protocol/core resolution and Java 25 execution, then removes
+compiles and runs a separate consumer declaring every backend artifact.
+It checks transitive dependency resolution and Java 25 execution for each adapter, then removes
 the temporary repository. It performs no remote publication.
 
 `OBS_RELEASE_VERSION` selects a stable `x.y.z` version; otherwise artifacts use

@@ -1,4 +1,4 @@
-package com.worxbend.obs.websocket.client.transport.sttp
+package com.worxbend.obs.websocket.client.reconnect
 
 import com.worxbend.obs.websocket.client.ObsError
 import scala.concurrent.duration.*
@@ -10,7 +10,7 @@ final class ReconnectPolicy private (
   val maxDelay:       FiniteDuration,
   val jitterFraction: Double,
 ):
-  private[sttp] def delay(retry: Int, sample: Double): Either[ObsError, FiniteDuration] =
+  private[client] def delay(retry: Int, sample: Double): Either[ObsError, FiniteDuration] =
     if !sample.isFinite || sample < 0.0 || sample > 1.0 then
       Left(ObsError.InvalidConfiguration(message = "Reconnect jitter sample must be finite and between zero and one"))
     else
@@ -51,7 +51,7 @@ object ReconnectPolicy:
     * identically after reconnect and therefore never retry. The terminal OBS close codes (1000, 4009, 4010, 4011) never
     * retry either.
     */
-  private[sttp] def retryable(error: ObsError): Boolean = error match
+  private[client] def retryable(error: ObsError): Boolean = error match
     case ObsError.Transport(_, None)       => true
     case ObsError.Transport(_, Some(code)) => Set(1001, 1006, 1011, 1012, 1013).contains(code)
     case ObsError.Timeout(_)               => true

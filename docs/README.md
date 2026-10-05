@@ -17,4 +17,4 @@ The library is under active implementation and has no published release. Measure
 - [Contributing](contributing.md)
 - [Releases](releases.md)
 
-The local microsite build includes API documentation for protocol, core, and sttp. Its intended deployment target is `https://worxbend.github.io/obs-websocket-client/`; this address is not a claim of deployment.
+The local microsite build includes API documentation for protocol, core, and every backend adapter (sttp, okhttp, zio, fs2, pekko). Its intended deployment target is `https://worxbend.github.io/obs-websocket-client/`; this address is not a claim of deployment.

@@ -1,10 +1,10 @@
-package com.worxbend.obs.websocket.client.transport.sttp
+package com.worxbend.obs.websocket.client.transport
 
 import com.worxbend.obs.websocket.client.ObsError
 import java.util.Locale
 
 /** Additional upgrade headers. Values are never included in diagnostics or rendering. */
-final class HandshakeHeaders private (private[sttp] val entries: Vector[(String, String)]):
+final class HandshakeHeaders private (private[client] val entries: Vector[(String, String)]):
   override def toString: String = "HandshakeHeaders(<redacted>)"
 
 object HandshakeHeaders:

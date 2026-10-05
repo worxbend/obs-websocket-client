@@ -44,7 +44,7 @@ Normal-volume event categories are enabled by default. High-volume meter events 
 
 ## Cleanup
 
-The sttp entrypoint closes its own backend. `withBackend(backend, config, abortConnection)` leaves an injected backend owned by its caller. Its required, prompt, idempotent callback must force-close the individual connection without closing a shared backend. The session closes the socket in the scope body before joining the reader. The default entrypoint force-shuts down its owned JDK client after a bounded Close attempt, including when a peer never acknowledges close.
+Each backend adapter's entrypoint closes its own backend resources (JDK client, OkHttp dispatcher, effect runtime, or actor system). `withBackend(backend, config, abortConnection)` leaves an injected backend owned by its caller. Its required, prompt, idempotent callback must force-close the individual connection without closing a shared backend. The session closes the socket in the scope body before joining the reader. The default entrypoint force-shuts down its owned JDK client after a bounded Close attempt, including when a peer never acknowledges close. Adapter-specific teardown behavior is documented in [choosing a WebSocket backend](guides/backends.md).
 
 A session or subscription must not escape its callback. Cancellation of one request removes that pending request; it must not close another caller's connection.
 
@@ -80,6 +80,7 @@ whether to issue a new mutation remains the application's responsibility.
 ```scala
 import com.worxbend.obs.websocket.client.*
 import com.worxbend.obs.websocket.client.protocol.Event
+import com.worxbend.obs.websocket.client.reconnect.*
 import com.worxbend.obs.websocket.client.transport.sttp.*
 
 // Wait for one future scene-change event, retrying transient disconnections.
@@ -121,7 +122,8 @@ instead of letting subscriptions stall silently, so this classification
 engages; see [requests](requests.md#deadlines-and-backpressure).
 
 For `withBackend`, configure a finite connection/upgrade deadline on the injected
-backend itself. The client shields acquisition from interruption until that backend
-deadline because sttp's JDK backend can otherwise leave an upgrade future running.
-Cancellation can consequently wait for the backend's deadline. The default `connect`
+backend itself. The JDK-client-backed adapters (sttp, zio, fs2) shield acquisition from
+interruption until that backend deadline because the underlying JDK client can otherwise
+leave an upgrade future running; the other adapters shield acquisition the same way for
+uniform behavior. Cancellation can consequently wait for the backend's deadline. The default `connect`
 entrypoint configures this bound from `ObsConfig.connectionTimeout`.

@@ -146,6 +146,45 @@ object sttp extends LibraryModule:
   def mvnDeps      = Seq(mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}")
   object test extends Tests
 
+object okhttp extends LibraryModule:
+  def artifactName = "obs-websocket-client-okhttp"
+  def moduleDeps   = Seq(sttp)
+  def mvnDeps      = Seq(mvn"com.softwaremill.sttp.client4::okhttp-backend:${Versions.sttp}")
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+
+object zio extends LibraryModule:
+  def artifactName = "obs-websocket-client-zio"
+  def moduleDeps   = Seq(core)
+  def mvnDeps      = Seq(
+    mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
+    mvn"com.softwaremill.sttp.client4::zio:${Versions.sttp}",
+  )
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+
+object fs2 extends LibraryModule:
+  def artifactName = "obs-websocket-client-fs2"
+  def moduleDeps   = Seq(core)
+  def mvnDeps      = Seq(
+    mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
+    mvn"com.softwaremill.sttp.client4::fs2:${Versions.sttp}",
+  )
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+
+object pekko extends LibraryModule:
+  def artifactName = "obs-websocket-client-pekko"
+  def moduleDeps   = Seq(core)
+  // pekko-http declares pekko-stream as `provided`; the backend cannot run without it.
+  def mvnDeps      = Seq(
+    mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
+    mvn"com.softwaremill.sttp.client4::pekko-http-backend:${Versions.sttp}",
+    mvn"org.apache.pekko::pekko-stream:1.1.5",
+  )
+  object test extends Tests:
+    def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
+
 object examples extends ProjectModule:
   def moduleDeps = Seq(sttp)
   object test extends Tests:
@@ -186,7 +225,8 @@ object bench extends Java25Module with JmhModule with ScalafmtModule:
   def moduleDeps     = Seq(sttp)
 
 object integration extends ProjectModule:
-  def moduleDeps = Seq(sttp)
+  // Doc snippets compile against every published backend entrypoint.
+  def moduleDeps = Seq(sttp, okhttp, zio, fs2, pekko)
   object test extends Tests:
     def documentation =
       Task.Sources(mill.api.BuildCtx.workspaceRoot / "docs", mill.api.BuildCtx.workspaceRoot / "README.md")
@@ -203,7 +243,15 @@ object scoverage extends ScoverageReport:
 
 object site extends Module:
   def build() = Task.Command:
-    val docs = Seq("protocol" -> protocol.docJar(), "core" -> core.docJar(), "sttp" -> sttp.docJar())
+    val docs = Seq(
+      "protocol" -> protocol.docJar(),
+      "core"     -> core.docJar(),
+      "sttp"     -> sttp.docJar(),
+      "okhttp"   -> okhttp.docJar(),
+      "zio"      -> zio.docJar(),
+      "fs2"      -> fs2.docJar(),
+      "pekko"    -> pekko.docJar(),
+    )
     os.proc(
       Seq("python3", (mill.api.BuildCtx.workspaceRoot / "tools" / "build_site.py").toString) ++
         docs.map((module, jar) => s"$module=${jar.path}")
@@ -217,12 +265,20 @@ object sourceStyle extends Module:
     protocol,
     core,
     sttp,
+    okhttp,
+    zio,
+    fs2,
+    pekko,
     examples,
     server,
     codegen.test,
     protocol.test,
     core.test,
     sttp.test,
+    okhttp.test,
+    zio.test,
+    fs2.test,
+    pekko.test,
     examples.test,
     server.test,
     integration.test,
@@ -252,7 +308,7 @@ object coverage extends Module:
   /** Modules measured by the exact gate in tools/check_coverage.py. Integration coverage is collected separately
     * per PLAN §23, so `integration` is deliberately absent here.
     */
-  val measured: Seq[ProjectModule] = Seq(codegen, protocol, core, sttp, examples, server)
+  val measured: Seq[ProjectModule] = Seq(codegen, protocol, core, sttp, okhttp, zio, fs2, pekko, examples, server)
 
   /** Start a measurement run only after instrumentation is up to date. */
   def reset() = Task.Command:
@@ -268,6 +324,10 @@ object release extends Module:
       "protocol"      -> protocol.resolvedRunMvnDeps().map(_.path.toString),
       "core"          -> core.resolvedRunMvnDeps().map(_.path.toString),
       "sttp"          -> sttp.resolvedRunMvnDeps().map(_.path.toString),
+      "okhttp"        -> okhttp.resolvedRunMvnDeps().map(_.path.toString),
+      "zio"           -> zio.resolvedRunMvnDeps().map(_.path.toString),
+      "fs2"           -> fs2.resolvedRunMvnDeps().map(_.path.toString),
+      "pekko"         -> pekko.resolvedRunMvnDeps().map(_.path.toString),
       "server-sample" -> server.resolvedRunMvnDeps().map(_.path.toString),
     )
     val input = Task.dest / "resolved.json"
@@ -291,6 +351,18 @@ object release extends Module:
       sttp.jar(),
       sttp.sourceJar(),
       sttp.docJar(),
+      okhttp.jar(),
+      okhttp.sourceJar(),
+      okhttp.docJar(),
+      zio.jar(),
+      zio.sourceJar(),
+      zio.docJar(),
+      fs2.jar(),
+      fs2.sourceJar(),
+      fs2.docJar(),
+      pekko.jar(),
+      pekko.sourceJar(),
+      pekko.docJar(),
     )
     val manifest = artifacts.map: artifact =>
       val digest = java.security.MessageDigest.getInstance("SHA-256").digest(os.read.bytes(artifact.path))

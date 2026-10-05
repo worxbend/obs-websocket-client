@@ -9,7 +9,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('codegen', 'protocol', 'core', 'sttp', 'examples', 'server')
+MODULES = ('codegen', 'protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko', 'examples', 'server')
 # Integration coverage is collected separately per PLAN §23; any other directory with scoverage
 # data under out/ means a production module escapes this gate.
 SEPARATE = ('integration',)

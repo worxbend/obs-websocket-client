@@ -1,4 +1,4 @@
-package com.worxbend.obs.websocket.client.transport.sttp
+package com.worxbend.obs.websocket.client.reconnect
 
 import scala.concurrent.duration.FiniteDuration
 

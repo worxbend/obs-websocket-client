@@ -1,6 +1,7 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
 import com.worxbend.obs.websocket.client.ObsError
+import com.worxbend.obs.websocket.client.transport.HandshakeHeaders
 import scala.concurrent.duration.*
 
 /** Transport write deadline includes backend serialization; timing out destroys this connection. `readIdleTimeout` is

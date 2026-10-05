@@ -4,7 +4,7 @@ Read the repository's AGENTS.md and PLAN.md before changing code. Mill is the on
 
 ## Module boundaries
 
-Protocol models depend on jsoniter. Core owns session behavior using Ox. The sttp module supplies network transport. Examples and the Tapir server depend on sttp; neither is a library runtime dependency. Codegen reads the pinned OBS schema and emits sources under Mill's output directory.
+Protocol models depend on jsoniter. Core owns session behavior using Ox, plus the backend-agnostic reconnect family, handshake headers, and message assembler. The sttp module supplies the default JDK sync transport; okhttp layers an OkHttp adapter over it, and the zio, fs2, and pekko modules bridge their effect runtimes behind the same blocking `ObsTransport` seam. Examples and the Tapir server depend on sttp; neither is a library runtime dependency. Codegen reads the pinned OBS schema and emits sources under Mill's output directory.
 
 ## Useful commands
 
@@ -13,10 +13,10 @@ See [code generation](code-generation.md) for the parser/model/template boundari
 The [SonarCloud review](quality/sonarcloud-review-2026-10-05.md) records all 55 findings from the reviewed baseline, their local fixes, and justified exceptions. Apply the versioned [prevention skill](../skills/sonar-issue-prevention/SKILL.md) when editing Scala, Python tooling, or workflows; it is also installed as a global Codex skill in the review environment.
 
 ```sh
-./mill --no-server '{codegen,protocol,core,sttp,examples,server}.compile'
-./mill --no-server '{codegen,protocol,core,sttp,examples,server}.test'
-./mill --no-server '{codegen,protocol,core,sttp,examples,server}.reformat'
-./mill --no-server '{protocol,core,sttp}.docJar'
+./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
+./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.test'
+./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.reformat'
+./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.docJar'
 ./mill --no-server site.build
 python3 -m unittest discover -s tools -p 'test_*.py'
 ```
@@ -63,8 +63,8 @@ and embedded source-template text are not rewritten. Interpolation expressions a
 # Apply built-in rewrites, then format.
 ./mill sourceStyle.fix
 ./mill mill.scalalib.scalafmt.ScalafmtModule/scalafmt build.mill
-./mill '{codegen,protocol,core,sttp,examples,server,bench}.reformat'
-./mill '{codegen,protocol,core,sttp,examples,server,integration}.test.reformat'
+./mill '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,bench}.reformat'
+./mill '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,integration}.test.reformat'
 # Read-only CI check; reports rewrites and forbidden syntax.
 ./mill sourceStyle.fix --check
 ```

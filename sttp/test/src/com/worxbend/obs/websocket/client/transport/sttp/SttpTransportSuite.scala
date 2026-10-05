@@ -1,5 +1,6 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
+import com.worxbend.obs.websocket.client.reconnect.ReconnectPolicy
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError}
 import _root_.sttp.client4.ws.SyncWebSocket
 import _root_.sttp.model.Headers

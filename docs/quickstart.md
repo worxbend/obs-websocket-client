@@ -11,13 +11,15 @@ Enable the WebSocket server in OBS Studio's Tools menu and obtain its password. 
 ## Build locally
 
 ```sh
-./mill --no-server '{protocol,core,sttp}.publishLocal'
+./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishLocal'
 ./mill --no-server examples.run
 ```
 
 The wrapper downloads pinned Mill and Java versions. Set `OBS_WS_PASSWORD` for the example. Pass a URL as an argument to `examples.run` to override localhost. Local publication installs snapshot artifacts in your local Ivy repository; it does not publish a public release. The Maven coordinates shown in this documentation are provisional and not yet published to Maven Central.
 
 ## Make a typed request
+
+The default backend is `obs-websocket-client-sttp` (JDK `HttpClient`, no effect runtime). OkHttp, ZIO, fs2, and Pekko adapters publish as separate artifacts with the same session API; see [choosing a WebSocket backend](guides/backends.md).
 
 An equivalent runnable example lives in `examples/src/com/worxbend/obs/websocket/client/examples/Quickstart.scala`; the snippet below is compiled by the documentation build (`tools/doc_snippets.py`).
 
