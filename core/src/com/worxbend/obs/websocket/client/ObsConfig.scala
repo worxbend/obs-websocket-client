@@ -38,7 +38,8 @@ final case class ObsConfig(
   outgoingCapacity:     Int = 256,
   subscriptionCapacity: Int = 128,
   /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
-    * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session.
+    * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session and abort the connection
+    * immediately, so a violating peer cannot keep it open.
     */
   maxMessageBytes:    Int = Protocol.defaultMaxBytes,
   eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
@@ -67,6 +68,20 @@ final case class ObsConfig(
   private def hasWebSocketAddress(parsed: URI): Boolean =
     Set("ws", "wss").contains(parsed.getScheme) && Option(parsed.getHost).nonEmpty
 
+  /** True when a resolved password would authenticate over plaintext `ws` to a non-loopback host: the OBS
+    * authentication hash then crosses the network in a form an eavesdropper can replay against that session.
+    * Sessions resolve only validated configurations, so unparseable or hostless URIs are treated as unexposed here;
+    * validation rejects them before any session starts.
+    */
+  private[client] def plaintextCredentialsExposed(password: Option[String]): Boolean =
+    password.nonEmpty &&
+      URI
+        .create(uri)
+        .catching[IllegalArgumentException]
+        .toOption
+        .exists: parsed =>
+          parsed.getScheme == "ws" && Option(parsed.getHost).exists(host => !ObsConfig.isLoopbackHost(host = host))
+
   private def hasPrivateComponents(parsed: URI): Boolean =
     Option(parsed.getUserInfo).nonEmpty || Option(parsed.getQuery).nonEmpty || Option(parsed.getFragment).nonEmpty
 
@@ -82,3 +97,18 @@ final case class ObsConfig(
       )
       .getOrElse("<invalid>")
     s"ObsConfig(uri=$safeUri, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"
+
+private[client] object ObsConfig:
+  /** Loopback spellings recognized without DNS resolution: `localhost`, the 127.0.0.0/8 IPv4 range, and `::1` (URI
+    * hosts retain their brackets). Every other host is treated as remote.
+    */
+  def isLoopbackHost(host: String): Boolean =
+    val bare = host.stripPrefix("[").stripSuffix("]")
+    bare.equalsIgnoreCase("localhost") || bare == "::1" || isIpv4Loopback(host = bare)
+
+  private def isIpv4Loopback(host: String): Boolean =
+    val octets = host.split("\\.")
+    octets.length == 4 && octets.head == "127" && octets.forall(isOctet)
+
+  private def isOctet(octet: String): Boolean =
+    octet.matches("[0-9]{1,3}") && octet.toInt <= 255

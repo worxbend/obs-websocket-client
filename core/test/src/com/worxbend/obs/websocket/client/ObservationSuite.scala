@@ -106,10 +106,12 @@ class ObservationSuite extends FunSuite:
     val result = subscription.withLatestBy(interval = 1.second, maxKeys = 2)(key = failing): sampled =>
       sampled.flow.runToList()
     val expected: Either[ObsError, List[Either[ObsError, EventWindow[String]]]] =
-      Right(List(Left(ObsError.InternalError(message = "Sampling key function failed: key defect"))))
+      Right(List(Left(ObsError.InternalError(message =
+        "Sampling key function failed: java.lang.IllegalStateException"
+      ))))
     assertEquals(result, expected)
 
-  test("a message-less sampling key defect falls back to the throwable class name"):
+  test("a message-less sampling key defect is also described by class name only"):
     val source = Channel.buffered[Event](2)
     source.send(event(index = 1))
     val subscription             = new ObsSubscription(channel = source, () => 0L)
@@ -117,7 +119,9 @@ class ObservationSuite extends FunSuite:
     val result = subscription.withLatestBy(interval = 1.second, maxKeys = 2)(key = failing): sampled =>
       sampled.flow.runToList()
     val expected: Either[ObsError, List[Either[ObsError, EventWindow[String]]]] =
-      Right(List(Left(ObsError.InternalError(message = "Sampling key function failed: IllegalStateException"))))
+      Right(List(Left(ObsError.InternalError(message =
+        "Sampling key function failed: java.lang.IllegalStateException"
+      ))))
     assertEquals(result, expected)
 
   test("latest-value sampling emits a bounded window within a scope"):

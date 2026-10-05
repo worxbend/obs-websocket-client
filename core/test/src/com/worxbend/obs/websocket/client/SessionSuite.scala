@@ -336,6 +336,21 @@ class SessionSuite extends FunSuite:
   test("unparseable URIs are rejected"):
     assert(config.copy(uri = "not a uri").validate.isLeft)
 
+  test("plaintext credential exposure requires a password, the ws scheme and a remote host"):
+    val password = Some("synthetic-test-password")
+    assert(config.copy(uri = "ws://obs.internal.example:4455").plaintextCredentialsExposed(password = password))
+    assert(!config.copy(uri = "ws://obs.internal.example:4455").plaintextCredentialsExposed(password = None))
+    assert(!config.copy(uri = "wss://obs.internal.example:4455").plaintextCredentialsExposed(password = password))
+    assert(!config.plaintextCredentialsExposed(password = password))
+    assert(!config.copy(uri = "ws:opaque").plaintextCredentialsExposed(password = password))
+    assert(!config.copy(uri = "not a uri").plaintextCredentialsExposed(password = password))
+
+  test("loopback recognition covers localhost, 127.0.0.0/8 and ::1 without DNS resolution"):
+    val loopback = Vector("localhost", "LOCALHOST", "127.0.0.1", "127.255.255.254", "::1", "[::1]")
+    val remote   = Vector("example.com", "127.evil.example.com", "10.0.0.1", "127.0.0.256", "127..0.1")
+    loopback.foreach(host => assert(ObsConfig.isLoopbackHost(host = host), s"$host must be loopback"))
+    remote.foreach(host => assert(!ObsConfig.isLoopbackHost(host = host), s"$host must be remote"))
+
   test("zero in-flight capacity is rejected"):
     assert(config.copy(maxInFlight = 0).validate.isLeft)
 
@@ -599,7 +614,7 @@ class SessionSuite extends FunSuite:
       override def receive(): Either[ObsError, String] = throw new IllegalStateException("reader defect")
     assertEquals(
       ObsClient.withTransport(transport = peer, config = config)(_ => ()),
-      Left(ObsError.InternalError(message = "Transport receive defect: reader defect")),
+      Left(ObsError.InternalError(message = "Transport receive defect: java.lang.IllegalStateException")),
     )
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -609,7 +624,7 @@ class SessionSuite extends FunSuite:
     peer.hello()
     assertEquals(
       ObsClient.withTransport(transport = peer, config = config)(_ => ()),
-      Left(ObsError.InternalError(message = "Transport send defect: writer defect")),
+      Left(ObsError.InternalError(message = "Transport send defect: java.lang.IllegalStateException")),
     )
     assert(peer.closed.tryReceive().nonEmpty)
 

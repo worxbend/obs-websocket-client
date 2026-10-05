@@ -106,6 +106,16 @@ Adapters share the session engine, deadlines, byte limits, and error taxonomy, b
 - **Clean-close surfacing**: when a peer closes with an empty close payload, the JDK-backed adapters (sttp, okhttp, zio, fs2) surface `ObsError.Transport("WebSocket closed", closeCode = Some(1005))` — the protocol-level "no status received" code — while pekko surfaces the synthetic `Some(1000)` noted above. Both are terminal (non-retryable) classifications, so the difference is observable in error reporting only.
 - **sttp**: upgrade rejection maps to `"WebSocket upgrade rejected"` through the JDK's dedicated handshake exception; teardown finishes a bounded Close attempt before force-shutting the owned JDK client down.
 
+## Inbound size enforcement
+
+Every adapter enforces `ObsConfig.maxMessageBytes` (16 MiB by default) in the shared transport loop, and a breach is fail-fast: the connection is aborted immediately and the session fails with `ObsError.MessageTooLarge`, which `ReconnectPolicy` never retries. How early the limit bites depends on what the underlying client delivers:
+
+- **sttp / zio / fs2 (JDK `HttpClient`)**: the JDK client delivers each wire frame separately, so the running byte total is checked per fragment and the connection is aborted at the crossing frame — a fragmented message never grows past the limit in client memory. One individual frame is still fully decoded to a `String` before the check; `java.net.http.WebSocket` exposes no frame-size setting to close even that.
+- **okhttp**: OkHttp aggregates continuation frames internally, and `OkHttpClient.Builder` (checked against OkHttp 5.5.0) exposes no message or frame size cap, so the check runs after the full payload is materialized. The abort still stops all further processing, but one oversized allocation has already happened.
+- **pekko**: sttp's Pekko backend aggregates each streamed message with an unbounded fold, and pekko-http's client `WebSocketSettings` (checked against pekko-http 1.4.0) carries keep-alive and frame-logging settings only — no size cap — so enforcement is likewise post-materialization fail-fast.
+
+This is defense in depth, not a hard heap bound: on okhttp and pekko a malicious server can force a single allocation up to heap limits before the limit check fires. If that risk matters, prefer the JDK-backed adapters or front the connection with a proxy that enforces frame sizes.
+
 ## Calling from a ZIO or cats-effect application
 
 The adapters present a blocking API on purpose. From an effect application, wrap every blocking entrypoint in the effect system's blocking wrapper:

@@ -1,0 +1,2805 @@
+{
+  "scope": "Resolved runtime dependencies; declarations are not a license compatibility assessment.",
+  "modules": {
+    "core": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "fs2": [
+      {
+        "coordinate": "co.fs2:fs2-core_3:3.14.0",
+        "file": "fs2-core_3-3.14.0.jar",
+        "sha256": "bd1d94b37b8620cb6c046abfda285c61677fcc99858300459e29ccc2163fbd4c",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "http://opensource.org/licenses/MIT",
+            "pom": "co/fs2/fs2-core_3/3.14.0/fs2-core_3-3.14.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "co.fs2:fs2-io_3:3.14.0",
+        "file": "fs2-io_3-3.14.0.jar",
+        "sha256": "7ad8f81657e4ab0bf9b934ab3f104a870d6bc6f727d9fc7dc66b780d6d4ecc25",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "http://opensource.org/licenses/MIT",
+            "pom": "co/fs2/fs2-io_3/3.14.0/fs2-io_3-3.14.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "co.fs2:fs2-reactive-streams_3:3.14.0",
+        "file": "fs2-reactive-streams_3-3.14.0.jar",
+        "sha256": "b5d4ad69a3b50b7027daf61088f902f44d19e398e5abcf04261160a420e09eef",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "http://opensource.org/licenses/MIT",
+            "pom": "co/fs2/fs2-reactive-streams_3/3.14.0/fs2-reactive-streams_3-3.14.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.comcast:ip4s-core_3:3.8.0",
+        "file": "ip4s-core_3-3.8.0.jar",
+        "sha256": "103bbf7c14a79ae5dd54c7085fe8b05312195aa88af3993d5fd69e1e8224807f",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/comcast/ip4s-core_3/3.8.0/ip4s-core_3-3.8.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:cats_3:4.0.27",
+        "file": "cats_3-4.0.27.jar",
+        "sha256": "9c4a2d3bb660431a1816dbf87da1ddaa62d6430a5a357cc7804d7bd25f653f9c",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/cats_3/4.0.27/cats_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:fs2_3:4.0.27",
+        "file": "fs2_3-4.0.27.jar",
+        "sha256": "f998e09b3661ea9bb297409dad01f7624d2506e15828ee8437f852feeae3adca",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/fs2_3/4.0.27/fs2_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:fs2_3:1.5.3",
+        "file": "fs2_3-1.5.3.jar",
+        "sha256": "95d1a602cdd7219e990f0eb78533f3a1630bc0cf8af1769c8db5e8cfba1e3ff7",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/fs2_3/1.5.3/fs2_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.reactivestreams:reactive-streams:1.0.4",
+        "file": "reactive-streams-1.0.4.jar",
+        "sha256": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28",
+        "licenses": [
+          {
+            "name": "MIT-0",
+            "url": "https://spdx.org/licenses/MIT-0.html",
+            "pom": "org/reactivestreams/reactive-streams/1.0.4/reactive-streams-1.0.4.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scodec:scodec-bits_3:1.2.5",
+        "file": "scodec-bits_3-1.2.5.jar",
+        "sha256": "6c238be99601b7ab1c23664ac9e9a896e1d54df117af903a056217cadfbc9f09",
+        "licenses": [
+          {
+            "name": "BSD-3-Clause",
+            "url": "https://github.com/scodec/scodec-bits/blob/main/LICENSE",
+            "pom": "org/scodec/scodec-bits_3/1.2.5/scodec-bits_3-1.2.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:algebra_3:2.13.0",
+        "file": "algebra_3-2.13.0.jar",
+        "sha256": "c2751d6b6b02650e56065b6b5affc116de186f9c8e47519d5bc58728991fce41",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/algebra_3/2.13.0/algebra_3-2.13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-collections-core_3:0.9.10",
+        "file": "cats-collections-core_3-0.9.10.jar",
+        "sha256": "9db07413c4f133f1a0deb80582a515b4a94bfb4bc1c3f7026b15518b5dd2deed",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/cats-collections-core_3/0.9.10/cats-collections-core_3-0.9.10.pom"
+          },
+          {
+            "name": "BSD-3",
+            "url": "https://opensource.org/licenses/BSD-3-Clause",
+            "pom": "org/typelevel/cats-collections-core_3/0.9.10/cats-collections-core_3-0.9.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-core_3:2.13.0",
+        "file": "cats-core_3-2.13.0.jar",
+        "sha256": "e2abfcdfe041ce08d8407412b09d55eb33eb85655c22c9c8815712d3aad633c6",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/cats-core_3/2.13.0/cats-core_3-2.13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-effect-kernel_3:3.7.1",
+        "file": "cats-effect-kernel_3-3.7.1.jar",
+        "sha256": "8650907e465eb1281485ecd8450069e9a7e1e4325c9fb2bf292f8e50ee880e40",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/typelevel/cats-effect-kernel_3/3.7.1/cats-effect-kernel_3-3.7.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-effect-std_3:3.7.1",
+        "file": "cats-effect-std_3-3.7.1.jar",
+        "sha256": "12c5568e94ac08861603e9cabaa6893fdddaa305515dd80fc97f5c20c74eed48",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/typelevel/cats-effect-std_3/3.7.1/cats-effect-std_3-3.7.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-effect_3:3.7.1",
+        "file": "cats-effect_3-3.7.1.jar",
+        "sha256": "391ba6383dd218da14ad824deba9a96d61875c33a9d9ce7d4be68b5ed4236371",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/typelevel/cats-effect_3/3.7.1/cats-effect_3-3.7.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-kernel_3:2.13.0",
+        "file": "cats-kernel_3-2.13.0.jar",
+        "sha256": "a6afaad274e2a0fbbd189bfe3a0e91810bd562745573995011943427ea489040",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/cats-kernel_3/2.13.0/cats-kernel_3-2.13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-mtl_3:1.7.0",
+        "file": "cats-mtl_3-1.7.0.jar",
+        "sha256": "73dd5d1b7d9596de0a303a56bc64ca0c7a773bc8c25af685799e3a1ccba74409",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/typelevel/cats-mtl_3/1.7.0/cats-mtl_3-1.7.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:idna4s-core_3:0.1.0",
+        "file": "idna4s-core_3-0.1.0.jar",
+        "sha256": "1c2af6fb7bbf894ed3ece11c111d980f1283002ef4a6af93423081d0316d40bb",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/idna4s-core_3/0.1.0/idna4s-core_3-0.1.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:literally_3:1.2.0",
+        "file": "literally_3-1.2.0.jar",
+        "sha256": "bc986f37586680fb97082cae2becd38f4b0fd19df4e8da9cde0f20efa7f8e6a9",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/typelevel/literally_3/1.2.0/literally_3-1.2.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "okhttp": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:okhttp-backend_3:4.0.27",
+        "file": "okhttp-backend_3-4.0.27.jar",
+        "sha256": "7280cf7ebf4a3f08a1962cab11dbd9905d12a51bbcb323c5a4f0ef23f9c98d63",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/okhttp-backend_3/4.0.27/okhttp-backend_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.squareup.okhttp3:okhttp-jvm:5.5.0",
+        "file": "okhttp-jvm-5.5.0.jar",
+        "sha256": "234194a04aac54858df0a750d243af7b2e39df5e4eb86e9912043ad33a9f9a52",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/squareup/okhttp3/okhttp-jvm/5.5.0/okhttp-jvm-5.5.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.squareup.okhttp3:okhttp:5.5.0",
+        "file": "okhttp-5.5.0.jar",
+        "sha256": "aebaab3fe77633befcf69fd0ee3052083999a7eaa98d6f2f7c4b498e7bdbb732",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/squareup/okhttp3/okhttp/5.5.0/okhttp-5.5.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.squareup.okio:okio-jvm:3.18.1",
+        "file": "okio-jvm-3.18.1.jar",
+        "sha256": "b97b640557a650d15411f2be29aef558c4e422a83653cb18ba494311dbed18be",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/squareup/okio/okio-jvm/3.18.1/okio-jvm-3.18.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.squareup.okio:okio:3.18.1",
+        "file": "okio-3.18.1.jar",
+        "sha256": "6d9746592170dee6db877969b520a5f79d974083835c911a3e1a58295ee51f67",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/squareup/okio/okio/3.18.1/okio-3.18.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.jetbrains.kotlin:kotlin-stdlib:2.1.21",
+        "file": "kotlin-stdlib-2.1.21.jar",
+        "sha256": "263bdc679e1f62012db7b091796279b6d71cf36f4797a98ff1ace05835f201c8",
+        "licenses": [
+          {
+            "name": "The Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/jetbrains/kotlin/kotlin-stdlib/2.1.21/kotlin-stdlib-2.1.21.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.jetbrains:annotations:13.0",
+        "file": "annotations-13.0.jar",
+        "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/jetbrains/annotations/13.0/annotations-13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "pekko": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:pekko-http-backend_3:4.0.27",
+        "file": "pekko-http-backend_3-4.0.27.jar",
+        "sha256": "e4ea8a1491ad7d2fefb6080912455deea74b0e945e7d6658f200f66e747e5ddf",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/pekko-http-backend_3/4.0.27/pekko-http-backend_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:pekko_3:1.5.3",
+        "file": "pekko_3-1.5.3.jar",
+        "sha256": "d8354f0959134f6c83587c74f4943149cdd773d1c484bb6d0cc662abe6866cc8",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/pekko_3/1.5.3/pekko_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.typesafe:config:1.4.3",
+        "file": "config-1.4.3.jar",
+        "sha256": "8ada4c185ce72416712d63e0b5afdc5f009c0cdf405e5f26efecdf156aa5dfb6",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/typesafe/config/1.4.3/config-1.4.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.typesafe:ssl-config-core_3:0.6.1",
+        "file": "ssl-config-core_3-0.6.1.jar",
+        "sha256": "429b65decb3794be9430b3ff5330de61cd0a058b2345521636e698d3fd34e7e5",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/typesafe/ssl-config-core_3/0.6.1/ssl-config-core_3-0.6.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-actor_3:1.1.5",
+        "file": "pekko-actor_3-1.1.5.jar",
+        "sha256": "bfe8185d4eec63c5b8c64cd2935ae32db42688ae73295b421ff4361eb4cf996c",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-actor_3/1.1.5/pekko-actor_3-1.1.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-http-core_3:1.4.0",
+        "file": "pekko-http-core_3-1.4.0.jar",
+        "sha256": "984f614d3b5bbbaefcab4936d2a29b4aace65d16b992d148a9389458221b615d",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-http-core_3/1.4.0/pekko-http-core_3-1.4.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-http_3:1.4.0",
+        "file": "pekko-http_3-1.4.0.jar",
+        "sha256": "3ac7d4bde470d4502cc8c8d07d2339e9e403ea27bc91bf78914881923fd37449",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-http_3/1.4.0/pekko-http_3-1.4.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-parsing_3:1.4.0",
+        "file": "pekko-parsing_3-1.4.0.jar",
+        "sha256": "03c076c07aae6e5126485818555b6b11038acf09051359faacfab4f9fbd9c2bc",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-parsing_3/1.4.0/pekko-parsing_3-1.4.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-protobuf-v3_3:1.1.5",
+        "file": "pekko-protobuf-v3_3-1.1.5.jar",
+        "sha256": "4658760346305da33506a5afde50921dfeea571c3c083d7f434a888cc24c91e6",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-protobuf-v3_3/1.1.5/pekko-protobuf-v3_3-1.1.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.pekko:pekko-stream_3:1.1.5",
+        "file": "pekko-stream_3-1.1.5.jar",
+        "sha256": "d2facce3cd4f5141c57e9c34077cc533e6ce576a8e1db0b7a36860289b513396",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+            "pom": "org/apache/pekko/pekko-stream_3/1.1.5/pekko-stream_3-1.1.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.parboiled:parboiled_3:2.5.1",
+        "file": "parboiled_3-2.5.1.jar",
+        "sha256": "c47b8e001b5b00ed7fbf11f7751e38e14de8b37a5f6f3c11bf8e3a18dc5be946",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/parboiled/parboiled_3/2.5.1/parboiled_3-2.5.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.reactivestreams:reactive-streams:1.0.4",
+        "file": "reactive-streams-1.0.4.jar",
+        "sha256": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28",
+        "licenses": [
+          {
+            "name": "MIT-0",
+            "url": "https://spdx.org/licenses/MIT-0.html",
+            "pom": "org/reactivestreams/reactive-streams/1.0.4/reactive-streams-1.0.4.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "protocol": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "server-sample": [
+      {
+        "coordinate": "ch.qos.logback:logback-classic:1.6.5",
+        "file": "logback-classic-1.6.5.jar",
+        "sha256": "2e8c73aadad525e854af1ac95793af3dc75ecedd53c010ea2389de44c08e729b",
+        "licenses": [
+          {
+            "name": "EPL-2.0",
+            "url": "https://www.eclipse.org/legal/epl-v20.html",
+            "pom": "ch/qos/logback/logback-parent/1.6.5/logback-parent-1.6.5.pom"
+          },
+          {
+            "name": "LGPL-2.1-only",
+            "url": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
+            "pom": "ch/qos/logback/logback-parent/1.6.5/logback-parent-1.6.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "ch.qos.logback:logback-core:1.6.5",
+        "file": "logback-core-1.6.5.jar",
+        "sha256": "03dcbf053b40166849b8eb0a30cbde40c04a448820e9a7589c4b0a2ec3a9db63",
+        "licenses": [
+          {
+            "name": "EPL-2.0",
+            "url": "https://www.eclipse.org/legal/epl-v20.html",
+            "pom": "ch/qos/logback/logback-parent/1.6.5/logback-parent-1.6.5.pom"
+          },
+          {
+            "name": "LGPL-2.1-only",
+            "url": "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
+            "pom": "ch/qos/logback/logback-parent/1.6.5/logback-parent-1.6.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.pureconfig:pureconfig-core_3:0.17.10",
+        "file": "pureconfig-core_3-0.17.10.jar",
+        "sha256": "32e8c98645369d05480aa485487c10d33147e8578760a85b5204db18ba3f535d",
+        "licenses": [
+          {
+            "name": "Mozilla Public License, version 2.0",
+            "url": "https://www.mozilla.org/MPL/2.0/",
+            "pom": "com/github/pureconfig/pureconfig-core_3/0.17.10/pureconfig-core_3-0.17.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.magnolia1_3:magnolia_3:1.3.23",
+        "file": "magnolia_3-1.3.23.jar",
+        "sha256": "70b4b23cfbbad55592be99fe62d9c43a0e1dd8c8895426baae44e8d1967bbe26",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/magnolia1_3/magnolia_3/1.3.23/magnolia_3-1.3.23.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:flow-reactive-streams_3:1.0.2",
+        "file": "flow-reactive-streams_3-1.0.2.jar",
+        "sha256": "fcdb92cc95db2da38e55905147c4c63ecab31913a1aa9f09523d7548fccbd098",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/flow-reactive-streams_3/1.0.2/flow-reactive-streams_3-1.0.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.quicklens:quicklens_3:1.9.15",
+        "file": "quicklens_3-1.9.15.jar",
+        "sha256": "4b5a9453cdd26e0111507842aaf1b9f225788b6de3a367a400ad2a1c8605e9f7",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/quicklens/quicklens_3/1.9.15/quicklens_3-1.9.15.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:apispec-model_3:0.11.10",
+        "file": "apispec-model_3-0.11.10.jar",
+        "sha256": "90af6cdf5e91ab8ade9154b51b312d53d81f86c134bdd49bcdbf1f66d97f99a7",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/apispec-model_3/0.11.10/apispec-model_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:asyncapi-model_3:0.11.10",
+        "file": "asyncapi-model_3-0.11.10.jar",
+        "sha256": "7f0f0657ae0f8cafb5b9b5bc71205189467f5958efb07dfc303cf2f1a7159b02",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/asyncapi-model_3/0.11.10/asyncapi-model_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:jsonschema-circe_3:0.11.10",
+        "file": "jsonschema-circe_3-0.11.10.jar",
+        "sha256": "214127372b71e5a1430714324557c63d8014289df33addff92da453dbd488666",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/jsonschema-circe_3/0.11.10/jsonschema-circe_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:openapi-circe-yaml_3:0.11.10",
+        "file": "openapi-circe-yaml_3-0.11.10.jar",
+        "sha256": "7a915ca7a4e63c9eecb200b1553b10e67ab1fa2e7c18ed852a8d9762a7a168ee",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/openapi-circe-yaml_3/0.11.10/openapi-circe-yaml_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:openapi-circe_3:0.11.10",
+        "file": "openapi-circe_3-0.11.10.jar",
+        "sha256": "55abecb175ab067d293e2b927052cd061a433f9885083cca652adff03d6931fe",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/openapi-circe_3/0.11.10/openapi-circe_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.apispec:openapi-model_3:0.11.10",
+        "file": "openapi-model_3-0.11.10.jar",
+        "sha256": "7496c7ae18a580762aa67897de32f6bd4d119dbf57b6b99500092b10b48ce1f3",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/apispec/openapi-model_3/0.11.10/openapi-model_3-0.11.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-apispec-docs_3:1.13.32",
+        "file": "tapir-apispec-docs_3-1.13.32.jar",
+        "sha256": "e149671256bc20f8eef24d19290e080d7f8a9d026d20cbc8c61b6afdeb363fc0",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-apispec-docs_3/1.13.32/tapir-apispec-docs_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-core_3:1.13.32",
+        "file": "tapir-core_3-1.13.32.jar",
+        "sha256": "67d6d9fe0fdbffba548c9b14f419c20f359aaaba216b73418c7dae3f1d5afffc",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-core_3/1.13.32/tapir-core_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-files_3:1.13.32",
+        "file": "tapir-files_3-1.13.32.jar",
+        "sha256": "5f5dfdedd08e931b95d5b87415d9daab119efc9b3f9a4798fba2149c20b77c1a",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-files_3/1.13.32/tapir-files_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-jsoniter-scala_3:1.13.32",
+        "file": "tapir-jsoniter-scala_3-1.13.32.jar",
+        "sha256": "ef0adde7a9b6b40dfbd6bd905eb47c83bcbf25f5390366bbce7663cac4e82f09",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-jsoniter-scala_3/1.13.32/tapir-jsoniter-scala_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-netty-server-sync_3:1.13.32",
+        "file": "tapir-netty-server-sync_3-1.13.32.jar",
+        "sha256": "00e6491ad692c6741e1594601176760f91ebe9026d74be506aa024f1069d154e",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-netty-server-sync_3/1.13.32/tapir-netty-server-sync_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-netty-server_3:1.13.32",
+        "file": "tapir-netty-server_3-1.13.32.jar",
+        "sha256": "bd4af7c61f9fa13f2af07ddcd6650a0223b7b8cd28c2ed1d625399ee4b4195a9",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-netty-server_3/1.13.32/tapir-netty-server_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-openapi-docs_3:1.13.32",
+        "file": "tapir-openapi-docs_3-1.13.32.jar",
+        "sha256": "3250b3dd975443634f214721816025a54cd8ce45fdd1874b994a9a64a8c605b6",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-openapi-docs_3/1.13.32/tapir-openapi-docs_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-server_3:1.13.32",
+        "file": "tapir-server_3-1.13.32.jar",
+        "sha256": "9213e04768e838293d0dba2d0752782e4f355efa95bf9be2c172038c36781fee",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-server_3/1.13.32/tapir-server_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-swagger-ui-bundle_3:1.13.32",
+        "file": "tapir-swagger-ui-bundle_3-1.13.32.jar",
+        "sha256": "9321c7f012be45a3b016c64c5686d4499e44f05dd0d91a95a6cfffc5752c2c90",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-swagger-ui-bundle_3/1.13.32/tapir-swagger-ui-bundle_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.tapir:tapir-swagger-ui_3:1.13.32",
+        "file": "tapir-swagger-ui_3-1.13.32.jar",
+        "sha256": "da89df32121b9489b35dbedbf3ffa410abba41f4410f3d4b54ef549d8ac71169",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/tapir/tapir-swagger-ui_3/1.13.32/tapir-swagger-ui_3-1.13.32.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.typesafe:config:1.4.5",
+        "file": "config-1.4.5.jar",
+        "sha256": "4a4b0affb22a9572409d3a6bde99ce3f2045c551cadc1ca7fe09690892c526c3",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/typesafe/config/1.4.5/config-1.4.5.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "commons-codec:commons-codec:1.11",
+        "file": "commons-codec-1.11.jar",
+        "sha256": "e599d5318e97aa48f42136a2927e6dfa4e8881dff0e6c8e3109ddbbff51d7b7d",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/apache/apache/18/apache-18.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "commons-logging:commons-logging:1.2",
+        "file": "commons-logging-1.2.jar",
+        "sha256": "daddea1ea0be0f56978ab3006b8ac92834afeefbd9b7e4e6316fca57df0fa636",
+        "licenses": [
+          {
+            "name": "The Apache Software License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/apache/apache/13/apache-13.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-core_3:0.14.14",
+        "file": "circe-core_3-0.14.14.jar",
+        "sha256": "54580442867a90fda3d26338a4414768cb9d91988d12a8b021e6d65d9f788fcf",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-core_3/0.14.14/circe-core_3-0.14.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-generic_3:0.14.14",
+        "file": "circe-generic_3-0.14.14.jar",
+        "sha256": "9e751244094ed1350fb1817a2fd6a185427413a93a4e23272d7673bee01b1a6c",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-generic_3/0.14.14/circe-generic_3-0.14.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-jawn_3:0.14.14",
+        "file": "circe-jawn_3-0.14.14.jar",
+        "sha256": "01df6be5aeb8b599c0818e9e39e5a8a269e7e08ac66df6a98c39aec9546af35a",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-jawn_3/0.14.14/circe-jawn_3-0.14.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-numbers_3:0.14.14",
+        "file": "circe-numbers_3-0.14.14.jar",
+        "sha256": "6a713daa0bc7ca3686aff5d84e4d5f54d5343c79f9c6657cf63a6a76bf9136dc",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-numbers_3/0.14.14/circe-numbers_3-0.14.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-parser_3:0.14.14",
+        "file": "circe-parser_3-0.14.14.jar",
+        "sha256": "01f7ccaea5e7fc9308822bde902d2dd6aae80a1642cca1c54020b2eb45fb757d",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-parser_3/0.14.14/circe-parser_3-0.14.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-yaml-common_3:0.16.1",
+        "file": "circe-yaml-common_3-0.16.1.jar",
+        "sha256": "ee2cfec669de1b894e818b9ecabba46158642c0f882a8a2d2f73ea0e15380bed",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-yaml-common_3/0.16.1/circe-yaml-common_3-0.16.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.circe:circe-yaml_3:0.16.1",
+        "file": "circe-yaml_3-0.16.1.jar",
+        "sha256": "ff3cc3be754deb8b9ecedf888a020395cfd71f1ed2c140cf2b3204185ce9d55e",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "io/circe/circe-yaml_3/0.16.1/circe-yaml_3-0.16.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-all:4.2.18.Final",
+        "file": "netty-all-4.2.18.Final.jar",
+        "sha256": "e27d429527d65e6eff0c3f3ed8badbf8af25ec47db682b748bab256feda8fb65",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-all/4.2.18.Final/netty-all-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-buffer:4.2.18.Final",
+        "file": "netty-buffer-4.2.18.Final.jar",
+        "sha256": "fdf236d2b76aa9710684401fdad7dff9dec56e43da5d39172c9a55ba5f14b360",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-base:4.2.18.Final",
+        "file": "netty-codec-base-4.2.18.Final.jar",
+        "sha256": "7e4612bead7ba88ac6f7908fa722f90ad6835ea96505c9e40b2f93686c1f61f3",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-classes-quic:4.2.18.Final",
+        "file": "netty-codec-classes-quic-4.2.18.Final.jar",
+        "sha256": "d1c4c4327fde2bf6ec773b070344907a7a4844f1843528ae917905e2c3547478",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-compression:4.2.18.Final",
+        "file": "netty-codec-compression-4.2.18.Final.jar",
+        "sha256": "9d8a4b9a6a2a166ec5a4bbe51a78b4f6a726457c51d81495743c7e7ccb9f4765",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-dns:4.2.18.Final",
+        "file": "netty-codec-dns-4.2.18.Final.jar",
+        "sha256": "6f4b6da1483a82a637804740c2fb61385c9337a5e7ae5e357720cc03ba60b728",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-haproxy:4.2.18.Final",
+        "file": "netty-codec-haproxy-4.2.18.Final.jar",
+        "sha256": "bf00d403810a77f372f4e1916af81cb1d5f3d4b13682716f821d471d1d2df077",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-http2:4.2.18.Final",
+        "file": "netty-codec-http2-4.2.18.Final.jar",
+        "sha256": "a45a2b06c377b9c87c21ae2b37f04c8d808192590a73d977e7a60fd59921f283",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-http3:4.2.18.Final",
+        "file": "netty-codec-http3-4.2.18.Final.jar",
+        "sha256": "cc1652ece111e35a7677c8260499cc6709950061998f9d1a36496b352f456273",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-http3/4.2.18.Final/netty-codec-http3-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-http:4.2.18.Final",
+        "file": "netty-codec-http-4.2.18.Final.jar",
+        "sha256": "2d50765eb58591ce35146c54ca032a257808d2165d8985a8522c70ea1470e8d7",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-marshalling:4.2.18.Final",
+        "file": "netty-codec-marshalling-4.2.18.Final.jar",
+        "sha256": "eccf83cbbd1319db879424c4559d465dc43251fe1a8ff759c4320b5adbcf26b7",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-memcache:4.2.18.Final",
+        "file": "netty-codec-memcache-4.2.18.Final.jar",
+        "sha256": "7e8bf4c9b74c0e6ae3ddadb8bbf2508e6851f876380543c4fd21331257f70098",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-mqtt:4.2.18.Final",
+        "file": "netty-codec-mqtt-4.2.18.Final.jar",
+        "sha256": "2c43f4e75beb6efba94ee6dd63a877d21cc611888e2a49f04e9dce28b874bfe4",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-native-quic:4.2.18.Final",
+        "file": "netty-codec-native-quic-4.2.18.Final-linux-x86_64.jar",
+        "sha256": "45952dcfa200317add275fbbedf32967cb3e5528fc84a5d2b7ccc4439e8d3f88",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-native-quic/4.2.18.Final/netty-codec-native-quic-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-native-quic:4.2.18.Final",
+        "file": "netty-codec-native-quic-4.2.18.Final-linux-aarch_64.jar",
+        "sha256": "df4d14edc1f6e03b27ba63ed8a72687b23c021cae2979c5ab76ef46e9af9fa38",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-native-quic/4.2.18.Final/netty-codec-native-quic-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-native-quic:4.2.18.Final",
+        "file": "netty-codec-native-quic-4.2.18.Final-osx-x86_64.jar",
+        "sha256": "827c871846eab219e222d24af19c3b713549a51ecbc6769c70ec118eea03eefc",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-native-quic/4.2.18.Final/netty-codec-native-quic-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-native-quic:4.2.18.Final",
+        "file": "netty-codec-native-quic-4.2.18.Final-osx-aarch_64.jar",
+        "sha256": "f99bd674139c0e70d82aee64911047a7bd69e5a8fb7c28fc828e1076490a9471",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-native-quic/4.2.18.Final/netty-codec-native-quic-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-native-quic:4.2.18.Final",
+        "file": "netty-codec-native-quic-4.2.18.Final-windows-x86_64.jar",
+        "sha256": "149bdc03262c145ab509a6464d27be4f32fa5a02723d178e1f2c445766f5102f",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-codec-native-quic/4.2.18.Final/netty-codec-native-quic-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-protobuf:4.2.18.Final",
+        "file": "netty-codec-protobuf-4.2.18.Final.jar",
+        "sha256": "1bcaedd0da94f8579477f0848e910c24aced8b1ed7c3e1bff16d56fd0229b516",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-redis:4.2.18.Final",
+        "file": "netty-codec-redis-4.2.18.Final.jar",
+        "sha256": "ac0e1c19fe557fa41daa47595e6aee58a70eb71c0cea23447584db65444c20a8",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-smtp:4.2.18.Final",
+        "file": "netty-codec-smtp-4.2.18.Final.jar",
+        "sha256": "7aa734e78618fdceedea03e454575f49f01eb3abd7066389a9358f39aada2999",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-socks:4.2.18.Final",
+        "file": "netty-codec-socks-4.2.18.Final.jar",
+        "sha256": "25dea7bc1ad990ab8959065f0690b63574d8db4f51033cd98458fc84c59367f3",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-stomp:4.2.18.Final",
+        "file": "netty-codec-stomp-4.2.18.Final.jar",
+        "sha256": "02aa4c10c182523aa615a6c3b8d21cc790f77e12d9a3a269919200cfa89b32d3",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec-xml:4.2.18.Final",
+        "file": "netty-codec-xml-4.2.18.Final.jar",
+        "sha256": "f0c35fe4a9ad4c646c429959a078752e1e75ea4b067055e523eb0a2622c7ea57",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-codec:4.2.18.Final",
+        "file": "netty-codec-4.2.18.Final.jar",
+        "sha256": "439645eb5061f8f50fbf27afacce394e4cecc4d373e1f7a384837e4661d5f430",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-common:4.2.18.Final",
+        "file": "netty-common-4.2.18.Final.jar",
+        "sha256": "5d97cae5669685872339698efe13f74fe3cdb2dccdb36963b2352bd95acf7070",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-handler-proxy:4.2.18.Final",
+        "file": "netty-handler-proxy-4.2.18.Final.jar",
+        "sha256": "d7786de71c0d405b80b4262e0c585618e6f20e7fd3188cb4f599ffc4029ee9ea",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-handler-ssl-ocsp:4.2.18.Final",
+        "file": "netty-handler-ssl-ocsp-4.2.18.Final.jar",
+        "sha256": "df5b317e5333390a897945e6489f8662b3c47eec43631a84cd809348e1c1898c",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-handler:4.2.18.Final",
+        "file": "netty-handler-4.2.18.Final.jar",
+        "sha256": "6d5a08d9dd6d7d0211202e22dbb1629b23a62550335c7e80892da1d4cb115540",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-resolver-dns-classes-macos:4.2.18.Final",
+        "file": "netty-resolver-dns-classes-macos-4.2.18.Final.jar",
+        "sha256": "377abd8b198bde174d18b74ef9bac84251b56c8e5ce373d7099bde0d297055c7",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-resolver-dns-native-macos:4.2.18.Final",
+        "file": "netty-resolver-dns-native-macos-4.2.18.Final-osx-x86_64.jar",
+        "sha256": "144823796e9b8222cce8ee8ab3f632f263564bdb4231c8569615506530df83f4",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-resolver-dns-native-macos:4.2.18.Final",
+        "file": "netty-resolver-dns-native-macos-4.2.18.Final-osx-aarch_64.jar",
+        "sha256": "9030827a258287b843f0c5381c22e65300770f7460d7378e7cd83073cafbd857",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-resolver-dns:4.2.18.Final",
+        "file": "netty-resolver-dns-4.2.18.Final.jar",
+        "sha256": "7dd3ec96bef04abc91a0f461f8acc19ebc0738c257ea653aea9dd0ad67b3b1ce",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-resolver:4.2.18.Final",
+        "file": "netty-resolver-4.2.18.Final.jar",
+        "sha256": "68373ec544cf769ba17bf2ef455166d98f2c260dff536edf35ef57067a9c155f",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-classes-epoll:4.2.18.Final",
+        "file": "netty-transport-classes-epoll-4.2.18.Final.jar",
+        "sha256": "3677ca998f3db749d3fdb0fb1b1674f9809f4fbe8f819a346f4858dfb16c4d95",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-classes-io_uring:4.2.18.Final",
+        "file": "netty-transport-classes-io_uring-4.2.18.Final.jar",
+        "sha256": "e27820fe669e6b5f19c4e9d0acd0142afbe2719c7f6380e6bee357d0db9c5a26",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-classes-kqueue:4.2.18.Final",
+        "file": "netty-transport-classes-kqueue-4.2.18.Final.jar",
+        "sha256": "be48ee5b8a2328a1f4f2160270344175612dd9567787727de0dbaecb694beb51",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-epoll:4.2.18.Final",
+        "file": "netty-transport-native-epoll-4.2.18.Final-linux-x86_64.jar",
+        "sha256": "32a340971182d901cea513588549cfadc392bb7342f930379a6e34d853a331f0",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-epoll:4.2.18.Final",
+        "file": "netty-transport-native-epoll-4.2.18.Final-linux-aarch_64.jar",
+        "sha256": "542ec436b3bc5ed6eed946573ce0ad2c8776517badb949817d06c7294b9d023e",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-epoll:4.2.18.Final",
+        "file": "netty-transport-native-epoll-4.2.18.Final-linux-riscv64.jar",
+        "sha256": "cecb20bc4a4429a9787903914f91c3719b6b6e209b2a366d39fba04ee41fae91",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-io_uring:4.2.18.Final",
+        "file": "netty-transport-native-io_uring-4.2.18.Final-linux-x86_64.jar",
+        "sha256": "d3a8f1de18c910b6292dbf2187db6093b261e8a76086da0ecfcf1ded7e9a80a3",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-io_uring:4.2.18.Final",
+        "file": "netty-transport-native-io_uring-4.2.18.Final-linux-aarch_64.jar",
+        "sha256": "2f2cbf3a6dc996b4b955da42b0c692abca4dfc93c7bd5b09feee54c94e48b391",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-io_uring:4.2.18.Final",
+        "file": "netty-transport-native-io_uring-4.2.18.Final-linux-riscv64.jar",
+        "sha256": "4f6cbfef22526fb21847024a319a66fc95b57d3d47c6fe09afb0542f5bb8f717",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-kqueue:4.2.18.Final",
+        "file": "netty-transport-native-kqueue-4.2.18.Final-osx-x86_64.jar",
+        "sha256": "ad0a842bc9f8064dec6ee3c264e0f24131ebe690e9757616c4700490956d7f1f",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-kqueue:4.2.18.Final",
+        "file": "netty-transport-native-kqueue-4.2.18.Final-osx-aarch_64.jar",
+        "sha256": "7e0ab76f3935ca036a7fb19d34821b8d22c69fbd75a22d4b344fd65668d23131",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-native-unix-common:4.2.18.Final",
+        "file": "netty-transport-native-unix-common-4.2.18.Final.jar",
+        "sha256": "cada7023d09136af128511ca94421d69dc84d0f1f64c9e1f127a1271bb62932a",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-rxtx:4.2.18.Final",
+        "file": "netty-transport-rxtx-4.2.18.Final.jar",
+        "sha256": "5e21cbbaafe350a75c1b6b502fa94b090fc8c2c88ba66d3f05a68d60f4e598c6",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-sctp:4.2.18.Final",
+        "file": "netty-transport-sctp-4.2.18.Final.jar",
+        "sha256": "8a53aa9b5499f65802c690e1e80f42c87ac57410f6817346f9be29c4ec154bdb",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport-udt:4.2.18.Final",
+        "file": "netty-transport-udt-4.2.18.Final.jar",
+        "sha256": "e11b9ac44ebc4450df81727df917d55eedcdfd99cea8b112506a25f9f03ddb2b",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "io.netty:netty-transport:4.2.18.Final",
+        "file": "netty-transport-4.2.18.Final.jar",
+        "sha256": "eac4f12068db4489e60c6520fad663e5d872f0436a7c641aa9e08db649947863",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "io/netty/netty-parent/4.2.18.Final/netty-parent-4.2.18.Final.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.httpcomponents:httpclient:4.5.14",
+        "file": "httpclient-4.5.14.jar",
+        "sha256": "c8bc7e1c51a6d4ce72f40d2ebbabf1c4b68bfe76e732104b04381b493478e9d6",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/apache/httpcomponents/httpcomponents-client/4.5.14/httpcomponents-client-4.5.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.httpcomponents:httpcore:4.4.16",
+        "file": "httpcore-4.4.16.jar",
+        "sha256": "6c9b3dd142a09dc468e23ad39aad6f75a0f2b85125104469f026e52a474e464f",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/apache/httpcomponents/httpcomponents-core/4.4.16/httpcomponents-core-4.4.16.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.apache.httpcomponents:httpmime:4.5.14",
+        "file": "httpmime-4.5.14.jar",
+        "sha256": "d401243d5c6eae928a37121b6e819158c8c32ea0584793e7285bb489ab2a3d17",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/apache/httpcomponents/httpcomponents-client/4.5.14/httpcomponents-client-4.5.14.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.playframework.netty:netty-reactive-streams-http:3.0.10",
+        "file": "netty-reactive-streams-http-3.0.10.jar",
+        "sha256": "b0464a7bd61e50926046279bd17dd94d9ceb75290efea0ad2bab05d4dff029ca",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/playframework/netty/netty-reactive-streams-parent/3.0.10/netty-reactive-streams-parent-3.0.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.playframework.netty:netty-reactive-streams:3.0.10",
+        "file": "netty-reactive-streams-3.0.10.jar",
+        "sha256": "e7294e6bc332e72fc5e99e4ae728f8e8889b673e4a9552987181352dd3242777",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/playframework/netty/netty-reactive-streams-parent/3.0.10/netty-reactive-streams-parent-3.0.10.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.reactivestreams:reactive-streams:1.0.4",
+        "file": "reactive-streams-1.0.4.jar",
+        "sha256": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28",
+        "licenses": [
+          {
+            "name": "MIT-0",
+            "url": "https://spdx.org/licenses/MIT-0.html",
+            "pom": "org/reactivestreams/reactive-streams/1.0.4/reactive-streams-1.0.4.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.slf4j:slf4j-api:2.0.19",
+        "file": "slf4j-api-2.0.19.jar",
+        "sha256": "e91ff6d720609e7a194ffe758c3ed5c84e798617ae07b0a0f6a4fe229741b4bb",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/license/mit",
+            "pom": "org/slf4j/slf4j-bom/2.0.19/slf4j-bom-2.0.19.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-core_3:2.13.0",
+        "file": "cats-core_3-2.13.0.jar",
+        "sha256": "e2abfcdfe041ce08d8407412b09d55eb33eb85655c22c9c8815712d3aad633c6",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/cats-core_3/2.13.0/cats-core_3-2.13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:cats-kernel_3:2.13.0",
+        "file": "cats-kernel_3-2.13.0.jar",
+        "sha256": "a6afaad274e2a0fbbd189bfe3a0e91810bd562745573995011943427ea489040",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/cats-kernel_3/2.13.0/cats-kernel_3-2.13.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.typelevel:jawn-parser_3:1.6.0",
+        "file": "jawn-parser_3-1.6.0.jar",
+        "sha256": "7eda53af568b548938472ca55d235c310f9fcf5262c1e4847185ce6655aa6cd1",
+        "licenses": [
+          {
+            "name": "MIT",
+            "url": "http://opensource.org/licenses/MIT",
+            "pom": "org/typelevel/jawn-parser_3/1.6.0/jawn-parser_3-1.6.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.webjars:swagger-ui:5.32.15",
+        "file": "swagger-ui-5.32.15.jar",
+        "sha256": "7825f6c64b6a96e29213e56947081c7f94021b58f4a52216cb1f4e59c5225e78",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "",
+            "pom": "org/webjars/swagger-ui/5.32.15/swagger-ui-5.32.15.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.yaml:snakeyaml:2.2",
+        "file": "snakeyaml-2.2.jar",
+        "sha256": "1467931448a0817696ae2805b7b8b20bfb082652bf9c4efaed528930dc49389b",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "org/yaml/snakeyaml/2.2/snakeyaml-2.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "sttp": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ],
+    "zio": [
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-core_3:2.41.2",
+        "file": "jsoniter-scala-core_3-2.41.2.jar",
+        "sha256": "6f2be520ebe1bb58c50965130e02eb68047761f5eff01edea4f3395624fb0d87",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
+        "file": "jsoniter-scala-macros_3-2.41.2.jar",
+        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
+        "licenses": [
+          {
+            "name": "MIT License",
+            "url": "https://opensource.org/licenses/mit-license.html",
+            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.jox:channels:1.1.2",
+        "file": "channels-1.1.2.jar",
+        "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
+        "licenses": [
+          {
+            "name": "Apache License, Version 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "pom": "com/softwaremill/jox/parent/1.1.2/parent-1.1.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.ox:core_3:1.0.9",
+        "file": "core_3-1.0.9.jar",
+        "sha256": "a2e13501ed818fe086feef6efbd2b6cfbb37cd931c87727703b949c23ba55195",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/ox/core_3/1.0.9/core_3-1.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:core_3:4.0.27",
+        "file": "core_3-4.0.27.jar",
+        "sha256": "1c2f5f683054b850713a8e4f43e697a9b777bde7ba7b719e38135973ede403eb",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/core_3/4.0.27/core_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.client4:zio_3:4.0.27",
+        "file": "zio_3-4.0.27.jar",
+        "sha256": "887b6052bbcedb24d6cc0c9b3ce2ed451931553147fb68bdfcbd73cdc0cad384",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/client4/zio_3/4.0.27/zio_3-4.0.27.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.model:core_3:1.8.1",
+        "file": "core_3-1.8.1.jar",
+        "sha256": "8edd0ae764888c4afa296c638a3a97706cbce0d5f78839546e7b4d5b703a7194",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/model/core_3/1.8.1/core_3-1.8.1.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:core_3:1.5.3",
+        "file": "core_3-1.5.3.jar",
+        "sha256": "0fa02264c667cdc2bf3f8b0b43e438ed2c8756916a1aa38cfc50bc40d175134d",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/core_3/1.5.3/core_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:ws_3:1.5.3",
+        "file": "ws_3-1.5.3.jar",
+        "sha256": "00d5c8c98aca67ddd6a628f4e0dddaf507b126eb1e45fb14590403187ca9047b",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/ws_3/1.5.3/ws_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "com.softwaremill.sttp.shared:zio_3:1.5.3",
+        "file": "zio_3-1.5.3.jar",
+        "sha256": "2d6983eeeae69bdb5eb38ca76d4a37cf919a42520ed3ef2e9ea11a89cc8eae98",
+        "licenses": [
+          {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "com/softwaremill/sttp/shared/zio_3/1.5.3/zio_3-1.5.3.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:izumi-reflect-thirdparty-boopickle-shaded_3:3.0.9",
+        "file": "izumi-reflect-thirdparty-boopickle-shaded_3-3.0.9.jar",
+        "sha256": "d6f013e6038f3c06a1e401ca23a8b0f70a4d5ba81fa4cc6e8a5df89e1b411f80",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/izumi-reflect-thirdparty-boopickle-shaded_3/3.0.9/izumi-reflect-thirdparty-boopickle-shaded_3-3.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:izumi-reflect_3:3.0.9",
+        "file": "izumi-reflect_3-3.0.9.jar",
+        "sha256": "468edd7988f9f68bf0466f998509e96b9f956a90d65a38fd61049b4fa77d9880",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/izumi-reflect_3/3.0.9/izumi-reflect_3-3.0.9.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:zio-internal-macros_3:2.1.26",
+        "file": "zio-internal-macros_3-2.1.26.jar",
+        "sha256": "71822aafab7becc4ea150daf41abf1f12775f56b00b6e84e8a560e90128f59ee",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/zio-internal-macros_3/2.1.26/zio-internal-macros_3-2.1.26.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:zio-interop-reactivestreams_3:2.0.2",
+        "file": "zio-interop-reactivestreams_3-2.0.2.jar",
+        "sha256": "6890cade6c8c6610733f98f5a399a482d773e8ea508e2ed82baaab66d34b354a",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/zio-interop-reactivestreams_3/2.0.2/zio-interop-reactivestreams_3-2.0.2.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:zio-stacktracer_3:2.1.26",
+        "file": "zio-stacktracer_3-2.1.26.jar",
+        "sha256": "2427f330076310541b97db5a828c284f03b342a713672dc9cd0f0c766ab46f17",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/zio-stacktracer_3/2.1.26/zio-stacktracer_3-2.1.26.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:zio-streams_3:2.1.26",
+        "file": "zio-streams_3-2.1.26.jar",
+        "sha256": "2222545dc592f0fc115e51385b987b958b1b91e60bb6742173b82d044bb72bfd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/zio-streams_3/2.1.26/zio-streams_3-2.1.26.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "dev.zio:zio_3:2.1.26",
+        "file": "zio_3-2.1.26.jar",
+        "sha256": "9f0a0113e1c37aab73b92241c9fc4b27f8ecd116cd2997010ba4679a828b88f1",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "dev/zio/zio_3/2.1.26/zio_3-2.1.26.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.reactivestreams:reactive-streams:1.0.4",
+        "file": "reactive-streams-1.0.4.jar",
+        "sha256": "f75ca597789b3dac58f61857b9ac2e1034a68fa672db35055a8fb4509e325f28",
+        "licenses": [
+          {
+            "name": "MIT-0",
+            "url": "https://spdx.org/licenses/MIT-0.html",
+            "pom": "org/reactivestreams/reactive-streams/1.0.4/reactive-streams-1.0.4.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang.modules:scala-collection-compat_3:2.14.0",
+        "file": "scala-collection-compat_3-2.14.0.jar",
+        "sha256": "0d44cb0fa7f867ae9e8d76a2dfc58985aec2fe4e836ebb3b671472a23ca74d48",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/modules/scala-collection-compat_3/2.14.0/scala-collection-compat_3-2.14.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala-library:3.9.0",
+        "file": "scala-library-3.9.0.jar",
+        "sha256": "b844bf6fb3080c73df6b9c523b7a69b9ef4a980bb15e5c37c35443d1d0b0e0cd",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala-library/3.9.0/scala-library-3.9.0.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      },
+      {
+        "coordinate": "org.scala-lang:scala3-library_3:3.3.8",
+        "file": "scala3-library_3-3.3.8.jar",
+        "sha256": "2c6eace9158df8ee4485a06128a479d968c1ebfc83ae9b1a394b58429f0d1492",
+        "licenses": [
+          {
+            "name": "Apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0",
+            "pom": "org/scala-lang/scala3-library_3/3.3.8/scala3-library_3-3.3.8.pom"
+          }
+        ],
+        "license_status": "declared-in-pom"
+      }
+    ]
+  }
+}

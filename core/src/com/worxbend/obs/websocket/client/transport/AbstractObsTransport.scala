@@ -27,6 +27,11 @@ import scala.util.control.NonFatal
   * backends whose framework answers at the protocol layer (the JDK client) therefore emit a second, RFC-legal
   * unsolicited Pong.
   *
+  * An inbound message that crosses the byte limit aborts the connection before the error is returned: a peer that has
+  * already violated the limit must not keep this connection alive while the failure propagates. The limit is enforced
+  * on the frames the backend delivers, which for aggregating backends (OkHttp, Pekko) happens after the backend has
+  * materialized the payload; the abort bounds the exposure to that one delivery instead of a continued stream.
+  *
   * One reader aggregates bounded JSON text with arithmetic UTF-8 byte accounting; the session serializes application
   * writes.
   */
@@ -123,7 +128,11 @@ abstract private[client] class AbstractObsTransport(
       case Left(error)                                        => Left(error)
       case Right(TransportFrame.Text(payload, finalFragment)) =>
         assembler.appendFragment(payload = payload, finalFragment = finalFragment) match
-          case Left(error)          => Left(error)
+          case Left(error) =>
+            // The peer already violated the configured byte limit; destroy the connection so the loop cannot
+            // drain further frames from it while the failure propagates.
+            abort()
+            Left(error)
           case Right(Some(message)) => Right(message)
           case Right(None)          => readMessage(assembler = assembler)
       case Right(TransportFrame.Ping(payload)) =>

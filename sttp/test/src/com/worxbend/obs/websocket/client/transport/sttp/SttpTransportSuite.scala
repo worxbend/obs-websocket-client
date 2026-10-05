@@ -55,6 +55,18 @@ class SttpTransportSuite extends FunSuite:
       Left(ObsError.MessageTooLarge(message = incomingSizeLimitMessage)),
     )
 
+  test("incoming limit breach aborts the connection"):
+    var aborted = false
+    val peer    = new Peer(frames = List(WebSocketFrame.Text("é", false, None), WebSocketFrame.text("é")))
+    val socket  = new SttpTransport(
+      socket          = new SyncWebSocket(peer),
+      maxMessageBytes = 3,
+      shutdownTimeout = 1.second,
+      () => aborted = true,
+    )
+    assertEquals(socket.receive(), Left(ObsError.MessageTooLarge(message = incomingSizeLimitMessage)))
+    assert(aborted)
+
   test("exact byte limit is accepted"):
     assertEquals(transport(peer = new Peer(frames = List(WebSocketFrame.text("é"))), limit = 2).receive(), Right("é"))
 

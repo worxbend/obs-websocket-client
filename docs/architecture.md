@@ -127,7 +127,7 @@ Event decoding and nonblocking broadcast happen in the actor. Known malformed ev
 | Pending operations | `maxInFlight = 256` | Reject registration with `Overflow` |
 | Outgoing messages | `outgoingCapacity = 256` | Reject enqueueing with `Overflow` |
 | Events per subscriber | `subscriptionCapacity = 128` | Fail that subscriber, or apply its explicit drop policy |
-| Message bytes | `maxMessageBytes` from the protocol default | Reject oversized outgoing operations; fail the session for oversized input |
+| Message bytes | `maxMessageBytes` from the protocol default | Reject oversized outgoing operations; fail the session and abort the connection for oversized input |
 | Reply wait | `requestTimeout = 10.seconds` | Return `Timeout` and remove pending registration |
 
 These limits do not impose a maximum number of application-created subscriptions. Applications remain responsible for bounding their own concurrent consumers. See [ObsConfig.scala](../core/src/com/worxbend/obs/websocket/client/ObsConfig.scala), [requests](requests.md), and [events](events.md).

@@ -8,6 +8,12 @@ out/
 .env
 .env.*
 !.env.example
+*.pem
+*.jks
+*.key
+*.p12
+*.pfx
+*.keystore
 
 # Temporary generators and local reports
 starter.zip

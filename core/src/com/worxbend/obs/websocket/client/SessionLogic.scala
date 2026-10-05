@@ -138,7 +138,16 @@ final private[client] class SessionLogic(
     else
       state =
         state.copy(diagnostics = state.diagnostics.copy(entries = state.diagnostics.entries.updated(id, channel -> 0L)))
+      greetPlaintextCredentials(channel = channel)
       Right(())
+
+  /** Diagnostics observe future records only, and plaintext-credentials exposure is constant for the session's
+    * lifetime, so the notice greets each new subscriber directly instead of being published into the stream. The fresh
+    * channels handed out by ObsSession.withDiagnostics always accept it.
+    */
+  private def greetPlaintextCredentials(channel: Channel[SessionDiagnostic]): Unit =
+    if config.plaintextCredentialsExposed(password = authenticationPassword) then
+      channel.trySendOrClosed(SessionDiagnostic.PlaintextCredentials).discard
 
   def diagnosticLosses(id: String): Long = state.diagnostics.entries.get(id).map(_._2).getOrElse(0L)
 

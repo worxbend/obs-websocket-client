@@ -14,7 +14,8 @@ import sttp.ws.{WebSocket, WebSocketClosed, WebSocketFrame}
   *
   * The fs2 backend delivers decoded strings over the same JDK WebSocket as the sync backend, so original UTF-8 bytes
   * are unavailable here. Strict rejection of malformed wire UTF-8 therefore depends on the backend's decoding, exactly
-  * as documented for the sttp sync transport.
+  * as documented for the sttp sync transport. Size enforcement also matches the sttp sync transport: frames arrive
+  * individually, the byte limit is checked per fragment, and a breach aborts the connection.
   */
 final private[fs2] class Fs2Transport(
   socket:          WebSocket[IO],

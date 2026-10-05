@@ -75,6 +75,18 @@ class AbstractObsTransportSuite extends FunSuite:
     )
     assertEquals(transport.receive(), Left(ObsError.MessageTooLarge(message = incomingSizeLimitMessage)))
 
+  test("incoming byte limit aborts the connection instead of draining further frames"):
+    var aborts    = 0
+    val transport = new ScriptedTransport(maxMessageBytes = 3, onAbort = () => aborts += 1)
+    transport.frames ++= Seq(
+      Right(TransportFrame.Text("é", finalFragment = false)),
+      Right(TransportFrame.Text("é", finalFragment = false)), // crosses the limit
+      Right(TransportFrame.Text("é", finalFragment = true)),
+    )
+    assertEquals(transport.receive(), Left(ObsError.MessageTooLarge(message = incomingSizeLimitMessage)))
+    assertEquals(aborts, 1)
+    assertEquals(transport.frames.size, 1, "The loop must not consume frames past the limit breach")
+
   test("ping is answered with an echoing bounded pong"):
     val payload   = Array[Byte](1, 2, 3)
     val transport = scripted(

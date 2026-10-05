@@ -19,6 +19,13 @@ enum SessionDiagnostic:
   case RequestFinished(requestType: String, requestId: String, elapsedNanos: Long, outcome: DiagnosticOutcome)
   case StateChanged(state: ConnectionState)
 
+  /** A resolved password will authenticate over plaintext `ws` to a non-loopback host: the OBS authentication hash
+    * crosses the network in a form an eavesdropper can replay against that session. The condition is constant for the
+    * session's lifetime, so the notice greets each diagnostic subscriber once at subscription time rather than
+    * appearing in the future-record stream. The host and URI are deliberately excluded.
+    */
+  case PlaintextCredentials
+
 final case class SessionStats(
   sentMessages:        Long = 0L,
   sentBytes:           Long = 0L,

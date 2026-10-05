@@ -1,6 +1,7 @@
 package com.worxbend.obs.websocket.client.reconnect
 
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
+import com.worxbend.obs.websocket.client.util.Defect
 import scala.annotation.tailrec
 import scala.util.control.NonFatal
 
@@ -57,7 +58,7 @@ object Reconnect:
         loop(state = State(config = valid, retries = 0, previous = None, generations = 0L))
       catch
         case NoticeFailure(cause) =>
-          Left(ObsError.InternalError(message = s"Reconnect notice callback failed: ${cause.getMessage}"))
+          Left(ObsError.InternalError(message = s"Reconnect notice callback failed: ${Defect.describe(cause = cause)}"))
 
   /** The event gap notice is emitted only once a retry is certain, immediately before its `RetryScheduled`, so a gap is
     * never reported without a following retry.

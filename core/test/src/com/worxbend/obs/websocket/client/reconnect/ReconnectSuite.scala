@@ -282,7 +282,10 @@ class ReconnectSuite extends FunSuite:
       _ => throw new IllegalArgumentException("listener defect"),
     ): (_, _) =>
       ReconnectDecision.Complete(value = ())
-    assert(result.left.exists(_.isInstanceOf[ObsError.InternalError]))
+    assertEquals(
+      result,
+      Left(ObsError.InternalError(message = "Reconnect notice callback failed: java.lang.IllegalArgumentException")),
+    )
     assertEquals(connector.calls, 1)
     assert(connector.peers.head.closed)
 

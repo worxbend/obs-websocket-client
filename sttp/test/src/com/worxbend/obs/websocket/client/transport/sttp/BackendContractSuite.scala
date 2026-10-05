@@ -55,6 +55,14 @@ abstract class BackendContractSuite extends FunSuite:
       case _: java.net.SocketException =>
         assert(tolerateResetTeardown, s"$backendName teardown must end in FIN, not RST")
 
+  /** A limit-triggered abort force-closes without a graceful Close handshake: accept EOF or a reset, drain a late
+    * Close frame, and let the socket timeout fail the test if the connection stays open.
+    */
+  private def assertAbortedConnection(socket: java.net.Socket): Unit =
+    try
+      while socket.getInputStream.read() != -1 do ()
+    catch case _: java.net.SocketException => ()
+
   /** JDK-backed adapters can legitimately emit two pongs for one ping (the JDK client answers at the protocol
     * layer and the transport loop answers through its frame mapping), so control frames are skipped here.
     */
@@ -111,6 +119,20 @@ abstract class BackendContractSuite extends FunSuite:
     val result = LocalWebSocketPeer.run(server = serve): uri =>
       connect(config = ObsConfig(uri = uri), options = defaultOptions)(use = _.rawRequest(requestType = "GetVersion"))
     assertEquals(result, Left(ObsError.Transport(message = "WebSocket closed", closeCode = Some(3328))))
+
+  test(s"$backendName: an oversized inbound message fails fast and tears the connection down"):
+    def serve(socket: java.net.Socket): Unit =
+      LocalWebSocketPeer.upgrade(socket = socket)
+      LocalWebSocketPeer.send(socket    = socket, text = hello)
+      respondIdentify(socket            = socket)
+      assertEquals(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.op, 6)
+      LocalWebSocketPeer.send(socket = socket, text = "x" * 512)
+      assertAbortedConnection(socket = socket)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      connect(config = ObsConfig(uri = uri, maxMessageBytes = 256), options = defaultOptions)(
+        use = _.rawRequest(requestType = "GetVersion")
+      )
+    assertEquals(result, Left(ObsError.MessageTooLarge(message = "Incoming message exceeds configured byte limit")))
 
   test(s"$backendName: HTTP upgrade rejection is a typed redacted error"):
     def serve(socket: java.net.Socket): Unit =

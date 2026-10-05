@@ -19,8 +19,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 25.0.3
-      - name: Cache Mill build outputs and Coursier artifacts
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - name: Restore Mill build outputs and Coursier artifacts
+        id: cache-mill
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cache/coursier
@@ -28,6 +29,15 @@ jobs:
           key: ${{ runner.os }}-mill-${{ hashFiles('build.mill', '.mill-version') }}
           restore-keys: |
             ${{ runner.os }}-mill-
+      - name: Save Mill build outputs and Coursier artifacts
+        # Only trusted main builds may write the shared cache; pull requests restore read-only.
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.cache-mill.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/coursier
+            out/
+          key: ${{ runner.os }}-mill-${{ hashFiles('build.mill', '.mill-version') }}
       - name: Compile all production modules
         run: ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
       - name: Built-in Scalafix rules
@@ -43,6 +53,8 @@ jobs:
         run: tools/coverage.sh
       - name: Offline regeneration consistency
         run: python3 tools/check_generation.py
+      - name: Resolved dependency baseline
+        run: python3 tools/check_dependencies.py
       - name: Documentation and isolated local consumer
         run: tools/consumer_smoke.sh
       - name: Documentation and repository base path checks

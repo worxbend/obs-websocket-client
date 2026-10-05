@@ -8,6 +8,7 @@ import ox.discard
 /** Pure scripted actor invocations isolate state transitions and bounded queue decisions. */
 class SessionLogicSuite extends FunSuite:
   private val empty                                           = JsonObject.empty
+  private val syntheticPassword: String                       = "synthetic-test-password"
   private def number(value: Int): JsonValue                   = JsonValue.Num(value = BigDecimal(value))
   private def obj(fields:   (String, JsonValue)*): JsonObject = JsonObject(fields = fields.toMap)
   private def okResponse: JsonObject                          = obj(
@@ -15,11 +16,16 @@ class SessionLogicSuite extends FunSuite:
     "requestStatus" -> obj("result" -> JsonValue.Bool(value = true), "code" -> number(value = 100)),
   )
 
-  private class Harness(capacity: Int = 1, config: ObsConfig = ObsConfig()):
+  private class Harness(capacity: Int = 1, config: ObsConfig = ObsConfig(), password: Option[String] = None):
     val outgoing   = Channel.buffered[WireMessage](capacity)
     val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
     val logic      =
-      new SessionLogic(config = config, authenticationPassword = None, outgoing = outgoing, identified = identified)
+      new SessionLogic(
+        config                 = config,
+        authenticationPassword = password,
+        outgoing               = outgoing,
+        identified             = identified,
+      )
     def ready(): Unit =
       logic
         .incoming(message =
@@ -451,6 +457,39 @@ class SessionLogicSuite extends FunSuite:
     h.logic.unsubscribeDiagnostics(id = "observer", owner = events)
     assertEquals(h.logic.diagnosticLosses(id = "observer"), 0L)
     h.logic.close()
+
+  test("a password over plaintext ws to a remote host greets every diagnostic subscriber with a warning"):
+    val remote = ObsConfig(uri = "ws://obs.internal.example:4455")
+    val h      = new Harness(config = remote, password = Some(syntheticPassword))
+    h.ready()
+    val first  = Channel.buffered[SessionDiagnostic](1)
+    val second = Channel.buffered[SessionDiagnostic](1)
+    assertEquals(h.logic.subscribeDiagnostics(id = "one", channel = first), Right(()))
+    assertEquals(h.logic.subscribeDiagnostics(id = "two", channel = second), Right(()))
+    assertEquals(first.tryReceive(), Some(SessionDiagnostic.PlaintextCredentials))
+    assertEquals(second.tryReceive(), Some(SessionDiagnostic.PlaintextCredentials))
+
+  test("a password over plaintext ws to a loopback host does not warn"):
+    for uri <- Vector("ws://localhost:4455", "ws://127.0.0.1:4455", "ws://[::1]:4455") do
+      val h = new Harness(config = ObsConfig(uri = uri), password = Some(syntheticPassword))
+      h.ready()
+      val channel = Channel.buffered[SessionDiagnostic](1)
+      assertEquals(h.logic.subscribeDiagnostics(id = "observer", channel = channel), Right(()))
+      assertEquals(channel.tryReceive(), None, s"$uri must not warn")
+
+  test("a password over encrypted wss to a remote host does not warn"):
+    val h = new Harness(config = ObsConfig(uri = "wss://obs.internal.example:4455"), password = Some(syntheticPassword))
+    h.ready()
+    val channel = Channel.buffered[SessionDiagnostic](1)
+    assertEquals(h.logic.subscribeDiagnostics(id = "observer", channel = channel), Right(()))
+    assertEquals(channel.tryReceive(), None)
+
+  test("plaintext ws to a remote host without a password does not warn"):
+    val h = new Harness(config = ObsConfig(uri = "ws://obs.internal.example:4455"))
+    h.ready()
+    val channel = Channel.buffered[SessionDiagnostic](1)
+    assertEquals(h.logic.subscribeDiagnostics(id = "observer", channel = channel), Right(()))
+    assertEquals(channel.tryReceive(), None)
 
   test("normal close reports Closed and keeps terminal diagnostic loss counts"):
     val h = new Harness

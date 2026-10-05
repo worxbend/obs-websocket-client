@@ -15,6 +15,11 @@ import sttp.client4.okhttp.OkHttpSyncBackend
   * One observable difference from the JDK backend: an HTTP upgrade rejection surfaces as "WebSocket connection failed"
   * rather than "WebSocket upgrade rejected", because OkHttp reports it as a generic `ProtocolException` instead of the
   * JDK's dedicated handshake exception.
+  *
+  * Size enforcement differs likewise: OkHttp aggregates continuation frames internally before delivery, and
+  * `OkHttpClient.Builder` (verified against OkHttp 5.5.0) exposes no message or frame size cap, so `maxMessageBytes`
+  * is checked on the already-materialized message and a breach aborts the connection — fail-fast, but after one
+  * oversized allocation.
   */
 object OkHttpObsClient:
   /** OkHttp's `close()` only queues the graceful Close frame on a writer thread, so an immediate force-close would

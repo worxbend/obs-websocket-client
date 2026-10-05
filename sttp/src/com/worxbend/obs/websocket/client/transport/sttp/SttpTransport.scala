@@ -14,6 +14,11 @@ import scala.concurrent.duration.*
   * sttp's text API delivers decoded strings, so original UTF-8 bytes are unavailable here. If a backend replaces
   * invalid bytes with U+FFFD, that replacement can remain valid inside a JSON string and pass protocol decoding. Strict
   * rejection of malformed wire UTF-8 therefore depends on the selected WebSocket backend.
+  *
+  * Size enforcement: the JDK client delivers each wire frame separately (`last` flag intact), so the shared loop checks
+  * the running byte total per fragment and aborts the connection at the crossing frame, before the client reassembles
+  * the message. One individual frame is still fully decoded to a `String` by the JDK before the check —
+  * `java.net.http.WebSocket` exposes no frame-size setting — but a fragmented message cannot grow past the limit.
   */
 final private[sttp] class SttpTransport(
   socket:          SyncWebSocket,

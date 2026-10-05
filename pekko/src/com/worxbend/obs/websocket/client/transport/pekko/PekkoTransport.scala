@@ -18,6 +18,12 @@ import sttp.ws.{WebSocket, WebSocketClosed, WebSocketFrame}
   * carries the peer's code, while a 1000/1001 close completes the flow and surfaces with the synthetic code 1000. sttp
   * also aggregates streamed Pekko messages before delivery, so wire fragmentation is reassembled upstream of this
   * transport.
+  *
+  * Size enforcement: pekko-http's client `WebSocketSettings` (verified against pekko-http 1.4.0) exposes keep-alive
+  * and frame logging only — no frame or message size cap — and sttp's aggregation (`runFold` over the message stream)
+  * is unbounded, so `maxMessageBytes` cannot be applied at the transport layer here. The shared loop therefore checks
+  * the delivered, already-materialized message and aborts the connection on breach: fail-fast, but one oversized
+  * allocation has already happened.
   */
 final private[pekko] class PekkoTransport(
   socket:          WebSocket[Future],

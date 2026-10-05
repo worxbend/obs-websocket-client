@@ -23,6 +23,16 @@ python3 -m unittest discover -s tools -p 'test_*.py'
 
 Mill command arguments belong to the preceding command. Use brace selectors or Mill's `+` separator for multiple commands; appending a report command after `test` can accidentally select zero tests.
 
+## Dependency baseline
+
+Mill and Coursier have no native lockfile, so `dependency-baseline.json` at the repository root pins the resolved runtime inventory — coordinates, file names, SHA-256 hashes, and cached license declarations — produced by `./mill release.dependencyReport`. CI fails when resolution drifts from it. After an intentional `build.mill` dependency change, regenerate and commit the baseline:
+
+```sh
+python3 tools/check_dependencies.py  # read-only drift check, same as CI
+./mill --no-server release.dependencyReport
+cp out/release/dependencyReport.dest/dependencies.json dependency-baseline.json
+```
+
 ## Coverage
 
 The target is exactly 100% statements and branches per production module and in aggregate, including generated code, generator code, and examples. Zero branches are not applicable. Missing, stale, inconsistent, ignored, or zero-statement reports fail verification. A source fingerprint ties reports to the instrumentation run. A deliberately missed-branch fixture proves the gate rejects incomplete coverage.

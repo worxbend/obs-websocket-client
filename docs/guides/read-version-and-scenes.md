@@ -50,6 +50,10 @@ val versionResult = result.flatten
 
 `versionResult` is an `Either[ObsError, GetVersionResponse]`: success contains fields such as `obsVersion` and `obsWebSocketVersion`. The outer result reports connection/setup failures; the callback returns a second `Either` for the request. Calling `flatten` gives one error path. Each snippet here is independently compile-checked, but documentation compilation does not connect to OBS.
 
+## Prefer TLS for non-local OBS
+
+The default `ws` scheme is plaintext. When a password is configured and the address is not loopback — not `localhost`, not `127.0.0.0/8`, not `::1` — the OBS authentication hash crosses the network in a form an eavesdropper can replay against that session. Use `wss` for any OBS instance reached over a network, or keep plaintext `ws` confined to loopback. This is a warning, not a rejection: the session still connects, and `session.withDiagnostics` delivers a `SessionDiagnostic.PlaintextCredentials` notice to each diagnostic subscriber at subscription time so operators can detect the exposure.
+
 ## Read both values in the same session
 
 Inside a connection callback, compose the two requests in order. In this snippet, `session` is the callback's `ObsSession`:
