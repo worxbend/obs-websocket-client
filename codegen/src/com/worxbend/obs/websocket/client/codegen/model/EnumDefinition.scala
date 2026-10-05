@@ -1,6 +1,10 @@
 package com.worxbend.obs.websocket.client.codegen.model
 
-/** A homogeneous enum whose constants have validated Scala expressions. */
+/** An enum classified as a String or Long wrapper by schema normalization. Constants retain upstream declaration order
+  * because a bitmask may refer to a preceding sibling. Each expression is already quoted or rewritten for Scala;
+  * templates must not reclassify values or quote the expression again. The generated wrapper accepts unknown future
+  * values rather than restricting decoding to the known constants.
+  */
 private[codegen] final case class EnumDefinition(
     name: String,
     scalaType: String,

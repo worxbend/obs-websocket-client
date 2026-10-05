@@ -8,7 +8,23 @@ import com.worxbend.obs.websocket.client.codegen.ScalaLiteral
   * here.
   */
 private[codegen] object SchemaNormalizer:
-  /** Produces immutable rendering inputs; each request payload is normalized only once. */
+  /** Validates raw records and produces the immutable model shared by all renderers.
+    *
+    * Requests, events, and enums sort by their upstream names; fields and enum constants preserve declaration order.
+    * Category groups sort by their upstream category and reuse the same request definitions as the payload templates.
+    * Inventory rows keep raw metadata here and are sorted as rendered text by the inventory template.
+    *
+    * Field normalization keeps the wire key separate from the Scala identifier, maps supported schema types to a Scala
+    * type/codec/placeholder together, and applies reviewed nullability independently of optionality. Enum normalization
+    * chooses String or Long wrappers and rewrites validated sibling mask references into Scala code.
+    *
+    * @param schema
+    *   decoded upstream records, before Scala-specific interpretation
+    * @param overrides
+    *   reviewed nullable keys in `Owner.request.field`, `Owner.response.field`, or `Owner.event.field` form
+    * @throws IllegalArgumentException
+    *   if names collide, overrides do not match, or field/enum semantics are unsupported
+    */
   def normalize(schema: Schema, overrides: Overrides): NormalizedSchema =
     validateSchema(schema, overrides)
     val nullable = overrides.nullableFields.toSet

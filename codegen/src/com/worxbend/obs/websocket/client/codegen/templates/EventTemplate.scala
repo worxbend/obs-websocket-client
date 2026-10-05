@@ -6,7 +6,12 @@ import com.worxbend.obs.websocket.client.codegen.ScalaLiteral.quote
 import FieldFragments.*
 import SourceFragments.*
 
-/** Source layout for one event, its typed selector, and its JSON decoder. */
+/** Source layout for one event, its typed selector, and its JSON decoder.
+  *
+  * Produces `events/<name>.scala` in the protocol events package. The payload implements the shared Event envelope; its
+  * companion exposes a typed selector and decoder. EventDispatchTemplate separately renders the catalog-wide dispatch
+  * table, so adding a schema event supplies both the payload and its dispatch entry.
+  */
 private[codegen] object EventTemplate:
   /** Typed inputs for a complete event source file. */
   final case class Context(event: EventDefinition, provenance: Provenance)

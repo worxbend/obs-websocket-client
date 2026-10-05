@@ -4,7 +4,16 @@ import com.github.plokhotnyuk.jsoniter_scala.core.*
 import com.github.plokhotnyuk.jsoniter_scala.macros.JsonCodecMaker
 import java.nio.file.Path
 
-/** Decodes supplied bytes; file ownership and checksum verification belong to the runner. */
+/** JSON decoding boundary between input bytes and upstream-shaped records.
+  *
+  * The runner reads files and checks their checksum; this object only decodes the supplied bytes. The `path` arguments
+  * are diagnostic labels, not files opened by these methods. Derived codecs retain the fields modeled in this package
+  * and skip extra upstream metadata. Missing optional metadata uses the case-class defaults.
+  *
+  * Decoding establishes JSON shape, not generation semantics. `SchemaNormalizer` subsequently resolves supported types,
+  * nullable overrides, naming collisions, and enum expressions before any template is called. Parse failures are
+  * wrapped in IllegalArgumentException with the input description/path and the original exception as cause.
+  */
 private[codegen] object SchemaParser:
   private given JsonValueCodec[SchemaField] = JsonCodecMaker.make
   private given JsonValueCodec[SchemaRequest] = JsonCodecMaker.make

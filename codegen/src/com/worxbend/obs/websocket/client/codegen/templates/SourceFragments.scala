@@ -7,6 +7,14 @@ import java.util.Locale
 /** Shared Scala file and documentation fragments. Complete blocks carry their trailing newline and their own
   * indentation. Place block substitutions immediately after the margin marker; only inline expressions inherit
   * indentation from a template.
+  *
+  * For example, a block substituted immediately after `|` in a stripMargin template must already contain all output
+  * indentation. Prefixing it with spaces only indents its first line. Header/documentation fragments end in a newline;
+  * parameter/expression fragments in FieldFragments do not. These conventions keep the template readable as emitted
+  * source and preserve byte-for-byte fixture comparisons.
+  *
+  * Escaping here protects Scaladoc text and comment delimiters; ScalaLiteral separately escapes executable string
+  * literals. Neither kind of escaping should be substituted for the other.
   */
 private[codegen] object SourceFragments:
   val base: String = "com.worxbend.obs.websocket.client.protocol"

@@ -5,6 +5,11 @@ import com.worxbend.obs.websocket.client.codegen.ScalaLiteral.quote
 
 /** Shared payload syntax. Expressions have no trailing newline; decoder bodies start with a newline and carry their own
   * four-space indentation. Insert them directly after a method's `= `.
+  *
+  * A normalized Field stores a base type and codec; these fragments apply the optional/nullable wrappers consistently
+  * to constructor parameters, JSON encoders, and decoders. Wire keys are quoted as Scala literals, while member names
+  * are backticked. Dotted wire keys select NestedFields operations rather than literal dotted JSON properties. The
+  * source snippets reference the generated protocol API, not this generator's own model.Field.
   */
 private[codegen] object FieldFragments:
   /** Constructor or facade parameters, including defaults for omitted fields. */

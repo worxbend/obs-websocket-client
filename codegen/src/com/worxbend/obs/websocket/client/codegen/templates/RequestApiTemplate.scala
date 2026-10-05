@@ -5,7 +5,12 @@ import com.worxbend.obs.websocket.client.codegen.schema.Provenance
 import SourceFragments.*
 import FieldFragments.{parameters, arguments}
 
-/** Source layout for protocol-only category facades; the error parameter prescribes no effect runtime. */
+/** Source layout for protocol-only category facades; the error parameter prescribes no effect runtime.
+  *
+  * Produces `RequestApi.scala` with one executor trait and a facade class per normalized category. Each facade method
+  * constructs the same typed request emitted by RequestTemplate and delegates to its owning executor. Session lifetime,
+  * transport, retries, and error policy remain responsibilities of the executor implementation.
+  */
 private[codegen] object RequestApiTemplate:
   /** Categories contain the same normalized requests used by [[RequestTemplate]]. */
   final case class Context(categories: List[RequestCategory], provenance: Provenance)

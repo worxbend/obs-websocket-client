@@ -2,6 +2,34 @@
 
 The `codegen` Mill module is an offline schema compiler. It has no runtime dependency relationship with the published client. Its implementation lives under `com.worxbend.obs.websocket.client.codegen`.
 
+## Build invocation and paths
+
+`protocol.generatedSources` in `build.mill` connects the generator to compilation. Running `./mill protocol.compile` (or compiling a module that depends on `protocol`) makes Mill evaluate generated sources first. You can inspect this step on its own:
+
+```sh
+./mill protocol.generatedSources
+./mill show protocol.generatedSources
+```
+
+The task reads `codegen.runClasspath()`, which makes the compiled generator and its dependencies available, then launches `com.worxbend.obs.websocket.client.codegen.Generate` in a separate JVM using the module's Java 25 home. The classpath uses the operating system's separator. The process working directory is the checkout root.
+
+The runner receives exactly four positional arguments:
+
+| Position | Normal build path, relative to the checkout | Purpose |
+| --- | --- | --- |
+| 1 | `protocol-spec/protocol.json` | Pinned upstream schema bytes; ordinary builds do not download a schema. |
+| 2 | `out/protocol/generatedSources.dest/` | Mill's `Task.dest`, the root beneath which output filenames are resolved. |
+| 3 | `protocol-spec/overrides.json` | Reviewed nullable-field corrections applied during normalization. |
+| 4 | `protocol-spec/provenance.json` | Expected schema SHA-256 and upstream repository/revision for documentation links. |
+
+The three input paths are resolved from `BuildCtx.workspaceRoot` and declared as `Task.Source` dependencies. Mill tracks these files and the generator task dependencies, so unchanged inputs can reuse cached results. The default output path above belongs to Mill; use the `show` command to inspect the actual destination when using a different output configuration.
+
+The output directory contains `requests/<Name>.scala` (request and response together), `events/<Name>.scala`, `enums/<Name>.scala`, and the shared `Event.scala`, `Catalog.scala`, `RequestApi.scala`, and `catalog-inventory.tsv`. There is no additional `com/worxbend/...` prefix under this root: Scala package declarations establish the packages. For example, `requests/GetVersion.scala` declares the protocol requests package.
+
+Returning `Seq(PathRef(Task.dest))` registers the generated directory as a source root alongside handwritten `protocol/src`. Mill finds Scala sources recursively; the TSV is review metadata. Codegen is a build dependency, not a runtime dependency of the published protocol library.
+
+Mill manages destination cleanup when the task reruns. Do not edit or commit generated files. The runner itself overwrites matching paths but does not remove obsolete files, so standalone invocations should use a fresh output directory. It parses all inputs, verifies the checksum, normalizes, and renders before writing; writes are not transactional. A failing subprocess fails the Mill task rather than supplying a successful generation result to compilation.
+
 ## Responsibilities
 
 - `Generate` owns CLI arguments, file reads, checksum verification, and writes. Its fully qualified entrypoint is referenced by `build.mill`.

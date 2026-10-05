@@ -70,16 +70,47 @@ trait LibraryModule extends ProjectModule with PublishModule:
     developers = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend"))
   )
 
+/** Build-time schema compiler, with sources in `codegen/src` and fixtures/tests in `codegen/test`.
+  * `protocol.generatedSources` uses its runtime classpath to launch Generate in a separate JVM.
+  * This is a build dependency only: published protocol/client artifacts do not depend on codegen.
+  */
 object codegen extends ProjectModule:
   def mvnDeps = Deps.jsoniter
   object test extends Tests
 
 object protocol extends LibraryModule:
+  // Resolve inputs from the checkout root, independent of the shell's current directory.
+  // Task.Source tracks file contents so a schema, override, or provenance edit invalidates generation.
+  // protocol.json is the pinned upstream catalog; overrides.json supplies reviewed nullable-field
+  // corrections; provenance.json records the upstream revision and expected schema SHA-256.
   def specification = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "protocol.json")
   def overrides = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "overrides.json")
   def provenance = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "provenance.json")
+  /** Generates protocol sources before Mill compiles the protocol module or a dependent module.
+    * Run `./mill protocol.generatedSources` to generate only, or `./mill show protocol.generatedSources`
+    * to inspect the returned source root. `./mill protocol.compile` includes this task automatically.
+    *
+    * The four positional CLI arguments below are, in order:
+    *   1. `<checkout>/protocol-spec/protocol.json`: pinned schema bytes.
+    *   2. `Task.dest`: Mill-owned output root (normally `<checkout>/out/protocol/generatedSources.dest`).
+    *   3. `<checkout>/protocol-spec/overrides.json`: reviewed semantic corrections.
+    *   4. `<checkout>/protocol-spec/provenance.json`: schema checksum and upstream documentation origin.
+    *
+    * Generate reads and parses all three inputs, verifies the schema checksum, normalizes the catalog,
+    * renders the complete output set, then writes UTF-8 files. It performs no upstream downloads.
+    * Relative output paths include `requests/GetVersion.scala`, `events/CurrentProgramSceneChanged.scala`,
+    * `enums/<Name>.scala`, `Event.scala`, `Catalog.scala`, `RequestApi.scala`, and `catalog-inventory.tsv`.
+    * Package declarations determine Scala packages; no `com/worxbend/...` directory prefix is added here.
+    *
+    * Mill owns and cleans this task destination when it reruns. Do not edit or commit those derived files;
+    * change inputs or codegen templates instead. Mill can reuse a cached result while tracked inputs and
+    * task dependencies are unchanged. See `docs/code-generation.md` for the pipeline and fixture workflow.
+    */
   def generatedSources = Task:
+    // Reading runClasspath makes compilation of codegen a prerequisite and includes its JSON dependencies.
+    // Use the platform classpath separator (`:` on Unix, `;` on Windows), not a hard-coded separator.
     val classpath = codegen.runClasspath().map(_.path.toString).mkString(_root_.java.io.File.pathSeparator)
+    // Launch with the codegen module's checked Java 25 home, rather than whichever java is on PATH.
     val executable = if scala.util.Properties.isWin then "java.exe" else "java"
     val java = codegen.javaHome().get.path / "bin" / executable
     os.proc(
@@ -92,6 +123,9 @@ object protocol extends LibraryModule:
       overrides().path.toString,
       provenance().path.toString
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
+    // Register the output directory as a Scala source root alongside handwritten protocol/src.
+    // Mill compiles its Scala files recursively; the TSV inventory is metadata, not a Scala source.
+    // A nonzero generator exit makes os.proc.call fail, so compilation cannot use a failed task result.
     Seq(PathRef(Task.dest))
   def artifactName = "obs-websocket-client-protocol"
   def mvnDeps = Deps.jsoniter

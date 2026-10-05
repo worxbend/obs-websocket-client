@@ -6,7 +6,12 @@ import com.worxbend.obs.websocket.client.codegen.ScalaLiteral.quote
 import FieldFragments.*
 import SourceFragments.*
 
-/** Source layout for one request, its response, and their codecs. No raw schema parsing occurs here. */
+/** Source layout for one request, its response, and their codecs. No raw schema parsing occurs here.
+  *
+  * Produces `requests/<name>.scala` in the protocol requests package. The request and response share one file;
+  * companion decoders and a minimal request fixture use the same normalized fields as the constructor and encoder. The
+  * typed Context is assembled by CodeGenerator; render returns complete text and performs no file writes.
+  */
 private[codegen] object RequestTemplate:
   /** Typed inputs for a complete request source file. */
   final case class Context(request: RequestDefinition, provenance: Provenance)

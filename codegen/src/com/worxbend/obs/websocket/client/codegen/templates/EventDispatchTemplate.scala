@@ -4,7 +4,12 @@ import com.worxbend.obs.websocket.client.codegen.schema.Provenance
 import com.worxbend.obs.websocket.client.codegen.ScalaLiteral.quote
 import SourceFragments.*
 
-/** Source layout for the event envelope and unknown-event fallback. */
+/** Source layout for the event envelope and unknown-event fallback.
+  *
+  * Produces the shared `Event.scala` file in the protocol package. Known event names delegate to their generated
+  * payload decoders; unknown names preserve the event name and raw payload in UnknownEvent. Only names and provenance
+  * are needed here because EventTemplate owns each individual payload layout.
+  */
 private[codegen] object EventDispatchTemplate:
   /** Event names arrive in deterministic order from normalization. */
   final case class Context(names: List[String], provenance: Provenance)

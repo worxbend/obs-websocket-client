@@ -4,7 +4,11 @@ import com.worxbend.obs.websocket.client.codegen.model.EnumDefinition
 import com.worxbend.obs.websocket.client.codegen.schema.Provenance
 import SourceFragments.*
 
-/** Source layout for value-preserving enum wrappers and their published constants. */
+/** Source layout for value-preserving enum wrappers and their published constants.
+  *
+  * Produces `enums/<name>.scala`. Normalization has already chosen String or Long and rewritten any sibling bitmask
+  * references. Rendering preserves that constant order and emits a case-class wrapper, allowing unknown future values.
+  */
 private[codegen] object EnumTemplate:
   /** All enum classification and mask rewriting is complete before this context is rendered. */
   final case class Context(enumeration: EnumDefinition, provenance: Provenance)

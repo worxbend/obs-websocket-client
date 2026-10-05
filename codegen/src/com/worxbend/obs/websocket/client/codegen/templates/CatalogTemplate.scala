@@ -4,7 +4,12 @@ import com.worxbend.obs.websocket.client.codegen.schema.Provenance
 import com.worxbend.obs.websocket.client.codegen.ScalaLiteral.quote
 import SourceFragments.*
 
-/** Source layout for request discovery and chunked typed decoder tables. */
+/** Source layout for request discovery and chunked typed decoder tables.
+  *
+  * Produces the shared `Catalog.scala` file: known request names, minimal requests for catalog validation, typed
+  * request dispatch with a RawRequest fallback, and internal response round-trip dispatch. Decoder helpers are split
+  * into bounded groups to keep the full upstream catalog below JVM method bytecode limits.
+  */
 private[codegen] object CatalogTemplate:
   /** Request names arrive in deterministic order from normalization. */
   final case class Context(names: List[String], provenance: Provenance)
