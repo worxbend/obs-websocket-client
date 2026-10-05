@@ -22,13 +22,13 @@ package com.worxbend.obs.websocket.client.codegen.model
   * @param placeholder
   *   Scala expression for a required argument in generated minimal requests; not a validated OBS value
   */
-private[codegen] final case class Field(
-    name: String,
-    identifier: String,
-    scalaType: String,
-    codec: String,
-    optional: Boolean,
-    nullable: Boolean,
-    description: String,
-    placeholder: String
+final private[codegen] case class Field(
+  name:        String,
+  identifier:  String,
+  scalaType:   String,
+  codec:       String,
+  optional:    Boolean,
+  nullable:    Boolean,
+  description: String,
+  placeholder: String,
 )

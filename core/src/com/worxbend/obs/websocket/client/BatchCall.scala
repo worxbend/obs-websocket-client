@@ -19,16 +19,17 @@ sealed trait BatchCodec[Calls <: Tuple]:
 
 object BatchCodec:
   given empty: BatchCodec[EmptyTuple] with
-    def requests(calls: EmptyTuple): Vector[Request[?]] = Vector.empty
-    def decode(calls: EmptyTuple, results: Vector[BatchResult]): EmptyTuple = EmptyTuple
+    def requests(calls: EmptyTuple): Vector[Request[?]]                       = Vector.empty
+    def decode(calls:   EmptyTuple, results: Vector[BatchResult]): EmptyTuple = EmptyTuple
 
   given cons[A, Tail <: Tuple](using tail: BatchCodec[Tail]): BatchCodec[BatchCall[A] *: Tail] with
-    def requests(calls: BatchCall[A] *: Tail): Vector[Request[?]] = calls.head.request +: tail.requests(calls.tail)
+    def requests(calls: BatchCall[A] *: Tail): Vector[Request[?]] =
+      calls.head.request +: tail.requests(calls = calls.tail)
     def decode(calls: BatchCall[A] *: Tail, results: Vector[BatchResult]): BatchResults[BatchCall[A] *: Tail] =
       val head = results.head match
         case BatchResult.Completed(_, result) =>
           TypedBatchResult.Completed(
-            result.flatMap(calls.head.request.decodeResponse(_).left.map(SessionWire.malformed))
+            result = result.flatMap(calls.head.request.decodeResponse(_).left.map(SessionWire.malformed))
           )
         case BatchResult.NotExecuted(_) => TypedBatchResult.NotExecuted
-      head *: tail.decode(calls.tail, results.tail)
+      head *: tail.decode(calls = calls.tail, results = results.tail)

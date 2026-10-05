@@ -5,10 +5,10 @@ package com.worxbend.obs.websocket.client.codegen.model
   * templates must not reclassify values or quote the expression again. The generated wrapper accepts unknown future
   * values rather than restricting decoding to the known constants.
   */
-private[codegen] final case class EnumDefinition(
-    name: String,
-    scalaType: String,
-    constants: List[EnumDefinition.Constant]
+final private[codegen] case class EnumDefinition(
+  name:      String,
+  scalaType: String,
+  constants: List[EnumDefinition.Constant],
 )
 
 private[codegen] object EnumDefinition:

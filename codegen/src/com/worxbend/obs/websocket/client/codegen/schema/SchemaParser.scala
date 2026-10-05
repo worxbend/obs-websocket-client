@@ -15,26 +15,29 @@ import java.nio.file.Path
   * wrapped in IllegalArgumentException with the input description/path and the original exception as cause.
   */
 private[codegen] object SchemaParser:
-  private given JsonValueCodec[SchemaField] = JsonCodecMaker.make
-  private given JsonValueCodec[SchemaRequest] = JsonCodecMaker.make
-  private given JsonValueCodec[SchemaEvent] = JsonCodecMaker.make
+  private given JsonValueCodec[SchemaField]     = JsonCodecMaker.make
+  private given JsonValueCodec[SchemaRequest]   = JsonCodecMaker.make
+  private given JsonValueCodec[SchemaEvent]     = JsonCodecMaker.make
   private given JsonValueCodec[SchemaEnumEntry] = JsonCodecMaker.make
-  private given JsonValueCodec[SchemaEnum] = JsonCodecMaker.make
-  private given JsonValueCodec[Schema] = JsonCodecMaker.make
-  private given JsonValueCodec[Overrides] = JsonCodecMaker.make
-  private given JsonValueCodec[Provenance] = JsonCodecMaker.make
+  private given JsonValueCodec[SchemaEnum]      = JsonCodecMaker.make
+  private given JsonValueCodec[Schema]          = JsonCodecMaker.make
+  private given JsonValueCodec[Overrides]       = JsonCodecMaker.make
+  private given JsonValueCodec[Provenance]      = JsonCodecMaker.make
 
   /** Decodes the catalog while retaining the source path in failures. */
-  def schema(bytes: Array[Byte], path: Path): Schema = parseJson[Schema](bytes, path, "protocol schema")
+  def schema(bytes: Array[Byte], path: Path): Schema =
+    parseJson[Schema](bytes = bytes, path = path, description = "protocol schema")
 
   /** Decodes reviewed semantic overrides without performing normalization. */
-  def overrides(bytes: Array[Byte], path: Path): Overrides = parseJson[Overrides](bytes, path, "generation overrides")
+  def overrides(bytes: Array[Byte], path: Path): Overrides =
+    parseJson[Overrides](bytes = bytes, path = path, description = "generation overrides")
 
   /** Decodes the pinned origin and expected checksum. */
-  def provenance(bytes: Array[Byte], path: Path): Provenance = parseJson[Provenance](bytes, path, "schema provenance")
+  def provenance(bytes: Array[Byte], path: Path): Provenance =
+    parseJson[Provenance](bytes = bytes, path = path, description = "schema provenance")
 
   private def parseJson[A](bytes: Array[Byte], path: Path, description: String)(using
-      JsonValueCodec[A]
+    JsonValueCodec[A]
   ): A =
     try readFromArray[A](bytes)
     catch

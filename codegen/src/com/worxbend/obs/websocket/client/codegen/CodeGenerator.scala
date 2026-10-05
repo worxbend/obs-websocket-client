@@ -26,16 +26,28 @@ private[codegen] object CodeGenerator:
     */
   def generate(schema: NormalizedSchema, provenance: Provenance): Vector[(String, String)] =
     val requests = schema.requests.map: request =>
-      s"requests/${request.name}.scala" -> RequestTemplate.render(RequestTemplate.Context(request, provenance))
+      s"requests/${request.name}.scala" -> RequestTemplate.render(context =
+        RequestTemplate.Context(request = request, provenance = provenance)
+      )
     val events = schema.events.map: event =>
-      s"events/${event.name}.scala" -> EventTemplate.render(EventTemplate.Context(event, provenance))
+      s"events/${event.name}.scala" -> EventTemplate.render(context =
+        EventTemplate.Context(event = event, provenance = provenance)
+      )
     val enums = schema.enums.map: enumeration =>
-      s"enums/${enumeration.name}.scala" -> EnumTemplate.render(EnumTemplate.Context(enumeration, provenance))
+      s"enums/${enumeration.name}.scala" -> EnumTemplate.render(context =
+        EnumTemplate.Context(enumeration = enumeration, provenance = provenance)
+      )
     (requests ++ events ++ enums).toVector ++ Vector(
       "Event.scala" -> EventDispatchTemplate.render(
-        EventDispatchTemplate.Context(schema.events.map(_.name), provenance)
+        context = EventDispatchTemplate.Context(names = schema.events.map(_.name), provenance = provenance)
       ),
-      "catalog-inventory.tsv" -> InventoryTemplate.render(InventoryTemplate.Context(schema.inventory)),
-      "Catalog.scala" -> CatalogTemplate.render(CatalogTemplate.Context(schema.requests.map(_.name), provenance)),
-      "RequestApi.scala" -> RequestApiTemplate.render(RequestApiTemplate.Context(schema.categories, provenance))
+      "catalog-inventory.tsv" -> InventoryTemplate.render(context =
+        InventoryTemplate.Context(entries = schema.inventory)
+      ),
+      "Catalog.scala" -> CatalogTemplate.render(context =
+        CatalogTemplate.Context(names = schema.requests.map(_.name), provenance = provenance)
+      ),
+      "RequestApi.scala" -> RequestApiTemplate.render(context =
+        RequestApiTemplate.Context(categories = schema.categories, provenance = provenance)
+      ),
     )

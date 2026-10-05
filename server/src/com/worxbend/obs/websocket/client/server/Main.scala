@@ -13,17 +13,21 @@ object Main:
 
   /** An optional first argument names a HOCON configuration file; the standard source applies otherwise. */
   def main(args: Array[String]): Unit = ox.supervised:
-    serve(Configuration.read(configSource(args)))
+    serve(config = Configuration.read(source = configSource(args = args)))
 
   private[server] def configSource(args: Array[String]): ConfigSource =
     if args.isEmpty then ConfigSource.default else ConfigSource.file(Paths.get(args(0)))
 
   private[server] def serve(config: Configuration)(using Ox): Unit =
-    val service = ObsReadService.live(config.obs.clientConfig)
+    val service = ObsReadService.live(config = config.obs.clientConfig)
     val binding = useInScope(
-      NettySyncServer().host(config.http.host).port(config.http.port).addEndpoints(Endpoints.all(service)).start()
+      NettySyncServer()
+        .host(config.http.host)
+        .port(config.http.port)
+        .addEndpoints(Endpoints.all(service = service))
+        .start()
     )(_.stop())
-    logger.info("Swagger UI: {}", swaggerUrl(config.http.host, binding.port))
+    logger.info("Swagger UI: {}", swaggerUrl(host = config.http.host, port = binding.port))
     never
 
   /** Wildcard binds are reachable through loopback; URI rendering brackets IPv6 hosts. */

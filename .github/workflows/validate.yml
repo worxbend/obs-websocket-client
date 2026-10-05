@@ -30,9 +30,14 @@ jobs:
             ${{ runner.os }}-mill-
       - name: Compile all production modules
         run: ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.compile'
+      - name: Named-argument rule regression fixtures
+        run: python3 tools/check_named_arguments.py
+      - name: Named arguments across handwritten Scala
+        run: ./mill --no-server sourceStyle.namedArguments --check
       - name: Formatting
         run: |
-          ./mill --no-server '{codegen,protocol,core,sttp,examples,server}.checkFormat'
+          ./mill --no-server mill.scalalib.scalafmt.ScalafmtModule/scalafmt --test build.mill
+          ./mill --no-server '{codegen,protocol,core,sttp,examples,server,bench,namedArgumentRules}.checkFormat'
           ./mill --no-server '{codegen,protocol,core,sttp,examples,server,integration}.test.checkFormat'
       - name: Coverage verifier fault tests
         run: python3 -m unittest discover -s tools -p 'test_*.py'

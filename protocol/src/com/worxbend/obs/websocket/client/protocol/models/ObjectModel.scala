@@ -10,5 +10,5 @@ trait ObjectModel:
 private[models] object ObjectModel:
   def codec[A <: ObjectModel](read: JsonObject => Either[ProtocolError, A]): ValueCodec[A] = new ValueCodec[A]:
     def decode(value: JsonValue, path: String): Either[ProtocolError, A] =
-      ValueCodec.obj.decode(value, path).flatMap(read)
+      ValueCodec.obj.decode(value = value, path = path).flatMap(read)
     def encode(value: A): JsonValue = value.raw

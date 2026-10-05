@@ -4,8 +4,8 @@ import ox.channels.Channel
 import ox.discard
 
 /** All access is confined to SessionLogic's actor. */
-private[client] final case class DiagnosticRegistry(
-    entries: Map[String, (Channel[SessionDiagnostic], Long)] = Map.empty
+final private[client] case class DiagnosticRegistry(
+  entries: Map[String, (Channel[SessionDiagnostic], Long)] = Map.empty
 ):
   def publish(event: SessionDiagnostic): DiagnosticRegistry =
     copy(entries = entries.map: (id, entry) =>

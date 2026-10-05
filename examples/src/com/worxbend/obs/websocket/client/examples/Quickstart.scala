@@ -5,7 +5,7 @@ import com.worxbend.obs.websocket.client.protocol.requests.{
   GetSceneList,
   GetSceneListResponse,
   GetVersion,
-  GetVersionResponse
+  GetVersionResponse,
 }
 import com.worxbend.obs.websocket.client.transport.sttp.SttpObsClient
 
@@ -13,23 +13,23 @@ import com.worxbend.obs.websocket.client.transport.sttp.SttpObsClient
 object Quickstart:
   def discover(session: ObsSession): Either[ObsError, (GetVersionResponse, GetSceneListResponse)] =
     for
-      version <- session.request(GetVersion())
-      scenes <- session.request(GetSceneList())
+      version <- session.request(request = GetVersion())
+      scenes  <- session.request(request = GetSceneList())
     yield (version, scenes)
 
   def run(config: ObsConfig): Either[ObsError, (GetVersionResponse, GetSceneListResponse)] =
-    SttpObsClient.connect(config)(discover).flatten
+    SttpObsClient.connect(config = config)(use = discover).flatten
 
   def configuration(args: Array[String], environment: Map[String, String]): ObsConfig =
     ObsConfig(
       uri = args.headOption.getOrElse("ws://localhost:4455"),
       // A blank password (e.g. an empty OBS_WS_PASSWORD) means no authentication, matching ObsSettings.
-      passwordProvider = PasswordProvider.fixed(environment.get("OBS_WS_PASSWORD").filter(_.trim.nonEmpty))
+      passwordProvider = PasswordProvider.fixed(value = environment.get("OBS_WS_PASSWORD").filter(_.trim.nonEmpty)),
     )
 
   /** Execute the CLI without terminating its process, so embedders and tests can inspect the status. */
   private[examples] def execute(args: Array[String], environment: Map[String, String]): Int =
-    run(configuration(args, environment)) match
+    run(config = configuration(args = args, environment = environment)) match
       case Right((version, scenes)) =>
         println(s"OBS ${version.obsVersion}: ${scenes.scenes.size} scenes")
         0
@@ -38,5 +38,5 @@ object Quickstart:
         1
 
   def main(args: Array[String]): Unit =
-    val status = execute(args, sys.env)
+    val status = execute(args = args, environment = sys.env)
     if status != 0 then sys.exit(status)

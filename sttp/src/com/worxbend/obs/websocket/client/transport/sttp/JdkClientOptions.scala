@@ -9,8 +9,8 @@ import scala.concurrent.duration.FiniteDuration
   * hostname verification stays enabled. Custom trust/key material belongs in the supplied SSL context.
   */
 final case class JdkClientOptions(
-    proxy: Option[ProxySelector] = None,
-    sslContext: Option[SSLContext] = None
+  proxy:      Option[ProxySelector] = None,
+  sslContext: Option[SSLContext] = None,
 ):
   private[sttp] def build(connectionTimeout: FiniteDuration): HttpClient =
     val builder = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofNanos(connectionTimeout.toNanos))

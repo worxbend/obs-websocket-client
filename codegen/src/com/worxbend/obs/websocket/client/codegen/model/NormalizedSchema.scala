@@ -7,10 +7,10 @@ package com.worxbend.obs.websocket.client.codegen.model
   * schema field. Inventory rows sort as rendered text in their template. Renderers consume these decisions rather than
   * consulting raw JSON or overrides. Construct this model through SchemaNormalizer for production generation.
   */
-private[codegen] final case class NormalizedSchema(
-    requests: List[RequestDefinition],
-    events: List[EventDefinition],
-    enums: List[EnumDefinition],
-    categories: List[RequestCategory],
-    inventory: List[InventoryEntry]
+final private[codegen] case class NormalizedSchema(
+  requests:   List[RequestDefinition],
+  events:     List[EventDefinition],
+  enums:      List[EnumDefinition],
+  categories: List[RequestCategory],
+  inventory:  List[InventoryEntry],
 )

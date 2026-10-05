@@ -1,6 +1,6 @@
 package com.worxbend.obs.websocket.client.protocol
 
-import java.nio.charset.StandardCharsets.{UTF_8, US_ASCII}
+import java.nio.charset.StandardCharsets.{US_ASCII, UTF_8}
 import java.security.MessageDigest
 import java.util.Arrays
 import java.util.Base64
@@ -10,10 +10,11 @@ object Authentication:
     * secret is retained or logged. The caller keeps ownership of `password` and wipes it after the call.
     */
   def compute(password: Array[Byte], salt: String, challenge: String): String =
-    val digest = MessageDigest.getInstance("SHA-256")
-    val intermediate = base64Digest(digest, concat(password, salt.getBytes(UTF_8)))
+    val digest       = MessageDigest.getInstance("SHA-256")
+    val intermediate = base64Digest(digest = digest, input = concat(left = password, right = salt.getBytes(UTF_8)))
     try
-      val response = base64Digest(digest, concat(intermediate, challenge.getBytes(UTF_8)))
+      val response =
+        base64Digest(digest = digest, input = concat(left = intermediate, right = challenge.getBytes(UTF_8)))
       try new String(response, US_ASCII)
       finally Arrays.fill(response, 0.toByte)
     finally Arrays.fill(intermediate, 0.toByte)

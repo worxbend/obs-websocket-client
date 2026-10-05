@@ -1,7 +1,7 @@
 //| mill-version: 1.1.10
 //| mill-jvm-index-version: 0.0.4-198-293bcc
 //| mill-jvm-version: temurin:25.0.3
-//| mvnDeps: ["com.lihaoyi::mill-contrib-scoverage:$MILL_VERSION", "com.lihaoyi::mill-contrib-jmh:$MILL_VERSION"]
+//| mvnDeps: ["com.lihaoyi::mill-contrib-scoverage:$MILL_VERSION", "com.lihaoyi::mill-contrib-jmh:$MILL_VERSION", "com.goyeau::mill-scalafix_mill1:0.6.2"]
 package build
 
 import mill.*
@@ -10,29 +10,31 @@ import mill.scalalib.publish.*
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.contrib.scoverage.{ScoverageModule, ScoverageReport}
 import mill.contrib.jmh.JmhModule
+import com.goyeau.mill.scalafix.ScalafixModule
 
 object Versions:
-  val scala = "3.9.0"
-  val ox = "1.0.9"
-  val sttp = "4.0.27"
-  val jsoniter = "2.41.2"
-  val tapir = "1.13.32"
-  val munit = "1.3.6"
-  val scoverage = "2.5.2"
+  val scala      = "3.9.0"
+  val ox         = "1.0.9"
+  val sttp       = "4.0.27"
+  val jsoniter   = "2.41.2"
+  val tapir      = "1.13.32"
+  val munit      = "1.3.6"
+  val scoverage  = "2.5.2"
   val pureconfig = "0.17.10"
-  val logback = "1.6.5"
+  val logback    = "1.6.5"
+
   def release(environment: Map[String, String]): String =
     val version = environment.getOrElse("OBS_RELEASE_VERSION", "0.1.0-SNAPSHOT")
     require(
       version == "0.1.0-SNAPSHOT" || version.matches("[0-9]+\\.[0-9]+\\.[0-9]+"),
-      "OBS_RELEASE_VERSION must be a stable semantic version"
+      "OBS_RELEASE_VERSION must be a stable semantic version",
     )
     version
 
 object Deps:
   val jsoniter = Seq(
     mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-core:${Versions.jsoniter}",
-    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}"
+    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}",
   )
 
 /** Shared toolchain contract: pinned Scala and the Java 25 assertion every module compiles/tests/runs with.
@@ -42,32 +44,51 @@ trait Java25Module extends ScalaModule:
   def scalaVersion = Versions.scala
   // All compiler, test and run forks use the same Java 25 as the Mill process.
   def javaHome = Task:
-    val home = os.Path(sys.props("java.home"))
+    val home    = os.Path(sys.props("java.home"))
     val feature = sys.props("java.specification.version")
     require(
       feature == "25",
       s"Mill is running on Java $feature ($home) but this build requires Java 25. " +
-        "Launch Mill through the ./mill wrapper, which provisions temurin:25.0.3 from the mill-jvm-version header."
+        "Launch Mill through the ./mill wrapper, which provisions temurin:25.0.3 from the mill-jvm-version header.",
     )
     Some(PathRef(home))
   def scalacOptions = Seq("-release:25", "-Wunused:all", "-Wvalue-discard", "-Wnonunit-statement", "-Werror")
 
-trait ProjectModule extends Java25Module with ScoverageModule with ScalafmtModule:
+/** Loads our semantic naming rule as a build tool, never as a library runtime dependency. */
+trait NamedArgumentsModule extends ScalaModule with ScalafixModule:
+  def namedArgumentsConfig = Task.Source(mill.api.BuildCtx.workspaceRoot / ".scalafix.conf")
+  def scalafixConfig       = Task:
+    val output = Task.dest / "scalafix.conf"
+    val root   = upickle.default.write(mill.api.BuildCtx.workspaceRoot.toString)
+    os.write(output, os.read(namedArgumentsConfig().path) + s"\nNamedArguments.sourceRoot = $root\n")
+    Some(output)
+  def scalafixToolClasspath = Task:
+    Seq(namedArgumentRules.jar()) ++ namedArgumentRules.runClasspath()
+
+/** Scala 3 implementation of the repository's Scalafix rule; build tooling only. */
+object namedArgumentRules extends Java25Module with ScalafmtModule:
+  def mvnDeps = Seq(mvn"ch.epfl.scala:scalafix-core_2.13:0.14.9")
+
+/** Scratch compilation module used by the rule's apply/compile/idempotence fixture test. */
+object namedArgumentFixtures extends Java25Module with NamedArgumentsModule:
+  def sources = Task.Sources(mill.api.BuildCtx.workspaceRoot / "out" / "named-argument-fixture")
+
+trait ProjectModule extends Java25Module with ScoverageModule with ScalafmtModule with NamedArgumentsModule:
   def scoverageVersion = Versions.scoverage
   // Exact 100% coverage enforcement lives in tools/check_coverage.py per PLAN §23, not Mill percentage minimums.
-  trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule:
+  trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule with NamedArgumentsModule:
     def mvnDeps = Seq(mvn"org.scalameta::munit:${Versions.munit}")
 
 trait LibraryModule extends ProjectModule with PublishModule:
   def publishVersion = Task.Input:
-    Versions.release(Task.env)
+    Versions.release(environment = Task.env)
   def pomSettings = PomSettings(
-    description = "A scoped direct-style Scala 3 client for OBS WebSocket 5.x",
-    organization = "com.worxbend.obs.websocket.client",
-    url = "https://github.com/worxbend/obs-websocket-client",
-    licenses = Seq(License.MIT),
+    description    = "A scoped direct-style Scala 3 client for OBS WebSocket 5.x",
+    organization   = "com.worxbend.obs.websocket.client",
+    url            = "https://github.com/worxbend/obs-websocket-client",
+    licenses       = Seq(License.MIT),
     versionControl = VersionControl.github("worxbend", "obs-websocket-client"),
-    developers = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend"))
+    developers     = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend")),
   )
 
 /** Build-time schema compiler, with sources in `codegen/src` and fixtures/tests in `codegen/test`.
@@ -84,8 +105,9 @@ object protocol extends LibraryModule:
   // protocol.json is the pinned upstream catalog; overrides.json supplies reviewed nullable-field
   // corrections; provenance.json records the upstream revision and expected schema SHA-256.
   def specification = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "protocol.json")
-  def overrides = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "overrides.json")
-  def provenance = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "provenance.json")
+  def overrides     = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "overrides.json")
+  def provenance    = Task.Source(mill.api.BuildCtx.workspaceRoot / "protocol-spec" / "provenance.json")
+
   /** Generates protocol sources before Mill compiles the protocol module or a dependent module.
     * Run `./mill protocol.generatedSources` to generate only, or `./mill show protocol.generatedSources`
     * to inspect the returned source root. `./mill protocol.compile` includes this task automatically.
@@ -112,7 +134,7 @@ object protocol extends LibraryModule:
     val classpath = codegen.runClasspath().map(_.path.toString).mkString(_root_.java.io.File.pathSeparator)
     // Launch with the codegen module's checked Java 25 home, rather than whichever java is on PATH.
     val executable = if scala.util.Properties.isWin then "java.exe" else "java"
-    val java = codegen.javaHome().get.path / "bin" / executable
+    val java       = codegen.javaHome().get.path / "bin" / executable
     os.proc(
       java.toString,
       "-cp",
@@ -121,26 +143,26 @@ object protocol extends LibraryModule:
       specification().path.toString,
       Task.dest.toString,
       overrides().path.toString,
-      provenance().path.toString
+      provenance().path.toString,
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
     // Register the output directory as a Scala source root alongside handwritten protocol/src.
     // Mill compiles its Scala files recursively; the TSV inventory is metadata, not a Scala source.
     // A nonzero generator exit makes os.proc.call fail, so compilation cannot use a failed task result.
     Seq(PathRef(Task.dest))
   def artifactName = "obs-websocket-client-protocol"
-  def mvnDeps = Deps.jsoniter
+  def mvnDeps      = Deps.jsoniter
   object test extends Tests
 
 object core extends LibraryModule:
   def artifactName = "obs-websocket-client-core"
-  def moduleDeps = Seq(protocol)
-  def mvnDeps = Seq(mvn"com.softwaremill.ox::core:${Versions.ox}")
+  def moduleDeps   = Seq(protocol)
+  def mvnDeps      = Seq(mvn"com.softwaremill.ox::core:${Versions.ox}")
   object test extends Tests
 
 object sttp extends LibraryModule:
   def artifactName = "obs-websocket-client-sttp"
-  def moduleDeps = Seq(core)
-  def mvnDeps = Seq(mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}")
+  def moduleDeps   = Seq(core)
+  def mvnDeps      = Seq(mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}")
   object test extends Tests
 
 object examples extends ProjectModule:
@@ -150,42 +172,43 @@ object examples extends ProjectModule:
 
 object server extends ProjectModule:
   def moduleDeps = Seq(sttp)
-  def mvnDeps = Seq(
+  def mvnDeps    = Seq(
     mvn"com.softwaremill.sttp.tapir::tapir-netty-server-sync:${Versions.tapir}",
     mvn"com.softwaremill.sttp.tapir::tapir-swagger-ui-bundle:${Versions.tapir}",
     mvn"com.softwaremill.sttp.tapir::tapir-jsoniter-scala:${Versions.tapir}",
     mvn"ch.qos.logback:logback-classic:${Versions.logback}",
-    mvn"com.github.pureconfig::pureconfig-core:${Versions.pureconfig}"
+    mvn"com.github.pureconfig::pureconfig-core:${Versions.pureconfig}",
   )
-  def mainClass = Some("com.worxbend.obs.websocket.client.server.Main")
+  def mainClass        = Some("com.worxbend.obs.websocket.client.server.Main")
   def generatedSources = Task:
     os.write(
       Task.dest / "BuildInfo.scala",
       s"""package com.worxbend.obs.websocket.client.server
          |
          |private[server] object BuildInfo:
-         |  val version: String = "${Versions.release(Task.env)}"
-         |""".stripMargin
+         |  val version: String = "${Versions.release(environment = Task.env)}"
+         |""".stripMargin,
     )
     Seq(PathRef(Task.dest))
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
-    def mvnDeps = super.mvnDeps() ++ Seq(
+    def mvnDeps    = super.mvnDeps() ++ Seq(
       mvn"com.softwaremill.sttp.tapir::tapir-sttp-stub4-server:${Versions.tapir}",
-      mvn"com.softwaremill.sttp.tapir::tapir-sttp-client4:${Versions.tapir}"
+      mvn"com.softwaremill.sttp.tapir::tapir-sttp-client4:${Versions.tapir}",
     )
 
-// Benchmarks are development-only: not published, not in coverage.measured, not in CI compile lists.
+// Benchmarks are development-only: not published or in coverage.measured. CI compiles them for source-style checks only.
 // Mixin order matters: JmhModule alone extends only JavaModule, whose sourceFileExtensions filter
 // would silently drop every .scala file from `sources`.
 object bench extends Java25Module with JmhModule with ScalafmtModule:
   def jmhCoreVersion = "1.37"
-  def moduleDeps = Seq(sttp)
+  def moduleDeps     = Seq(sttp)
 
 object integration extends ProjectModule:
   def moduleDeps = Seq(sttp)
   object test extends Tests:
-    def documentation = Task.Sources(mill.api.BuildCtx.workspaceRoot / "docs", mill.api.BuildCtx.workspaceRoot / "README.md")
+    def documentation =
+      Task.Sources(mill.api.BuildCtx.workspaceRoot / "docs", mill.api.BuildCtx.workspaceRoot / "README.md")
     def snippetGenerator = Task.Source(mill.api.BuildCtx.workspaceRoot / "tools" / "doc_snippets.py")
     def generatedSources = Task:
       val _ = documentation()
@@ -194,7 +217,7 @@ object integration extends ProjectModule:
       Seq(PathRef(Task.dest))
 
 object scoverage extends ScoverageReport:
-  def scalaVersion = Versions.scala
+  def scalaVersion     = Versions.scala
   def scoverageVersion = Versions.scoverage
 
 object site extends Module:
@@ -206,6 +229,47 @@ object site extends Module:
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
     ()
 
+/** Semantic source-style checks across handwritten sources; generated output and the frozen benchmark stay untouched. */
+object sourceStyle extends Module:
+  val modules: Seq[ScalaModule] = Seq(
+    codegen,
+    protocol,
+    core,
+    sttp,
+    examples,
+    server,
+    codegen.test,
+    protocol.test,
+    core.test,
+    sttp.test,
+    examples.test,
+    server.test,
+    integration.test,
+    bench,
+    namedArgumentRules,
+  )
+
+  /** Run without arguments to migrate, or with `--check` to fail CI on a positional argument. */
+  def namedArguments(args: String*) = Task.Command:
+    val roots    = Task.sequence(modules.map(_.sources))().flatten
+    val sources  = ScalafixModule.filesToFix(sources = roots).map(_.path).filterNot(_.last == "LegacyJsonValue.scala")
+    val semantic = Task.sequence(modules.map(_.semanticDbData))()
+    val dependencies = Task.sequence(modules.map(_.compileClasspath))().flatten
+    val classes      = Task.sequence(modules.map(_.localClasspath))().flatten
+    ScalafixModule.fixAction(
+      log                   = Task.ctx().log,
+      repositories          = codegen.scalafixRepositories(),
+      sources               = sources,
+      classpath             = (dependencies ++ classes ++ semantic).map(_.path).distinct,
+      scalaVersion          = Versions.scala,
+      scalacOptions         = codegen.scalacOptions(),
+      scalafixIvyDeps       = Seq.empty,
+      scalafixConfig        = codegen.scalafixConfig(),
+      args                  = args,
+      wd                    = mill.api.BuildCtx.workspaceRoot,
+      scalafixToolClasspath = (Seq(namedArgumentRules.jar()) ++ namedArgumentRules.runClasspath()).map(_.path),
+    )
+
 object coverage extends Module:
   /** Modules measured by the exact gate in tools/check_coverage.py. Integration coverage is collected separately
     * per PLAN §23, so `integration` is deliberately absent here.
@@ -214,7 +278,7 @@ object coverage extends Module:
 
   /** Start a measurement run only after instrumentation is up to date. */
   def reset() = Task.Command:
-    val _ = Task.sequence(measured.map(_.scoverage.compile))()
+    val _           = Task.sequence(measured.map(_.scoverage.compile))()
     val directories = Task.sequence(measured.map(_.scoverage.data))()
     directories.foreach: directory =>
       os.list(directory.path).filter(_.last.startsWith("scoverage.measurements.")).foreach(os.remove(_))
@@ -223,10 +287,10 @@ object coverage extends Module:
 object release extends Module:
   def dependencyReport() = Task.Command:
     val resolved = Map(
-      "protocol" -> protocol.resolvedRunMvnDeps().map(_.path.toString),
-      "core" -> core.resolvedRunMvnDeps().map(_.path.toString),
-      "sttp" -> sttp.resolvedRunMvnDeps().map(_.path.toString),
-      "server-sample" -> server.resolvedRunMvnDeps().map(_.path.toString)
+      "protocol"      -> protocol.resolvedRunMvnDeps().map(_.path.toString),
+      "core"          -> core.resolvedRunMvnDeps().map(_.path.toString),
+      "sttp"          -> sttp.resolvedRunMvnDeps().map(_.path.toString),
+      "server-sample" -> server.resolvedRunMvnDeps().map(_.path.toString),
     )
     val input = Task.dest / "resolved.json"
     os.write(input, upickle.default.write(resolved))
@@ -234,7 +298,7 @@ object release extends Module:
       "python3",
       (mill.api.BuildCtx.workspaceRoot / "tools" / "dependency_report.py").toString,
       input.toString,
-      (Task.dest / "dependencies.json").toString
+      (Task.dest / "dependencies.json").toString,
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
     PathRef(Task.dest / "dependencies.json")
 
@@ -248,7 +312,7 @@ object release extends Module:
       core.docJar(),
       sttp.jar(),
       sttp.sourceJar(),
-      sttp.docJar()
+      sttp.docJar(),
     )
     val manifest = artifacts.map: artifact =>
       val digest = java.security.MessageDigest.getInstance("SHA-256").digest(os.read.bytes(artifact.path))

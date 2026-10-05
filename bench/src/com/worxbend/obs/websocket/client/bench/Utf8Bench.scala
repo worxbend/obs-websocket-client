@@ -33,23 +33,33 @@ class Utf8Bench:
       case "cjkEmoji"   => Payloads.cjkEmoji
       case other        => throw IllegalArgumentException(s"unknown payload: $other")
     // Sanity check: the three implementations must agree on every payload before any timing happens.
-    val arithmetic = Utf8.encodedLength(text)
-    val getBytes = LegacyUtf8.getBytesLength(text)
-    val encoder = LegacyUtf8.encoderLength(LegacyUtf8.newEncoder(), ByteBuffer.allocate(LegacyUtf8.scratchBytes), text)
+    val arithmetic = Utf8.encodedLength(text = text)
+    val getBytes   = LegacyUtf8.getBytesLength(text = text)
+    val encoder    = LegacyUtf8.encoderLength(
+      encoder = LegacyUtf8.newEncoder(),
+      scratch = ByteBuffer.allocate(LegacyUtf8.scratchBytes),
+      value   = text,
+    )
     require(
       arithmetic == getBytes && arithmetic == encoder,
-      s"UTF-8 length disagreement on $payloadName: arithmetic=$arithmetic getBytes=$getBytes encoder=$encoder"
+      s"UTF-8 length disagreement on $payloadName: arithmetic=$arithmetic getBytes=$getBytes encoder=$encoder",
     )
 
   @Benchmark
-  def arithmeticNew(bh: Blackhole): Unit = bh.consume(Utf8.encodedLength(text))
+  def arithmeticNew(bh: Blackhole): Unit = bh.consume(Utf8.encodedLength(text = text))
 
   @Benchmark
-  def legacyGetBytes(bh: Blackhole): Unit = bh.consume(LegacyUtf8.getBytesLength(text))
+  def legacyGetBytes(bh: Blackhole): Unit = bh.consume(LegacyUtf8.getBytesLength(text = text))
 
   @Benchmark
   def legacyEncoderScratch(bh: Blackhole): Unit =
-    bh.consume(LegacyUtf8.encoderLength(LegacyUtf8.newEncoder(), ByteBuffer.allocate(LegacyUtf8.scratchBytes), text))
+    bh.consume(
+      LegacyUtf8.encoderLength(
+        encoder = LegacyUtf8.newEncoder(),
+        scratch = ByteBuffer.allocate(LegacyUtf8.scratchBytes),
+        value   = text,
+      )
+    )
 
 /** Verbatim copies of the legacy implementations, kept private to the benchmark for A/B comparison. */
 private[bench] object LegacyUtf8:
@@ -68,8 +78,8 @@ private[bench] object LegacyUtf8:
     */
   def encoderLength(encoder: CharsetEncoder, scratch: ByteBuffer, value: String): Long =
     encoder.reset()
-    val in = CharBuffer.wrap(value)
-    var bytes = 0L
+    val in       = CharBuffer.wrap(value)
+    var bytes    = 0L
     var encoding = true
     while encoding do
       scratch.clear()

@@ -18,17 +18,18 @@ private[codegen] object EventTemplate:
 
   /** Renders a newline-terminated Scala file from an already-normalized event. */
   def render(context: Context): String =
-    val event = context.event
-    val name = event.name
-    val fields = event.fields
+    val event      = context.event
+    val name       = event.name
+    val fields     = event.fields
     val provenance = context.provenance
-    val eventDoc = documentation(event.documentation, name, provenance, fields)
-    val decoderDoc = seeDoc(s"JSON decoder for [[$name]] events.", name, name, provenance)
-    val fileHeader = header(s"$base.events", provenance, withImport = true)
-    val eventParameters = parameters(fields)
-    val eventType = quote(name)
-    val eventEncoder = encode(fields)
-    val eventDecoder = decode(name, fields)
+    val eventDoc   = documentation(doc = event.documentation, name = name, provenance = provenance, fields = fields)
+    val decoderDoc =
+      seeDoc(summary = s"JSON decoder for [[$name]] events.", name = name, anchorTarget = name, provenance = provenance)
+    val fileHeader      = header(pkg = s"$base.events", provenance = provenance, withImport = true)
+    val eventParameters = parameters(fields = fields)
+    val eventType       = quote(value = name)
+    val eventEncoder    = encode(fields = fields)
+    val eventDecoder    = decode(name = name, fields = fields)
     s"""$fileHeader${eventDoc}final case class $name($eventParameters) extends Event:
        |  def eventType: String = $eventType
        |  def eventData: JsonObject = $eventEncoder

@@ -7,29 +7,29 @@ import ox.discard
 import java.util.concurrent.atomic.AtomicLong
 
 /** Mutable state is confined exclusively to an Ox Actor. No user callbacks run here. */
-private[client] final class SessionLogic(
-    config: ObsConfig,
-    authenticationPassword: Option[String],
-    outgoing: Channel[WireMessage],
-    identified: Channel[Either[ObsError, ConnectionMetadata]]
+final private[client] class SessionLogic(
+  config:                 ObsConfig,
+  authenticationPassword: Option[String],
+  outgoing:               Channel[WireMessage],
+  identified:             Channel[Either[ObsError, ConnectionMetadata]],
 ):
   private case class Pending(requestType: String, opcode: Int, reply: Channel[Either[ObsError, JsonObject]])
   private case class Subscriber(
-      channel: Channel[Event],
-      types: Set[String],
-      policy: OverflowPolicy,
-      dropped: AtomicLong,
-      representation: EventRepresentation
+    channel:        Channel[Event],
+    types:          Set[String],
+    policy:         OverflowPolicy,
+    dropped:        AtomicLong,
+    representation: EventRepresentation,
   )
   private case class State(
-      phase: ConnectionState = ConnectionState.AwaitingHello,
-      version: String = "",
-      reidentifyAcks: Int = 0,
-      failure: Option[ObsError] = None,
-      pending: Map[String, Pending] = Map.empty,
-      subscribers: Map[String, Subscriber] = Map.empty,
-      diagnostics: DiagnosticRegistry = DiagnosticRegistry(),
-      stats: SessionStats = SessionStats()
+    phase:          ConnectionState = ConnectionState.AwaitingHello,
+    version:        String = "",
+    reidentifyAcks: Int = 0,
+    failure:        Option[ObsError] = None,
+    pending:        Map[String, Pending] = Map.empty,
+    subscribers:    Map[String, Subscriber] = Map.empty,
+    diagnostics:    DiagnosticRegistry = DiagnosticRegistry(),
+    stats:          SessionStats = SessionStats(),
   )
   private var state = State()
 
@@ -39,39 +39,39 @@ private[client] final class SessionLogic(
   def pendingReidentifyAcks: Int = state.reidentifyAcks
 
   def transition(to: ConnectionState): Unit =
-    ConnectionState.transition(state.phase, to) match
+    ConnectionState.transition(from = state.phase, to = to) match
       case Right(next) =>
         state = state.copy(phase = next)
-        publish(SessionDiagnostic.StateChanged(next))
-      case Left(error) => fail(error)
+        publish(event = SessionDiagnostic.StateChanged(state = next))
+      case Left(error) => fail(error = error)
 
   def fail(error: ObsError): Unit =
     if state.failure.isEmpty then
       val terminal = if error == ObsError.Closed then ConnectionState.Closed else ConnectionState.Failed
-      publish(SessionDiagnostic.StateChanged(terminal))
+      publish(event = SessionDiagnostic.StateChanged(state = terminal))
       // Observers learn the concrete failure exactly like event subscribers do; a clean close completes them silently.
       if error == ObsError.Closed then state.diagnostics.close()
-      else state.diagnostics.fail(error)
+      else state.diagnostics.fail(error = error)
       state.pending.values.foreach(_.reply.trySend(Left(error)).discard)
       state.subscribers.values.foreach(_.channel.errorOrClosed(SessionTerminated(error)).discard)
       identified.trySendOrClosed(Left(error)).discard
       outgoing.errorOrClosed(SessionTerminated(error)).discard
       state = state.copy(
-        phase = terminal,
-        failure = Some(error),
-        pending = Map.empty,
-        subscribers = Map.empty
+        phase       = terminal,
+        failure     = Some(error),
+        pending     = Map.empty,
+        subscribers = Map.empty,
       )
 
   def close(): Unit =
     if state.phase != ConnectionState.Closed then
-      fail(ObsError.Closed)
+      fail(error = ObsError.Closed)
       state = state.copy(phase = ConnectionState.Closed)
 
   def statistics: SessionStats = state.stats
 
   private def publish(event: SessionDiagnostic): Unit =
-    state = state.copy(diagnostics = state.diagnostics.publish(event))
+    state = state.copy(diagnostics = state.diagnostics.publish(event = event))
 
   def traffic(direction: TrafficDirection, bytes: Int): Unit =
     val stats = direction match
@@ -80,23 +80,23 @@ private[client] final class SessionLogic(
       case TrafficDirection.Received =>
         state.stats.copy(
           receivedMessages = state.stats.receivedMessages + 1,
-          receivedBytes = state.stats.receivedBytes + bytes
+          receivedBytes    = state.stats.receivedBytes + bytes,
         )
     state = state.copy(stats = stats)
-    publish(SessionDiagnostic.Traffic(direction, bytes))
+    publish(event = SessionDiagnostic.Traffic(direction = direction, bytes = bytes))
 
   /** A transport-level receive failure carries no frame bytes: classify the close code, then fail the session. */
-  def transportFailed(error: ObsError): Unit = fail(classifyClose(error))
+  def transportFailed(error: ObsError): Unit = fail(error = classifyClose(error = error))
 
   /** One inbound frame in a single invocation: account its bytes, then process the decode outcome. Returns whether the
     * reader should keep consuming frames.
     */
   def received(bytes: Int, decoded: Either[ObsError, WireMessage]): Boolean =
-    traffic(TrafficDirection.Received, bytes)
+    traffic(direction = TrafficDirection.Received, bytes = bytes)
     decoded match
-      case Right(message) => incoming(message)
+      case Right(message) => incoming(message = message)
       case Left(error)    =>
-        fail(classifyClose(error))
+        fail(error = classifyClose(error = error))
         false
 
   /** obs-websocket close codes with a typed meaning are only legitimate before the session is ready: during Identify
@@ -107,9 +107,9 @@ private[client] final class SessionLogic(
   private def classifyClose(error: ObsError): ObsError = error match
     case ObsError.Transport(_, Some(code)) if state.phase != ConnectionState.Ready =>
       code match
-        case 4009 => ObsError.Authentication("Server rejected authentication", Some(4009))
-        case 4010 => ObsError.IncompatibleProtocol(1)
-        case 4011 => ObsError.Authentication("Session invalidated by the server", Some(4011))
+        case 4009 => ObsError.Authentication(message = "Server rejected authentication", closeCode = Some(4009))
+        case 4010 => ObsError.IncompatibleProtocol(version = 1)
+        case 4011 => ObsError.Authentication(message = "Session invalidated by the server", closeCode = Some(4011))
         case _    => error
     case other => other
 
@@ -117,17 +117,24 @@ private[client] final class SessionLogic(
     val failed = if outcome == DiagnosticOutcome.Succeeded then 0L else 1L
     state = state.copy(stats =
       state.stats.copy(
-        completedRequests = state.stats.completedRequests + 1,
-        failedRequests = state.stats.failedRequests + failed,
-        requestElapsedNanos = state.stats.requestElapsedNanos + elapsedNanos
+        completedRequests   = state.stats.completedRequests + 1,
+        failedRequests      = state.stats.failedRequests + failed,
+        requestElapsedNanos = state.stats.requestElapsedNanos + elapsedNanos,
       )
     )
-    publish(SessionDiagnostic.RequestFinished(requestType, id, elapsedNanos, outcome))
+    publish(event =
+      SessionDiagnostic.RequestFinished(
+        requestType  = requestType,
+        requestId    = id,
+        elapsedNanos = elapsedNanos,
+        outcome      = outcome,
+      )
+    )
 
   def subscribeDiagnostics(id: String, channel: Channel[SessionDiagnostic]): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
     else if state.diagnostics.entries.contains(id) then
-      Left(ObsError.InternalError("Duplicate diagnostic subscription ID"))
+      Left(ObsError.InternalError(message = "Duplicate diagnostic subscription ID"))
     else
       state =
         state.copy(diagnostics = state.diagnostics.copy(entries = state.diagnostics.entries.updated(id, channel -> 0L)))
@@ -143,24 +150,27 @@ private[client] final class SessionLogic(
   private def queue(message: WireMessage): Either[ObsError, Unit] =
     outgoing.trySendOrClosed(message) match
       case true  => Right(())
-      case false => Left(ObsError.Overflow("outgoing queue"))
+      case false => Left(ObsError.Overflow(resource = "outgoing queue"))
       case _     => Left(state.failure.getOrElse(ObsError.Closed))
 
   def register(
-      id: String,
-      requestType: String,
-      opcode: Int,
-      message: WireMessage,
-      reply: Channel[Either[ObsError, JsonObject]]
+    id:          String,
+    requestType: String,
+    opcode:      Int,
+    message:     WireMessage,
+    reply:       Channel[Either[ObsError, JsonObject]],
   ): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
-    else if state.pending.contains(id) then Left(ObsError.InternalError("Request ID generator produced a duplicate ID"))
-    else if state.pending.size >= config.maxInFlight then Left(ObsError.Overflow("in-flight requests"))
+    else if state.pending.contains(id) then
+      Left(ObsError.InternalError(message = "Request ID generator produced a duplicate ID"))
+    else if state.pending.size >= config.maxInFlight then Left(ObsError.Overflow(resource = "in-flight requests"))
     else
-      state = state.copy(pending = state.pending.updated(id, Pending(requestType, opcode, reply)))
-      queue(message) match
+      state = state.copy(pending =
+        state.pending.updated(id, Pending(requestType = requestType, opcode = opcode, reply = reply))
+      )
+      queue(message = message) match
         case left @ Left(_) =>
-          cancel(id, reply)
+          cancel(id = id, owner = reply)
           left
         case right => right
 
@@ -171,7 +181,7 @@ private[client] final class SessionLogic(
   def canSend(message: WireMessage): Boolean =
     if state.failure.nonEmpty then false
     else if message.op == SessionWire.Op.Request || message.op == SessionWire.Op.RequestBatch then
-      message.data.string("requestId").exists(state.pending.contains)
+      message.data.string(name = "requestId").exists(state.pending.contains)
     else true
 
   /** A deterministic local send rejection completes only the affected request; the session stays alive. Messages
@@ -180,7 +190,7 @@ private[client] final class SessionLogic(
   def sendRejected(message: WireMessage, error: ObsError): Unit =
     val affected =
       if message.op == SessionWire.Op.Request || message.op == SessionWire.Op.RequestBatch then
-        message.data.string("requestId").toOption
+        message.data.string(name = "requestId").toOption
       else None
     affected match
       case Some(id) =>
@@ -190,34 +200,43 @@ private[client] final class SessionLogic(
             state = state.copy(pending = state.pending - id)
             pending.reply.trySend(Left(error)).discard
       case None =>
-        if message.op != SessionWire.Op.Request && message.op != SessionWire.Op.RequestBatch then fail(error)
+        if message.op != SessionWire.Op.Request && message.op != SessionWire.Op.RequestBatch then fail(error = error)
 
   def reidentify(mask: EventSubscriptions): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
     else if state.reidentifyAcks >= SessionLogic.maxReidentifyAcks then
-      Left(ObsError.Overflow("reidentify acknowledgements"))
+      Left(ObsError.Overflow(resource = "reidentify acknowledgements"))
     else
       queue(
-        WireMessage(
-          SessionWire.Op.Reidentify,
-          JsonObject(Map("eventSubscriptions" -> JsonValue.Num(BigDecimal(mask.value))))
+        message = WireMessage(
+          op   = SessionWire.Op.Reidentify,
+          data = JsonObject(fields = Map("eventSubscriptions" -> JsonValue.Num(value = BigDecimal(mask.value)))),
         )
       ).map: _ =>
         state = state.copy(reidentifyAcks = state.reidentifyAcks + 1)
 
   def subscribe(
-      id: String,
-      channel: Channel[Event],
-      types: Set[String],
-      policy: OverflowPolicy,
-      representation: EventRepresentation = EventRepresentation.Typed,
-      dropped: AtomicLong = new AtomicLong(0L)
+    id:             String,
+    channel:        Channel[Event],
+    types:          Set[String],
+    policy:         OverflowPolicy,
+    representation: EventRepresentation = EventRepresentation.Typed,
+    dropped:        AtomicLong = new AtomicLong(0L),
   ): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
-    else if state.subscribers.contains(id) then Left(ObsError.InternalError("Duplicate subscription ID"))
+    else if state.subscribers.contains(id) then Left(ObsError.InternalError(message = "Duplicate subscription ID"))
     else
       state = state.copy(subscribers =
-        state.subscribers.updated(id, Subscriber(channel, types, policy, dropped, representation))
+        state.subscribers.updated(
+          id,
+          Subscriber(
+            channel        = channel,
+            types          = types,
+            policy         = policy,
+            dropped        = dropped,
+            representation = representation,
+          ),
+        )
       )
       Right(())
 
@@ -232,70 +251,86 @@ private[client] final class SessionLogic(
   /** Returns whether the reader should keep consuming frames. */
   def incoming(message: WireMessage): Boolean =
     val handled = (state.phase, message.op) match
-      case (ConnectionState.AwaitingHello, SessionWire.Op.Hello)                          => hello(message.data)
-      case (ConnectionState.Identifying, SessionWire.Op.Identified)                       => ready(message.data)
+      case (ConnectionState.AwaitingHello, SessionWire.Op.Hello)                          => hello(data = message.data)
+      case (ConnectionState.Identifying, SessionWire.Op.Identified)                       => ready(data = message.data)
       case (ConnectionState.Ready, SessionWire.Op.Identified) if state.reidentifyAcks > 0 =>
-        negotiatedRpc(message.data).map: _ =>
+        negotiatedRpc(data = message.data).map: _ =>
           state = state.copy(reidentifyAcks = state.reidentifyAcks - 1)
-      case (ConnectionState.Ready, SessionWire.Op.Event) => event(message.data)
+      case (ConnectionState.Ready, SessionWire.Op.Event) => event(data = message.data)
       case (ConnectionState.Ready, SessionWire.Op.RequestResponse | SessionWire.Op.RequestBatchResponse) =>
-        response(message)
+        response(message = message)
       case (ConnectionState.Failed | ConnectionState.Closed, _) => Right(())
-      case _ => Left(ObsError.UnexpectedMessage(state.phase, message.op))
+      case _ => Left(ObsError.UnexpectedMessage(state = state.phase, opcode = message.op))
     handled.left.foreach(fail)
     state.phase != ConnectionState.Failed && state.phase != ConnectionState.Closed
 
   /** The password String cannot be wiped, but its byte copy and every downstream hash buffer can. */
   private def authenticationResponse(password: String, salt: String, challenge: String): String =
     val passwordBytes = password.getBytes(java.nio.charset.StandardCharsets.UTF_8)
-    try Authentication.compute(passwordBytes, salt, challenge)
+    try Authentication.compute(password = passwordBytes, salt = salt, challenge = challenge)
     finally java.util.Arrays.fill(passwordBytes, 0.toByte)
 
   private def hello(data: JsonObject): Either[ObsError, Unit] =
     for
-      rpc <- data.int("rpcVersion").left.map(malformed)
-      version <- data.string("obsWebSocketVersion").left.map(malformed)
-      _ <- if rpc >= 1 then Right(()) else Left(ObsError.IncompatibleProtocol(rpc))
-      auth <- data.fields.get("authentication") match
-        case None                   => Right(Map.empty[String, JsonValue])
-        case Some(auth: JsonObject) =>
-          for
-            salt <- auth.string("salt").left.map(malformed)
-            challenge <- auth.string("challenge").left.map(malformed)
-            password <- authenticationPassword.toRight(ObsError.Authentication("Server requires a password"))
-          yield Map("authentication" -> JsonValue.Str(authenticationResponse(password, salt, challenge)))
-        case _ => Left(ObsError.MalformedPayload("authentication", "Expected authentication object"))
+      rpc     <- data.int(name = "rpcVersion").left.map(malformed)
+      version <- data.string(name = "obsWebSocketVersion").left.map(malformed)
+      _       <- if rpc >= 1 then Right(()) else Left(ObsError.IncompatibleProtocol(version = rpc))
+      auth    <- data.fields.get("authentication") match
+                case None                   => Right(Map.empty[String, JsonValue])
+                case Some(auth: JsonObject) =>
+                  for
+                    salt      <- auth.string(name = "salt").left.map(malformed)
+                    challenge <- auth.string(name = "challenge").left.map(malformed)
+                    password  <-
+                      authenticationPassword.toRight(ObsError.Authentication(message = "Server requires a password"))
+                  yield Map(
+                    "authentication" -> JsonValue.Str(value =
+                      authenticationResponse(password = password, salt = salt, challenge = challenge)
+                    )
+                  )
+                case _ =>
+                  Left(ObsError.MalformedPayload(path = "authentication", message = "Expected authentication object"))
       _ <- queue(
-        WireMessage(
-          SessionWire.Op.Identify,
-          JsonObject(
-            auth ++ Map(
-              "rpcVersion" -> JsonValue.Num(BigDecimal(1)),
-              "eventSubscriptions" -> JsonValue.Num(BigDecimal(config.eventSubscriptions.value))
-            )
-          )
-        )
-      )
+             message = WireMessage(
+               op   = SessionWire.Op.Identify,
+               data = JsonObject(
+                 fields = auth ++ Map(
+                   "rpcVersion"         -> JsonValue.Num(value = BigDecimal(1)),
+                   "eventSubscriptions" -> JsonValue.Num(value = BigDecimal(config.eventSubscriptions.value)),
+                 )
+               ),
+             )
+           )
     yield
       state = state.copy(version = version)
-      transition(ConnectionState.Identifying)
+      transition(to = ConnectionState.Identifying)
 
   private def negotiatedRpc(data: JsonObject): Either[ObsError, Int] =
     data
-      .int("negotiatedRpcVersion")
+      .int(name = "negotiatedRpcVersion")
       .left
       .map(malformed)
       .flatMap: rpc =>
-        if rpc == 1 then Right(rpc) else Left(ObsError.IncompatibleProtocol(rpc))
+        if rpc == 1 then Right(rpc) else Left(ObsError.IncompatibleProtocol(version = rpc))
 
   private def ready(data: JsonObject): Either[ObsError, Unit] =
-    negotiatedRpc(data).map: rpc =>
-      transition(ConnectionState.Ready)
-      identified.trySend(Right(ConnectionMetadata(state.version, rpc, Set.empty))).discard
+    negotiatedRpc(data = data).map: rpc =>
+      transition(to = ConnectionState.Ready)
+      identified
+        .trySend(
+          Right(
+            ConnectionMetadata(
+              obsWebSocketVersion  = state.version,
+              negotiatedRpcVersion = rpc,
+              availableRequests    = Set.empty,
+            )
+          )
+        )
+        .discard
 
   private def response(message: WireMessage): Either[ObsError, Unit] =
     message.data
-      .string("requestId")
+      .string(name = "requestId")
       .left
       .map(malformed)
       .flatMap: id =>
@@ -303,53 +338,62 @@ private[client] final class SessionLogic(
           case None          => Right(()) // duplicate or late response: never revive a completed request
           case Some(pending) =>
             if pending.opcode != message.op then
-              Left(ObsError.MalformedPayload("op", "Response opcode does not match request"))
+              Left(ObsError.MalformedPayload(path = "op", message = "Response opcode does not match request"))
             else
               val result =
                 if message.op == SessionWire.Op.RequestBatchResponse then Right(message.data)
-                else SessionWire.responseData(message.data, pending.requestType, id)
+                else SessionWire.responseData(data = message.data, expectedType = pending.requestType, id = id)
               state = state.copy(pending = state.pending - id)
               pending.reply.trySend(result).discard
               Right(())
 
   private def event(data: JsonObject): Either[ObsError, Unit] =
     for
-      eventType <- data.string("eventType").left.map(malformed)
-      _ <- data
-        .required("eventIntent", ValueCodec.number)
-        .left
-        .map(malformed)
-        .flatMap: intent =>
-          if intent.isWhole && intent >= 0 then Right(())
-          else Left(ObsError.MalformedPayload("eventIntent", "Expected a nonnegative integer subscription mask"))
+      eventType <- data.string(name = "eventType").left.map(malformed)
+      _         <- data
+             .required(name = "eventIntent", codec = ValueCodec.number)
+             .left
+             .map(malformed)
+             .flatMap: intent =>
+               if intent.isWhole && intent >= 0 then Right(())
+               else
+                 Left(
+                   ObsError
+                     .MalformedPayload(
+                       path    = "eventIntent",
+                       message = "Expected a nonnegative integer subscription mask",
+                     )
+                 )
       eventData <- data.fields.get("eventData") match
-        case None                    => Right(JsonObject.empty)
-        case Some(value: JsonObject) => Right(value)
-        case _                       => Left(ObsError.MalformedPayload("eventData", "Expected object"))
-      decoded <- Event.decode(eventType, eventData).left.map(malformed)
+                     case None                    => Right(JsonObject.empty)
+                     case Some(value: JsonObject) => Right(value)
+                     case _ => Left(ObsError.MalformedPayload(path = "eventData", message = "Expected object"))
+      decoded <- Event.decode(eventType = eventType, data = eventData).left.map(malformed)
     yield
       state = state.copy(stats = state.stats.copy(receivedEvents = state.stats.receivedEvents + 1))
-      deliverEvent(eventType, eventData, decoded)
+      deliverEvent(eventType = eventType, eventData = eventData, decoded = decoded)
 
   private def deliverEvent(eventType: String, eventData: JsonObject, decoded: Event): Unit = state.subscribers.foreach:
     (id, subscriber) =>
       if subscriber.types.isEmpty || subscriber.types.contains(eventType) then
         val delivered = subscriber.representation match
           case EventRepresentation.Typed => decoded
-          case EventRepresentation.Raw   => UnknownEvent(eventType, eventData)
+          case EventRepresentation.Raw   => UnknownEvent(eventType = eventType, eventData = eventData)
         subscriber.channel.trySendOrClosed(delivered) match
           case true  => ()
           case false =>
             subscriber.policy match
               case OverflowPolicy.Fail =>
-                subscriber.channel.errorOrClosed(SessionTerminated(ObsError.Overflow("event subscription"))).discard
+                subscriber.channel
+                  .errorOrClosed(SessionTerminated(ObsError.Overflow(resource = "event subscription")))
+                  .discard
                 state = state.copy(subscribers = state.subscribers - id)
               case OverflowPolicy.DropNewest =>
                 subscriber.dropped.incrementAndGet().discard
               case OverflowPolicy.DropOldest =>
                 val dropped = SubscriptionDelivery.replaceOldest(
                   () => subscriber.channel.tryReceiveOrClosed(),
-                  () => subscriber.channel.trySendOrClosed(delivered)
+                  () => subscriber.channel.trySendOrClosed(delivered),
                 )
                 subscriber.dropped.addAndGet(dropped).discard
           case _ => state = state.copy(subscribers = state.subscribers - id)

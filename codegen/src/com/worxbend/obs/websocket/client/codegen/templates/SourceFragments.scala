@@ -27,39 +27,39 @@ private[codegen] object SourceFragments:
 
   /** One-or-two-line Scaladoc with the upstream reference for the pinned revision. */
   def documentation(
-      doc: Documentation,
-      name: String,
-      provenance: Provenance,
-      fields: List[Field]
+    doc:        Documentation,
+    name:       String,
+    provenance: Provenance,
+    fields:     List[Field],
   ): String =
     val versions = List(
       Option.when(doc.initialVersion.nonEmpty)(s"initial version ${doc.initialVersion}"),
-      Option.when(doc.rpcVersion.nonEmpty)(s"RPC version ${doc.rpcVersion}")
+      Option.when(doc.rpcVersion.nonEmpty)(s"RPC version ${doc.rpcVersion}"),
     ).flatten
-    val since = if versions.nonEmpty then versions.mkString(" (", ", ", ")") else ""
+    val since       = if versions.nonEmpty then versions.mkString(" (", ", ", ")") else ""
     val deprecation = if doc.deprecated then " Deprecated upstream." else ""
-    val title = if doc.summary.nonEmpty then collapse(doc.summary) else s"Generated binding for $name."
+    val title = if doc.summary.nonEmpty then collapse(description = doc.summary) else s"Generated binding for $name."
     s"""/** $title
        |  *
-       |  * Upstream: [[${provenance.upstreamDocs}#${anchor(name)} $name]]$since.$deprecation
-       |${parameterDocs(fields)}  */
+       |  * Upstream: [[${provenance.upstreamDocs}#${anchor(name = name)} $name]]$since.$deprecation
+       |${parameterDocs(fields = fields)}  */
        |""".stripMargin
 
   private def parameterDocs(fields: List[Field]): String =
-    fields.map(field => s"  * @param `${field.identifier}` ${collapse(field.description)}\n").mkString
+    fields.map(field => s"  * @param `${field.identifier}` ${collapse(description = field.description)}\n").mkString
 
   /** Scaladoc pointing at the owning entry's upstream anchor, with optional field semantics. */
   def seeDoc(
-      summary: String,
-      name: String,
-      anchorTarget: String,
-      provenance: Provenance,
-      fields: List[Field] = Nil
+    summary:      String,
+    name:         String,
+    anchorTarget: String,
+    provenance:   Provenance,
+    fields:       List[Field] = Nil,
   ): String =
     s"""/** $summary
        |  *
-       |  * Upstream: [[${provenance.upstreamDocs}#${anchor(anchorTarget)} $name]]
-       |${parameterDocs(fields)}  */
+       |  * Upstream: [[${provenance.upstreamDocs}#${anchor(name = anchorTarget)} $name]]
+       |${parameterDocs(fields = fields)}  */
        |""".stripMargin
 
   /** File prefix ends with a blank line. Imports are emitted only for payload subpackages. */

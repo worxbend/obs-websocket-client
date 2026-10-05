@@ -30,28 +30,29 @@ private[codegen] object FieldFragments:
     if fields.isEmpty then "JsonObject.empty"
     else
       val constructor = if fields.exists(_.name.contains('.')) then "NestedFields.encode" else "JsonObject"
-      val entries = fields.map: field =>
-        if field.optional then s"ValueCodec.put(${quote(field.name)}, `${field.identifier}`, ${field.codec})"
-        else s"Map(${quote(field.name)} -> ${codec(field)}.encode(`${field.identifier}`))"
+      val entries     = fields.map: field =>
+        if field.optional then s"ValueCodec.put(${quote(value = field.name)}, `${field.identifier}`, ${field.codec})"
+        else s"Map(${quote(value = field.name)} -> ${codec(field = field)}.encode(`${field.identifier}`))"
       s"$constructor(${entries.mkString(" ++ ")})"
 
   /** Decoder body with its own newline and indentation; unknown future fields remain accepted. */
   def decode(name: String, fields: List[Field]): String =
     if fields.isEmpty then s"""
-         |    val _ = data // Empty payloads deliberately accept unknown future fields.
-         |    Right($name())""".stripMargin
+                              |    val _ = data // Empty payloads deliberately accept unknown future fields.
+                              |    Right($name())""".stripMargin
     else
       val reads = fields.map: field =>
         val read = if field.optional && field.name.contains('.') then
-          s"NestedFields.field(data, ${quote(field.name)}, ${field.codec}, ${field.nullable})"
-        else if field.optional then s"data.field(${quote(field.name)}, ${field.codec}, ${field.nullable})"
-        else if field.name.contains('.') then s"NestedFields.required(data, ${quote(field.name)}, ${codec(field)})"
-        else s"data.required(${quote(field.name)}, ${codec(field)})"
+          s"NestedFields.field(data, ${quote(value = field.name)}, ${field.codec}, ${field.nullable})"
+        else if field.optional then s"data.field(${quote(value = field.name)}, ${field.codec}, ${field.nullable})"
+        else if field.name.contains('.') then
+          s"NestedFields.required(data, ${quote(value = field.name)}, ${codec(field = field)})"
+        else s"data.required(${quote(value = field.name)}, ${codec(field = field)})"
         s"      `${field.identifier}` <- $read"
       s"""
          |    for
          |${reads.mkString("\n")}
-         |    yield $name(${arguments(fields)})""".stripMargin
+         |    yield $name(${arguments(fields = fields)})""".stripMargin
 
   /** Positional arguments retain the normalized Scala identifiers. */
   def arguments(fields: List[Field]): String = fields.map(field => s"`${field.identifier}`").mkString(", ")

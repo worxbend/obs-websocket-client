@@ -14,9 +14,9 @@ final class ObsDiagnosticsSubscription private[client] (channel: Channel[Session
     case _                                             => Left(ObsError.Closed)
 
   private def read(): Next[SessionDiagnostic] = next() match
-    case Right(diagnostic)     => Next.Item(diagnostic)
+    case Right(diagnostic)     => Next.Item(value = diagnostic)
     case Left(ObsError.Closed) => Next.Ended
-    case Left(error)           => Next.Failed(error)
+    case Left(error)           => Next.Failed(error = error)
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
   def flow: Flow[Either[ObsError, SessionDiagnostic]] = Next.drain(() => read())

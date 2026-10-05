@@ -29,22 +29,22 @@ object Next:
           running = false
         case Next.Ended => running = false
 
-private[client] final class SessionTerminated(val error: ObsError) extends RuntimeException("OBS session terminated")
+final private[client] class SessionTerminated(val error: ObsError) extends RuntimeException("OBS session terminated")
 
 /** A bounded, ordered subscription. Consume it inside the withEvents callback. */
 final class ObsSubscription private[client] (
-    channel: Channel[Event],
-    losses: () => Long,
-    nanoTime: () => Long = () => System.nanoTime()
+  channel:  Channel[Event],
+  losses:   () => Long,
+  nanoTime: () => Long = () => System.nanoTime(),
 ):
   /** `Next.Ended` means clean end-of-stream: the subscription was unsubscribed, its `withEvents` scope exited, or the
     * session closed. Failures — overflow, transport loss, protocol errors — surface as `Next.Failed` with their
     * concrete `ObsError`, never as a bare `Closed`.
     */
   def next(): Next[Event] = channel.receiveOrClosed() match
-    case event: Event                                                                        => Next.Item(event)
+    case event: Event                                                                        => Next.Item(value = event)
     case ChannelClosed.Error(failure: SessionTerminated) if failure.error != ObsError.Closed =>
-      Next.Failed(failure.error)
+      Next.Failed(error = failure.error)
     case _: ChannelClosed => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
@@ -59,6 +59,7 @@ final class ObsSubscription private[client] (
     * terminates the stream with `Next.Failed(ObsError.InternalError)` instead of escaping the scope.
     */
   def withLatestBy[K, A](interval: FiniteDuration, maxKeys: Int)(key: Event => K)(
-      use: SampledSubscription[K] => A
+    use: SampledSubscription[K] => A
   ): Either[ObsError, A] =
-    SampledSubscription.use(this, interval, maxKeys, nanoTime)(key)(use)
+    SampledSubscription
+      .use(source = this, interval = interval, maxKeys = maxKeys, nanoTime = nanoTime)(key = key)(consume = use)

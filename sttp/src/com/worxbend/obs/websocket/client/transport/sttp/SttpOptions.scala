@@ -9,14 +9,15 @@ import scala.concurrent.duration.*
   * half-open connections (lost FIN, NAT timeout) engage `ReconnectPolicy` classification instead of stalling forever.
   */
 final case class SttpOptions(
-    writeTimeout: FiniteDuration = SttpOptions.DefaultWriteTimeout,
-    headers: HandshakeHeaders = HandshakeHeaders.empty,
-    readIdleTimeout: Option[FiniteDuration] = None
+  writeTimeout:    FiniteDuration = SttpOptions.DefaultWriteTimeout,
+  headers:         HandshakeHeaders = HandshakeHeaders.empty,
+  readIdleTimeout: Option[FiniteDuration] = None,
 ):
   def validate: Either[ObsError, SttpOptions] =
-    if writeTimeout <= Duration.Zero then Left(ObsError.InvalidConfiguration("Write deadline must be positive"))
+    if writeTimeout <= Duration.Zero then
+      Left(ObsError.InvalidConfiguration(message = "Write deadline must be positive"))
     else if readIdleTimeout.exists(_ <= Duration.Zero) then
-      Left(ObsError.InvalidConfiguration("Read idle deadline must be positive"))
+      Left(ObsError.InvalidConfiguration(message = "Read idle deadline must be positive"))
     else Right(this)
 
   override def toString: String =

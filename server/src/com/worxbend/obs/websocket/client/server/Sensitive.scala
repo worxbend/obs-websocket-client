@@ -3,7 +3,7 @@ package com.worxbend.obs.websocket.client.server
 import pureconfig.ConfigReader
 
 /** Secret-bearing values are never printed by configuration rendering. */
-private[server] final case class Sensitive(value: String):
+final private[server] case class Sensitive(value: String):
   override def toString: String = "***"
 
 private[server] object Sensitive:

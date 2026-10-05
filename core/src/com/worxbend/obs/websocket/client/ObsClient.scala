@@ -22,16 +22,18 @@ object ObsClient:
     * `ObsError`.
     */
   def withTransport[A](
-      transport: ObsTransport,
-      config: ObsConfig = ObsConfig(),
-      dependencies: SessionDependencies = SessionDependencies.live
+    transport:    ObsTransport,
+    config:       ObsConfig = ObsConfig(),
+    dependencies: SessionDependencies = SessionDependencies.live,
   )(use: ObsSession => A): Either[ObsError, A] =
     supervised:
       try
         for
-          valid <- config.validate
+          valid    <- config.validate
           password <- valid.passwordProvider.password()
-          result <- run(transport, valid, password, dependencies)(use)
+          result   <- run(transport = transport, config = valid, password = password, dependencies = dependencies)(use =
+                      use
+                    )
         yield result
       // Ordinary cleanup defects must not mask the result, but interruption and fatal errors still propagate.
       finally
@@ -39,71 +41,94 @@ object ObsClient:
         catch case NonFatal(_) => ()
 
   private def run[A](
-      transport: ObsTransport,
-      config: ObsConfig,
-      password: Option[String],
-      dependencies: SessionDependencies
+    transport:    ObsTransport,
+    config:       ObsConfig,
+    password:     Option[String],
+    dependencies: SessionDependencies,
   )(use: ObsSession => A)(using Ox): Either[ObsError, A] =
-    val outgoing = Channel.buffered[WireMessage](config.outgoingCapacity)
-    val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+    val outgoing         = Channel.buffered[WireMessage](config.outgoingCapacity)
+    val identified       = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
     given BufferCapacity = mailboxCapacity
-    val logic = Actor.create(new SessionLogic(config, password, outgoing, identified))
+    val logic            = Actor.create(
+      new SessionLogic(config = config, authenticationPassword = password, outgoing = outgoing, identified = identified)
+    )
     forkDiscard:
       try
         var running = true
         while running do
           outgoing.receiveOrClosed() match
             case message: WireMessage =>
-              if logic.ask(_.canSend(message)) then
-                val encoded = Protocol.encode(message)
-                transport.send(encoded) match
+              if logic.ask(_.canSend(message = message)) then
+                val encoded = Protocol.encode(message = message)
+                transport.send(text = encoded) match
                   case Left(error: ObsError.MessageTooLarge) =>
                     // Deterministic local rejection: nothing reached the socket, so only the
                     // offending request or batch fails and the session keeps running.
-                    logic.ask(_.sendRejected(message, error))
+                    logic.ask(_.sendRejected(message = message, error = error))
                   case Left(error) =>
-                    logic.ask(_.fail(error))
+                    logic.ask(_.fail(error = error))
                     running = false
-                  case Right(_) => logic.ask(_.traffic(TrafficDirection.Sent, Utf8.encodedLength(encoded).toInt))
+                  case Right(_) =>
+                    logic.ask(
+                      _.traffic(direction = TrafficDirection.Sent, bytes = Utf8.encodedLength(text = encoded).toInt)
+                    )
             case _: ChannelClosed => running = false
       catch
         // A defect here is a client bug, not a retryable transport fault; keep the cause for diagnosis.
         case NonFatal(cause) =>
-          logic.ask(_.fail(ObsError.InternalError(s"Transport send defect: ${Defect.describe(cause)}")))
+          logic.ask(
+            _.fail(error =
+              ObsError.InternalError(message = s"Transport send defect: ${Defect.describe(cause = cause)}")
+            )
+          )
     forkDiscard:
       try
         var running = true
         while running do
           transport.receive() match
             case Left(error) =>
-              logic.ask(_.transportFailed(error))
+              logic.ask(_.transportFailed(error = error))
               running = false
             case Right(text) =>
               // One actor round-trip per frame: byte accounting rides along with the decode outcome.
               running = logic.ask(
                 _.received(
-                  Utf8.encodedLength(text).toInt,
-                  Protocol.decode(text, config.maxMessageBytes).left.map(SessionWire.malformed)
+                  bytes   = Utf8.encodedLength(text = text).toInt,
+                  decoded =
+                    Protocol.decode(text = text, maxBytes = config.maxMessageBytes).left.map(SessionWire.malformed),
                 )
               )
       catch
         case NonFatal(cause) =>
-          logic.ask(_.fail(ObsError.InternalError(s"Transport receive defect: ${Defect.describe(cause)}")))
+          logic.ask(
+            _.fail(error =
+              ObsError.InternalError(message = s"Transport receive defect: ${Defect.describe(cause = cause)}")
+            )
+          )
     try
       timeoutOption(config.handshakeTimeout)(identified.receive())
-        .getOrElse(Left(ObsError.Timeout("handshake")))
+        .getOrElse(Left(ObsError.Timeout(operation = "handshake")))
         .flatMap: initial =>
-          val provisional = new ObsSession(initial, config, dependencies, logic)
+          val provisional =
+            new ObsSession(metadata = initial, config = config, dependencies = dependencies, logic = logic)
           provisional.discoverVersion
             .flatMap: version =>
               version
-                .array("availableRequests")
+                .array(name = "availableRequests")
                 .left
                 .map(SessionWire.malformed)
                 .flatMap: values =>
                   values.foldLeft[Either[ObsError, Set[String]]](Right(Set.empty)):
                     case (acc, JsonValue.Str(value)) => acc.map(_ + value)
-                    case (_, _) => Left(ObsError.MalformedPayload("availableRequests", "Expected request names"))
+                    case (_, _)                      =>
+                      Left(ObsError.MalformedPayload(path = "availableRequests", message = "Expected request names"))
                 .map: available =>
-                  use(new ObsSession(initial.copy(availableRequests = available), config, dependencies, logic))
+                  use(
+                    new ObsSession(
+                      metadata     = initial.copy(availableRequests = available),
+                      config       = config,
+                      dependencies = dependencies,
+                      logic        = logic,
+                    )
+                  )
     finally uninterruptible(logic.ask(_.close()).catching[ChannelClosedException].discard)

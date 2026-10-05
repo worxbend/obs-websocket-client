@@ -16,8 +16,9 @@ private[codegen] object EventDispatchTemplate:
 
   /** Renders the complete event dispatch file. */
   def render(context: Context): String =
-    val cases = context.names.map(name => s"    case ${quote(name)} => events.$name.decode(data)").mkString("\n")
-    val fileHeader = header(base, context.provenance, withImport = false)
+    val cases =
+      context.names.map(name => s"    case ${quote(value = name)} => events.$name.decode(data)").mkString("\n")
+    val fileHeader = header(pkg = base, provenance = context.provenance, withImport = false)
     s"""$fileHeader/** Typed OBS event with its decoded payload. */
        |trait Event:
        |  def eventType: String

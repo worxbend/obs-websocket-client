@@ -7,4 +7,4 @@ package com.worxbend.obs.websocket.client.codegen.schema
   *   `response`, or `event`. These mark acceptance of explicit JSON null, independently of whether a key may be
   *   omitted. Normalization rejects unmatched keys so misspelled overrides cannot silently change the contract.
   */
-private[codegen] final case class Overrides(nullableFields: List[String] = Nil)
+final private[codegen] case class Overrides(nullableFields: List[String] = Nil)

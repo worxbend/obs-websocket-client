@@ -18,24 +18,40 @@ private[codegen] object RequestTemplate:
 
   /** Renders a newline-terminated Scala file from an already-normalized request. */
   def render(context: Context): String =
-    val request = context.request
-    val name = request.name
-    val fields = request.requestFields
+    val request        = context.request
+    val name           = request.name
+    val fields         = request.requestFields
     val responseFields = request.responseFields
-    val provenance = context.provenance
-    val requestDoc = documentation(request.documentation, name, provenance, fields)
-    val decoderDoc = seeDoc(s"JSON decoder for [[$name]] requests.", name, name, provenance)
-    val responseDoc = seeDoc(s"Response payload for [[$name]].", s"${name}Response", name, provenance, responseFields)
-    val responseDecoderDoc = seeDoc(s"JSON decoder for [[${name}Response]].", s"${name}Response", name, provenance)
-    val fileHeader = header(s"$base.requests", provenance, withImport = true)
-    val requestParameters = parameters(fields)
-    val responseParameters = parameters(responseFields)
-    val requestType = quote(name)
-    val requestEncoder = encode(fields)
-    val responseEncoder = encode(responseFields)
-    val requiredArguments = minimalArguments(fields)
-    val requestDecoder = decode(name, fields)
-    val responseDecoder = decode(s"${name}Response", responseFields)
+    val provenance     = context.provenance
+    val requestDoc = documentation(doc = request.documentation, name = name, provenance = provenance, fields = fields)
+    val decoderDoc = seeDoc(
+      summary      = s"JSON decoder for [[$name]] requests.",
+      name         = name,
+      anchorTarget = name,
+      provenance   = provenance,
+    )
+    val responseDoc = seeDoc(
+      summary      = s"Response payload for [[$name]].",
+      name         = s"${name}Response",
+      anchorTarget = name,
+      provenance   = provenance,
+      fields       = responseFields,
+    )
+    val responseDecoderDoc = seeDoc(
+      summary      = s"JSON decoder for [[${name}Response]].",
+      name         = s"${name}Response",
+      anchorTarget = name,
+      provenance   = provenance,
+    )
+    val fileHeader         = header(pkg = s"$base.requests", provenance = provenance, withImport = true)
+    val requestParameters  = parameters(fields = fields)
+    val responseParameters = parameters(fields = responseFields)
+    val requestType        = quote(value = name)
+    val requestEncoder     = encode(fields = fields)
+    val responseEncoder    = encode(fields = responseFields)
+    val requiredArguments  = minimalArguments(fields = fields)
+    val requestDecoder     = decode(name = name, fields = fields)
+    val responseDecoder    = decode(name = s"${name}Response", fields = responseFields)
     s"""$fileHeader${requestDoc}final case class $name($requestParameters) extends Request[${name}Response]:
        |  def requestType: String = $requestType
        |  def requestData: JsonObject = $requestEncoder

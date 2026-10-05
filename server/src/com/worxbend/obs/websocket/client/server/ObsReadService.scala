@@ -15,7 +15,7 @@ private[server] object ObsReadService:
       // per-stage timeouts let an unauthenticated caller hold a sync-server thread.
       timeoutOption(config.requestTimeout):
         SttpObsClient
-          .connect(config)(_.request(GetVersion()))
+          .connect(config = config)(use = _.request(request = GetVersion()))
           .flatten
-          .map(response => VersionInformation(response.obsVersion, response.obsWebSocketVersion))
-      .getOrElse(Left(ObsError.Timeout("version")))
+          .map(response => VersionInformation(obs = response.obsVersion, websocket = response.obsWebSocketVersion))
+      .getOrElse(Left(ObsError.Timeout(operation = "version")))

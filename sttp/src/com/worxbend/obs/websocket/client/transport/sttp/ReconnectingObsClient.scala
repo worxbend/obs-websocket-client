@@ -11,84 +11,97 @@ import scala.util.control.NonFatal
   */
 object ReconnectingObsClient:
   def run[A](
-      config: ObsConfig,
-      policy: ReconnectPolicy,
-      timing: ReconnectTiming = ReconnectTiming.live,
-      onNotice: ReconnectNotice => Unit = _ => (),
-      options: SttpOptions = SttpOptions(),
-      clientOptions: JdkClientOptions = JdkClientOptions()
+    config:        ObsConfig,
+    policy:        ReconnectPolicy,
+    timing:        ReconnectTiming = ReconnectTiming.live,
+    onNotice:      ReconnectNotice => Unit = _ => (),
+    options:       SttpOptions = SttpOptions(),
+    clientOptions: JdkClientOptions = JdkClientOptions(),
   )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
     options.validate.flatMap: validOptions =>
       val connector = new ReconnectConnector:
         def connect[B](attemptConfig: ObsConfig)(consume: ObsSession => B): Either[ObsError, B] =
-          SttpObsClient.connect(attemptConfig, validOptions, clientOptions)(consume)
-      withConnector(connector, config, policy, timing, onNotice)(use)
+          SttpObsClient.connect(config = attemptConfig, options = validOptions, clientOptions = clientOptions)(use =
+            consume
+          )
+      withConnector(connector = connector, config = config, policy = policy, timing = timing, onNotice = onNotice)(use =
+        use
+      )
 
   def withConnector[A](
-      connector: ReconnectConnector,
-      config: ObsConfig,
-      policy: ReconnectPolicy,
-      timing: ReconnectTiming,
-      onNotice: ReconnectNotice => Unit
+    connector: ReconnectConnector,
+    config:    ObsConfig,
+    policy:    ReconnectPolicy,
+    timing:    ReconnectTiming,
+    onNotice:  ReconnectNotice => Unit,
   )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
     config.validate.flatMap: valid =>
       try
         @tailrec
         def loop(state: State): Either[ObsError, A] =
-          val generation = ConnectionGeneration(state.generations + 1L)
-          val attempt = connector.connect(state.config): session =>
+          val generation = ConnectionGeneration(value = state.generations + 1L)
+          val attempt    = connector.connect(config = state.config): session =>
             state.previous match
-              case None           => notify(onNotice, ReconnectNotice.Connected(generation))
-              case Some(previous) => notify(onNotice, ReconnectNotice.Reconnected(generation, previous))
+              case None => notify(onNotice = onNotice, notice = ReconnectNotice.Connected(generation = generation))
+              case Some(previous) =>
+                notify(
+                  onNotice = onNotice,
+                  notice   = ReconnectNotice.Reconnected(generation = generation, previous = previous),
+                )
             use(generation, session)
           val step = attempt match
-            case Left(error)                                    => retry(error, state, policy, timing, onNotice, None)
-            case Right(ReconnectDecision.Complete(value))       => Step.Done(Right(value))
-            case Right(ReconnectDecision.Stop(error))           => Step.Done(Left(error))
+            case Left(error) =>
+              retry(error = error, state = state, policy = policy, timing = timing, onNotice = onNotice, gap = None)
+            case Right(ReconnectDecision.Complete(value))       => Step.Done(result = Right(value))
+            case Right(ReconnectDecision.Stop(error))           => Step.Done(result = Left(error))
             case Right(ReconnectDecision.Retry(error, desired)) =>
               // The use callback completed, so the connection was healthy: restart both the retry budget and the
               // delay progression. Only attempts that never reached the callback consume the cumulative budget.
               retry(
-                error,
-                state.copy(
-                  config = state.config.copy(eventSubscriptions = desired),
-                  retries = 0,
-                  previous = Some(generation)
+                error = error,
+                state = state.copy(
+                  config   = state.config.copy(eventSubscriptions = desired),
+                  retries  = 0,
+                  previous = Some(generation),
                 ),
-                policy,
-                timing,
-                onNotice,
-                Some(ReconnectNotice.EventGap(generation, error))
+                policy   = policy,
+                timing   = timing,
+                onNotice = onNotice,
+                gap      = Some(ReconnectNotice.EventGap(generation = generation, cause = error)),
               )
           step match
             case Step.Done(value) => value
-            case Step.Again(next) => loop(next)
-        loop(State(valid, 0, None, 0L))
+            case Step.Again(next) => loop(state = next)
+        loop(state = State(config = valid, retries = 0, previous = None, generations = 0L))
       catch
         case NoticeFailure(cause) =>
-          Left(ObsError.InternalError(s"Reconnect notice callback failed: ${cause.getMessage}"))
+          Left(ObsError.InternalError(message = s"Reconnect notice callback failed: ${cause.getMessage}"))
 
   /** The event gap notice is emitted only once a retry is certain, immediately before its `RetryScheduled`, so a gap is
     * never reported without a following retry.
     */
   private def retry(
-      error: ObsError,
-      state: State,
-      policy: ReconnectPolicy,
-      timing: ReconnectTiming,
-      onNotice: ReconnectNotice => Unit,
-      gap: Option[ReconnectNotice.EventGap]
+    error:    ObsError,
+    state:    State,
+    policy:   ReconnectPolicy,
+    timing:   ReconnectTiming,
+    onNotice: ReconnectNotice => Unit,
+    gap:      Option[ReconnectNotice.EventGap],
   ): Step[Nothing] =
-    if state.retries >= policy.maxRetries || !ReconnectPolicy.retryable(error) then Step.Done(Left(error))
+    if state.retries >= policy.maxRetries || !ReconnectPolicy.retryable(error = error) then
+      Step.Done(result = Left(error))
     else
-      policy.delay(state.retries, timing.nextJitter()) match
-        case Left(invalid) => Step.Done(Left(invalid))
+      policy.delay(retry = state.retries, sample = timing.nextJitter()) match
+        case Left(invalid) => Step.Done(result = Left(invalid))
         case Right(delay)  =>
           val next = state.copy(retries = state.retries + 1, generations = state.generations + 1L)
-          gap.foreach(notify(onNotice, _))
-          notify(onNotice, ReconnectNotice.RetryScheduled(next.retries, delay, error))
+          gap.foreach(notify(onNotice = onNotice, _))
+          notify(
+            onNotice = onNotice,
+            notice   = ReconnectNotice.RetryScheduled(retryNumber = next.retries, delay = delay, cause = error),
+          )
           timing.sleep(delay)
-          Step.Again(next)
+          Step.Again(state = next)
 
   /** Notice callback failures must not escape the `Either` contract as raw throws, so they are wrapped and surfaced as
     * `ObsError.InternalError`. Interruption propagates untouched — `NonFatal` already excludes it — so cancellation
@@ -96,15 +109,15 @@ object ReconnectingObsClient:
     */
   private def notify(onNotice: ReconnectNotice => Unit, notice: ReconnectNotice): Unit =
     try onNotice(notice)
-    catch case NonFatal(cause) => throw NoticeFailure(cause)
+    catch case NonFatal(cause) => throw NoticeFailure(cause = cause)
 
-  private final case class NoticeFailure(cause: Throwable) extends RuntimeException(cause)
+  final private case class NoticeFailure(cause: Throwable) extends RuntimeException(cause)
 
-  private final case class State(
-      config: ObsConfig,
-      retries: Int,
-      previous: Option[ConnectionGeneration],
-      generations: Long
+  final private case class State(
+    config:      ObsConfig,
+    retries:     Int,
+    previous:    Option[ConnectionGeneration],
+    generations: Long,
   )
   private enum Step[+A]:
     case Done(result: Either[ObsError, A])

@@ -21,4 +21,4 @@ private[codegen] object InventoryTemplate:
        |""".stripMargin
 
   private def renderRow(entry: InventoryEntry): String =
-    s"${entry.kind}\t${entry.name}\t${entry.initialVersion}\tgenerated; live OBS verification deferred\t${collapse(entry.restrictions)}"
+    s"${entry.kind}\t${entry.name}\t${entry.initialVersion}\tgenerated; live OBS verification deferred\t${collapse(description = entry.restrictions)}"

@@ -26,82 +26,117 @@ private[codegen] object SchemaNormalizer:
     *   if names collide, overrides do not match, or field/enum semantics are unsupported
     */
   def normalize(schema: Schema, overrides: Overrides): NormalizedSchema =
-    validateSchema(schema, overrides)
-    val nullable = overrides.nullableFields.toSet
-    val requests = schema.requests.sortBy(_.requestType).map(normalizeRequest(_, nullable))
-    val events = schema.events.sortBy(_.eventType).map(normalizeEvent(_, nullable))
-    val enums = schema.enums.sortBy(_.enumType).map(normalizeEnum)
-    val categories = normalizeCategories(requests)
-    NormalizedSchema(requests, events, enums, categories, inventoryEntries(schema))
+    validateSchema(schema = schema, overrides = overrides)
+    val nullable   = overrides.nullableFields.toSet
+    val requests   = schema.requests.sortBy(_.requestType).map(normalizeRequest(_, nullable = nullable))
+    val events     = schema.events.sortBy(_.eventType).map(normalizeEvent(_, nullable = nullable))
+    val enums      = schema.enums.sortBy(_.enumType).map(normalizeEnum)
+    val categories = normalizeCategories(requests = requests)
+    NormalizedSchema(
+      requests   = requests,
+      events     = events,
+      enums      = enums,
+      categories = categories,
+      inventory  = inventoryEntries(schema = schema),
+    )
 
   private def validateSchema(schema: Schema, overrides: Overrides): Unit =
-    rejectDuplicates("request", schema.requests.map(_.requestType))
-    rejectDuplicates("event", schema.events.map(_.eventType))
-    rejectDuplicates("enum", schema.enums.map(_.enumType))
+    rejectDuplicates(kind = "request", names = schema.requests.map(_.requestType))
+    rejectDuplicates(kind = "event", names   = schema.events.map(_.eventType))
+    rejectDuplicates(kind = "enum", names    = schema.enums.map(_.enumType))
     // Field names are checked after the payload rename so a schema field literally named
     // `payloadRequestType` collides loudly with a renamed `requestType` sibling instead of
     // silently emitting two identically named constructor parameters.
     schema.requests.foreach: request =>
-      rejectDuplicates(s"field of ${request.requestType}.request", request.requestFields.map(f => renamed(f.valueName)))
       rejectDuplicates(
-        s"field of ${request.requestType}.response",
-        request.responseFields.map(f => renamed(f.valueName))
+        kind  = s"field of ${request.requestType}.request",
+        names = request.requestFields.map(f => renamed(name = f.valueName)),
+      )
+      rejectDuplicates(
+        kind  = s"field of ${request.requestType}.response",
+        names = request.responseFields.map(f => renamed(name = f.valueName)),
       )
     schema.events.foreach(event =>
-      rejectDuplicates(s"field of ${event.eventType}.event", event.dataFields.map(f => renamed(f.valueName)))
+      rejectDuplicates(
+        kind  = s"field of ${event.eventType}.event",
+        names = event.dataFields.map(f => renamed(name = f.valueName)),
+      )
     )
     schema.enums.foreach(enumeration =>
-      rejectDuplicates(s"identifier of enum ${enumeration.enumType}", enumeration.enumIdentifiers.map(_.enumIdentifier))
+      rejectDuplicates(
+        kind  = s"identifier of enum ${enumeration.enumType}",
+        names = enumeration.enumIdentifiers.map(_.enumIdentifier),
+      )
     )
-    rejectResponseNameCollisions(schema.requests.map(_.requestType))
-    rejectUnmatchedOverrides(schema, overrides)
+    rejectResponseNameCollisions(names = schema.requests.map(_.requestType))
+    rejectUnmatchedOverrides(schema    = schema, overrides = overrides)
 
   private def normalizeRequest(request: SchemaRequest, nullable: Set[String]): RequestDefinition =
     RequestDefinition(
-      request.requestType,
-      normalizeFields(request.requestType, "request", request.requestFields, nullable),
-      normalizeFields(request.requestType, "response", request.responseFields, nullable),
-      Documentation(request.description, request.initialVersion, request.rpcVersion, request.deprecated),
-      request.category,
-      s"${request.requestType.head.toLower}${request.requestType.tail}"
+      name          = request.requestType,
+      requestFields = normalizeFields(
+        owner    = request.requestType,
+        kind     = "request",
+        fields   = request.requestFields,
+        nullable = nullable,
+      ),
+      responseFields = normalizeFields(
+        owner    = request.requestType,
+        kind     = "response",
+        fields   = request.responseFields,
+        nullable = nullable,
+      ),
+      documentation = Documentation(
+        summary        = request.description,
+        initialVersion = request.initialVersion,
+        rpcVersion     = request.rpcVersion,
+        deprecated     = request.deprecated,
+      ),
+      category   = request.category,
+      methodName = s"${request.requestType.head.toLower}${request.requestType.tail}",
     )
 
   private def normalizeEvent(event: SchemaEvent, nullable: Set[String]): EventDefinition =
     EventDefinition(
-      event.eventType,
-      normalizeFields(event.eventType, "event", event.dataFields, nullable),
-      Documentation(event.description, event.initialVersion, event.rpcVersion, event.deprecated)
+      name   = event.eventType,
+      fields = normalizeFields(owner = event.eventType, kind = "event", fields = event.dataFields, nullable = nullable),
+      documentation = Documentation(
+        summary        = event.description,
+        initialVersion = event.initialVersion,
+        rpcVersion     = event.rpcVersion,
+        deprecated     = event.deprecated,
+      ),
     )
 
   private def normalizeCategories(requests: List[RequestDefinition]): List[RequestCategory] =
     val groups = requests.groupBy(_.category).toList.sortBy(_._1)
     groups.foreach: (category, _) =>
-      validateIdentifier("RequestApi", "category", categoryName(category))
-    rejectDuplicates("category", groups.map((category, _) => categoryName(category)))
+      validateIdentifier(owner = "RequestApi", kind = "category", name = categoryName(category = category))
+    rejectDuplicates(kind = "category", names = groups.map((category, _) => categoryName(category = category)))
     groups.map: (category, members) =>
-      val name = categoryName(category)
-      RequestCategory(name, s"${name.head.toUpper}${name.tail}Api", members)
+      val name = categoryName(category = category)
+      RequestCategory(name = name, className = s"${name.head.toUpper}${name.tail}Api", requests = members)
 
   private def categoryName(category: String): String =
     val words = category.split(" ").toList
-    val name = s"${words.head}${words.tail.map(_.capitalize).mkString}"
+    val name  = s"${words.head}${words.tail.map(_.capitalize).mkString}"
     // Preserve the documented full-word facade for the upstream abbreviated category.
     if name == "config" then "configuration" else name
 
   private def inventoryEntries(schema: Schema): List[InventoryEntry] =
     schema.requests.map: request =>
       InventoryEntry(
-        "request",
-        request.requestType,
-        request.initialVersion,
-        request.requestFields.flatMap(_.valueRestrictions).mkString("; ")
+        kind           = "request",
+        name           = request.requestType,
+        initialVersion = request.initialVersion,
+        restrictions   = request.requestFields.flatMap(_.valueRestrictions).mkString("; "),
       )
     ++ schema.events.map: event =>
       InventoryEntry(
-        "event",
-        event.eventType,
-        event.initialVersion,
-        event.dataFields.flatMap(_.valueRestrictions).mkString("; ")
+        kind           = "event",
+        name           = event.eventType,
+        initialVersion = event.initialVersion,
+        restrictions   = event.dataFields.flatMap(_.valueRestrictions).mkString("; "),
       )
 
   private def rejectDuplicates(kind: String, names: List[String]): Unit =
@@ -111,7 +146,7 @@ private[codegen] object SchemaNormalizer:
 
   /** A request named `${other}Response` would emit a case class colliding with the response class of `other`. */
   private def rejectResponseNameCollisions(names: List[String]): Unit =
-    val present = names.toSet
+    val present   = names.toSet
     val colliding = names.filter(name => present.contains(name + "Response")).distinct.sorted
     if colliding.nonEmpty then
       throw new IllegalArgumentException(
@@ -135,45 +170,53 @@ private[codegen] object SchemaNormalizer:
     * normalization and placeholder selection read the single [[typeMappings]] table, so a newly supported schema type
     * cannot compile while its placeholder is still missing (previously two parallel maps drifted apart).
     */
-  private final case class TypeMapping(scalaType: String, codec: String, placeholder: String)
+  final private case class TypeMapping(scalaType: String, codec: String, placeholder: String)
 
   private val typeMappings = Map(
-    "String" -> TypeMapping("String", "ValueCodec.string", "\"\""),
-    "Number" -> TypeMapping("BigDecimal", "ValueCodec.number", "BigDecimal(0)"),
-    "Boolean" -> TypeMapping("Boolean", "ValueCodec.boolean", "false"),
-    "Object" -> TypeMapping("JsonObject", "ValueCodec.obj", "JsonObject.empty"),
-    "Any" -> TypeMapping("JsonValue", "ValueCodec.json", "JsonValue.Null"),
-    "Array<Object>" -> TypeMapping("Vector[JsonObject]", "ValueCodec.array(ValueCodec.obj)", "Vector.empty"),
-    "Array<String>" -> TypeMapping("Vector[String]", "ValueCodec.array(ValueCodec.string)", "Vector.empty")
+    "String"  -> TypeMapping(scalaType = "String", codec = "ValueCodec.string", placeholder = "\"\""),
+    "Number"  -> TypeMapping(scalaType = "BigDecimal", codec = "ValueCodec.number", placeholder = "BigDecimal(0)"),
+    "Boolean" -> TypeMapping(scalaType = "Boolean", codec = "ValueCodec.boolean", placeholder = "false"),
+    "Object"  -> TypeMapping(scalaType = "JsonObject", codec = "ValueCodec.obj", placeholder = "JsonObject.empty"),
+    "Any"     -> TypeMapping(scalaType = "JsonValue", codec = "ValueCodec.json", placeholder = "JsonValue.Null"),
+    "Array<Object>" -> TypeMapping(
+      scalaType   = "Vector[JsonObject]",
+      codec       = "ValueCodec.array(ValueCodec.obj)",
+      placeholder = "Vector.empty",
+    ),
+    "Array<String>" -> TypeMapping(
+      scalaType   = "Vector[String]",
+      codec       = "ValueCodec.array(ValueCodec.string)",
+      placeholder = "Vector.empty",
+    ),
   )
 
   private def normalizeFields(
-      owner: String,
-      kind: String,
-      fields: List[SchemaField],
-      nullable: Set[String]
+    owner:    String,
+    kind:     String,
+    fields:   List[SchemaField],
+    nullable: Set[String],
   ): List[Field] =
     fields.map: field =>
-      validateIdentifier(owner, kind, field.valueName)
+      validateIdentifier(owner = owner, kind = kind, name = field.valueName)
       val mapping = typeMappings.getOrElse(
         field.valueType,
         throw new IllegalArgumentException(
           s"Unsupported schema type: ${field.valueType} at $owner.$kind.${field.valueName}"
-        )
+        ),
       )
       Field(
-        field.valueName,
-        renamed(field.valueName),
-        mapping.scalaType,
-        mapping.codec,
-        field.valueOptional,
-        nullable.contains(s"$owner.$kind.${field.valueName}"),
-        List(
+        name        = field.valueName,
+        identifier  = renamed(name = field.valueName),
+        scalaType   = mapping.scalaType,
+        codec       = mapping.codec,
+        optional    = field.valueOptional,
+        nullable    = nullable.contains(s"$owner.$kind.${field.valueName}"),
+        description = List(
           Some(field.valueDescription),
           field.valueRestrictions.map(value => s"Restrictions: $value"),
-          field.valueOptionalBehavior.map(value => s"When omitted: $value")
+          field.valueOptionalBehavior.map(value => s"When omitted: $value"),
         ).flatten.filter(_.nonEmpty).mkString(" "),
-        if nullable.contains(s"$owner.$kind.${field.valueName}") then "None" else mapping.placeholder
+        placeholder = if nullable.contains(s"$owner.$kind.${field.valueName}") then "None" else mapping.placeholder,
       )
 
   /** Field names that would shadow members the generator (or the case class itself) emits on every payload. */
@@ -222,7 +265,7 @@ private[codegen] object SchemaNormalizer:
   private def classify(name: String, values: List[String]): EnumKind =
     if values.exists(_.isEmpty) then
       throw new IllegalArgumentException(s"Enum $name has an empty enum value (JSON null in the schema)")
-    val stringy = values.filter(value => !isNumeric(value) && !isBitmask(value))
+    val stringy = values.filter(value => !isNumeric(value = value) && !isBitmask(value = value))
     if stringy.isEmpty then EnumKind.Long
     else if stringy.sizeIs == values.size then EnumKind.Str
     else
@@ -231,16 +274,21 @@ private[codegen] object SchemaNormalizer:
       )
 
   private def normalizeEnum(enumeration: SchemaEnum): EnumDefinition =
-    val name = enumeration.enumType
-    val siblings = enumeration.enumIdentifiers.map(_.enumIdentifier).toSet
-    val kind = classify(name, enumeration.enumIdentifiers.map(_.enumValue.value))
+    val name      = enumeration.enumType
+    val siblings  = enumeration.enumIdentifiers.map(_.enumIdentifier).toSet
+    val kind      = classify(name = name, values = enumeration.enumIdentifiers.map(_.enumValue.value))
     val scalaType = kind match
       case EnumKind.Str  => "String"
       case EnumKind.Long => "Long"
     val constants = enumeration.enumIdentifiers.map: entry =>
-      val raw = entry.enumValue.value
+      val raw        = entry.enumValue.value
       val expression = kind match
-        case EnumKind.Str  => ScalaLiteral.quote(raw)
-        case EnumKind.Long => if raw.startsWith("(") then rewriteMask(name, raw, siblings) else raw
-      EnumDefinition.Constant(entry.enumIdentifier, expression, entry.description)
-    EnumDefinition(name, scalaType, constants)
+        case EnumKind.Str  => ScalaLiteral.quote(value = raw)
+        case EnumKind.Long =>
+          if raw.startsWith("(") then rewriteMask(name = name, raw = raw, siblings = siblings) else raw
+      EnumDefinition.Constant(
+        identifier  = entry.enumIdentifier,
+        expression  = expression,
+        description = entry.description,
+      )
+    EnumDefinition(name = name, scalaType = scalaType, constants = constants)

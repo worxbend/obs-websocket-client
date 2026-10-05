@@ -33,7 +33,7 @@ class JsonValueBench:
     bytes = document.getBytes(UTF_8)
     // Sanity check: both codecs must decode and re-render to identical output before any timing happens.
     val current = writeToString(readFromArray[JsonValue](bytes))
-    val legacy = writeToString(readFromArray[LegacyJsonValue](bytes))
+    val legacy  = writeToString(readFromArray[LegacyJsonValue](bytes))
     require(current == legacy, s"round-trip output disagreement on $size document")
 
   @Benchmark
@@ -50,64 +50,66 @@ private object JsonValueBench:
 
   private def leafObject(id: Int): String =
     fields(
-      Seq(
-        "sceneItemId" -> id.toString,
+      entries = Seq(
+        "sceneItemId"      -> id.toString,
         "sceneItemEnabled" -> (id % 2 == 0).toString,
-        "sourceName" -> s""""capture-$id"""",
-        "transform" -> fields(Seq("x" -> (id * 3).toString, "y" -> (id * 7).toString, "scale" -> "1.5")),
-        "tags" -> (0 until 4).map(tag => s""""t${id}-$tag"""").mkString("[", ",", "]")
+        "sourceName"       -> s""""capture-$id"""",
+        "transform" -> fields(entries = Seq("x" -> (id * 3).toString, "y" -> (id * 7).toString, "scale" -> "1.5")),
+        "tags"      -> (0 until 4).map(tag => s""""t${id}-$tag"""").mkString("[", ",", "]"),
       )
     )
 
   /** ~0.7 KB flat object with a short array. */
   val smallDocument: String =
     fields(
-      Seq(
-        "op" -> "5",
-        "eventType" -> """"SceneItemEnableStateChanged"""",
-        "sceneName" -> """"main"""",
-        "items" -> (1 to 4).map(leafObject).mkString("[", ",", "]"),
+      entries = Seq(
+        "op"         -> "5",
+        "eventType"  -> """"SceneItemEnableStateChanged"""",
+        "sceneName"  -> """"main"""",
+        "items"      -> (1 to 4).map(leafObject).mkString("[", ",", "]"),
         "rpcVersion" -> "1",
-        "negotiated" -> "true"
+        "negotiated" -> "true",
       )
     )
 
   /** ~4 KB: nested objects and arrays of numbers/strings. */
   val mediumDocument: String =
     fields(
-      Seq(
-        "op" -> "5",
+      entries = Seq(
+        "op"        -> "5",
         "eventData" -> fields(
-          Seq(
+          entries = Seq(
             "sceneItems" -> (1 to 16).map(leafObject).mkString("[", ",", "]"),
-            "stats" -> fields(
-              Seq(
-                "cpu" -> "12.5",
-                "memory" -> "2048.75",
-                "fps" -> "59.94",
-                "dropped" -> "0"
+            "stats"      -> fields(
+              entries = Seq(
+                "cpu"     -> "12.5",
+                "memory"  -> "2048.75",
+                "fps"     -> "59.94",
+                "dropped" -> "0",
               )
             ),
-            "history" -> (1 to 24).map(index => s"""{"index":$index,"label":"event-$index"}""").mkString("[", ",", "]")
+            "history" -> (1 to 24).map(index => s"""{"index":$index,"label":"event-$index"}""").mkString("[", ",", "]"),
           )
-        )
+        ),
       )
     )
 
   /** ~60 KB: wide arrays of nested objects, standing in for a large batched event. */
   val largeDocument: String =
     fields(
-      Seq(
-        "op" -> "5",
+      entries = Seq(
+        "op"    -> "5",
         "batch" -> fields(
-          Seq(
+          entries = Seq(
             "items" -> (1 to 24)
               .map(group =>
-                fields(Seq("group" -> group.toString, "entries" -> (1 to 32).map(leafObject).mkString("[", ",", "]")))
+                fields(entries =
+                  Seq("group" -> group.toString, "entries" -> (1 to 32).map(leafObject).mkString("[", ",", "]"))
+                )
               )
               .mkString("[", ",", "]"),
-            "checksum" -> """"0123456789abcdef0123456789abcdef""""
+            "checksum" -> """"0123456789abcdef0123456789abcdef"""",
           )
-        )
+        ),
       )
     )

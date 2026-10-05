@@ -40,7 +40,7 @@ object Main:
     val api = new RequestApi[String]:
       def request[A](value: Request[A]): Either[String, A] = Left(value.requestType)
     assert(api.general.getVersion() == Left("GetVersion"))
-    assert(SceneRef.byName("Camera").map(_.setProgram.requestType) == Right("SetCurrentProgramScene"))
+    assert(SceneRef.byName("Camera").map(_.setProgram().requestType) == Right("SetCurrentProgramScene"))
     assert(Screenshot.decode("data:image/png;base64,AQ==").map(_.bytes.size) == Right(1))
     assert(HandshakeHeaders.create(Vector("X-Client" -> "consumer-smoke")).isRight)
     assert(SttpObsClient.connect(ObsConfig(uri = "invalid"))(_ => ()).isLeft)

@@ -11,18 +11,18 @@ final class VolumeMultiplier private (val value: BigDecimal):
     * failing conversion at the top of its documented range.
     */
   def decibels: Either[ProtocolError, Decibels] =
-    if value == 0 then Left(ProtocolError("inputVolumeMul", "Silence has no finite decibel value"))
+    if value == 0 then Left(ProtocolError(path = "inputVolumeMul", message = "Silence has no finite decibel value"))
     else if value < BigDecimal("0.00001") then
-      Left(ProtocolError("inputVolumeMul", "Volume is below the supported decibel range"))
-    else Decibels(BigDecimal(math.min(20 * math.log10(value.toDouble), 26.0)))
+      Left(ProtocolError(path = "inputVolumeMul", message = "Volume is below the supported decibel range"))
+    else Decibels(value = BigDecimal(math.min(20 * math.log10(value.toDouble), 26.0)))
 
   def set(input: InputRef): SetInputVolume =
-    SetInputVolume(inputName = input.name, inputUuid = input.uuid, inputVolumeMul = Field.Value(value))
+    SetInputVolume(inputName = input.name, inputUuid = input.uuid, inputVolumeMul = Field.Value(value = value))
 
 object VolumeMultiplier:
   def apply(value: BigDecimal): Either[ProtocolError, VolumeMultiplier] =
-    if value < 0 || value > 20 then Left(ProtocolError("inputVolumeMul", "Must be between 0 and 20"))
-    else Right(new VolumeMultiplier(value))
+    if value < 0 || value > 20 then Left(ProtocolError(path = "inputVolumeMul", message = "Must be between 0 and 20"))
+    else Right(new VolumeMultiplier(value = value))
 
   private[workflows] def fromDecibels(value: Decibels): VolumeMultiplier =
-    new VolumeMultiplier(BigDecimal(math.pow(10, value.value.toDouble / 20)))
+    new VolumeMultiplier(value = BigDecimal(math.pow(10, value.value.toDouble / 20)))

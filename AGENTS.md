@@ -31,3 +31,11 @@ filesystem directory's misspelling or a different authenticated GitHub username.
 Keep planned functionality, measured test results, and published artifacts
 clearly distinguished in documentation. Coverage must reach 100% statements and
 branches under the measurement rules in `PLAN.md`; do not invent passing badges.
+
+Use named arguments for ordinary Scala method and constructor calls, including single-argument calls,
+when the parameter names are available. Preserve evaluation order. Run
+`./mill sourceStyle.namedArguments` to migrate supported calls, format the changed modules, then run
+`./mill sourceStyle.namedArguments --check` before committing. The rule uses SemanticDB; do not invent
+names for Java APIs or unresolved third-party signatures. Positional exceptions and the rule's
+scope are documented in `docs/contributing.md`. Keep action-named zero-argument methods such as
+`setProgram()` parenthesized; document request builders as builders rather than live mutations.

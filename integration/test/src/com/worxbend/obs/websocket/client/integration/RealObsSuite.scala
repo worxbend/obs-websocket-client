@@ -7,7 +7,7 @@ import com.worxbend.obs.websocket.client.protocol.requests.{
   CreateScene,
   GetInputList,
   RemoveScene,
-  SetCurrentProgramScene
+  SetCurrentProgramScene,
 }
 import com.worxbend.obs.websocket.client.protocol.Field
 import com.worxbend.obs.websocket.client.transport.sttp.SttpObsClient
@@ -19,18 +19,18 @@ class RealObsSuite extends FunSuite:
   private val disposableObsRequired: String = "Disposable OBS is required"
 
   private def disposableConfig(): ObsConfig =
-    val url = sys.env.get("OBS_WS_URL").filter(_.nonEmpty).getOrElse(fail("Explicit OBS_WS_URL is required"))
+    val url      = sys.env.get("OBS_WS_URL").filter(_.nonEmpty).getOrElse(fail("Explicit OBS_WS_URL is required"))
     val password =
       sys.env.get("OBS_WS_PASSWORD").filter(_.nonEmpty).getOrElse(fail("Nonempty OBS_WS_PASSWORD is required"))
-    ObsConfig(uri = url, passwordProvider = PasswordProvider.fixed(Some(password)))
+    ObsConfig(uri = url, passwordProvider = PasswordProvider.fixed(value = Some(password)))
 
   test("disposable real OBS rejects an incorrect password"):
     assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
     val configured = disposableConfig()
-    val config = configured.copy(passwordProvider =
-      PasswordProvider.fixed(Some("deliberately-wrong-" + java.util.UUID.randomUUID().toString))
+    val config     = configured.copy(passwordProvider =
+      PasswordProvider.fixed(value = Some("deliberately-wrong-" + java.util.UUID.randomUUID().toString))
     )
-    SttpObsClient.connect(config)(_ => ()) match
+    SttpObsClient.connect(config = config)(_ => ()) match
       case Left(ObsError.Authentication(_, Some(4009))) => ()
       case other => fail(s"Expected OBS authentication rejection with code 4009, received $other")
     println("Verified incorrect-password authentication rejection with close code 4009")
@@ -38,28 +38,28 @@ class RealObsSuite extends FunSuite:
   test("disposable real OBS authenticates and returns version and scenes"):
     assume(
       sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"),
-      "Set OBS_INTEGRATION_DISPOSABLE=true for an isolated test OBS"
+      "Set OBS_INTEGRATION_DISPOSABLE=true for an isolated test OBS",
     )
     val config = disposableConfig()
-    val result = SttpObsClient.connect(config): session =>
+    val result = SttpObsClient.connect(config = config): session =>
       for
-        version <- session.request(GetVersion())
-        scenes <- session.request(GetSceneList())
+        version <- session.request(request = GetVersion())
+        scenes  <- session.request(request = GetSceneList())
       yield (version.obsVersion, version.obsWebSocketVersion, scenes.scenes.size)
     val actual = result.flatten.fold(error => fail(s"OBS verification failed: $error"), identity)
     println(s"Verified read-only OBS ${actual._1}, WebSocket ${actual._2}, ${actual._3} scenes")
 
   test("disposable real OBS acknowledges subscription updates without disconnecting"):
     assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
-    val result = SttpObsClient.connect(disposableConfig()): session =>
+    val result = SttpObsClient.connect(config = disposableConfig()): session =>
       // Each request after a reidentify forces its uncorrelated Identified ack to arrive first (the server
       // processes frames in order), so a zero observed backlog proves the ack was actually received.
       for
-        _ <- session.reidentify(EventSubscriptions.none)
-        _ <- session.request(GetVersion())
-        firstBacklog <- session.pendingReidentifyAcks
-        _ <- session.reidentify(EventSubscriptions.normal)
-        version <- session.request(GetVersion())
+        _             <- session.reidentify(subscriptions = EventSubscriptions.none)
+        _             <- session.request(request = GetVersion())
+        firstBacklog  <- session.pendingReidentifyAcks
+        _             <- session.reidentify(subscriptions = EventSubscriptions.normal)
+        version       <- session.request(request = GetVersion())
         secondBacklog <- session.pendingReidentifyAcks
       yield (firstBacklog, secondBacklog, version.obsWebSocketVersion)
     val (firstBacklog, secondBacklog, _) =
@@ -72,21 +72,23 @@ class RealObsSuite extends FunSuite:
     assume(sys.env.get("OBS_INTEGRATION_DISPOSABLE").contains("true"), disposableObsRequired)
     assume(
       sys.env.get("OBS_INTEGRATION_SCENE_MUTATIONS").contains("true"),
-      "Only the isolated Docker smoke launcher enables temporary scene mutations"
+      "Only the isolated Docker smoke launcher enables temporary scene mutations",
     )
     val config = disposableConfig()
-    val result = SttpObsClient.connect(config): session =>
-      val before = session.request(GetSceneList()).fold(error => fail(s"Scene discovery failed: $error"), identity)
-      val inputs = session.request(GetInputList()).fold(error => fail(s"Input discovery failed: $error"), identity)
+    val result = SttpObsClient.connect(config = config): session =>
+      val before =
+        session.request(request = GetSceneList()).fold(error => fail(s"Scene discovery failed: $error"), identity)
+      val inputs =
+        session.request(request = GetInputList()).fold(error => fail(s"Input discovery failed: $error"), identity)
       assertEquals(before.scenes.size, 1, "Mutating test requires exactly one disposable default scene")
       assert(inputs.inputs.isEmpty, "Mutating test requires a source-free disposable collection")
-      val original = before.currentProgramSceneName.getOrElse(fail("Expected a current program scene"))
+      val original  = before.currentProgramSceneName.getOrElse(fail("Expected a current program scene"))
       val temporary = "obs-websocket-client-disposable-test"
       assertNotEquals(original, temporary)
-      assert(session.request(CreateScene(sceneName = temporary)).isRight)
+      assert(session.request(request = CreateScene(sceneName = temporary)).isRight)
       try
-        val observed = session.withEvents(Set("CurrentProgramSceneChanged")): events =>
-          assert(session.request(SetCurrentProgramScene(sceneName = Field.Value(temporary))).isRight)
+        val observed = session.withEvents(eventTypes = Set("CurrentProgramSceneChanged")): events =>
+          assert(session.request(request = SetCurrentProgramScene(sceneName = Field.Value(value = temporary))).isRight)
           val event = timeoutOption(config.requestTimeout)(events.next())
             .getOrElse(fail("Scene event deadline exceeded")) match
             case Next.Item(event)   => event
@@ -97,16 +99,20 @@ class RealObsSuite extends FunSuite:
               assertEquals(changed.sceneName, temporary)
             case other => fail(s"Expected typed scene event, received ${other.eventType}")
           val switched =
-            session.request(GetSceneList()).fold(error => fail(s"Scene verification failed: $error"), identity)
+            session
+              .request(request = GetSceneList())
+              .fold(error => fail(s"Scene verification failed: $error"), identity)
           assertEquals(switched.currentProgramSceneName, Some(temporary))
         assertEquals(observed, Right(()))
       finally
-        val restored = session.request(SetCurrentProgramScene(sceneName = Field.Value(original)))
-        val removed = session.request(RemoveScene(sceneName = Field.Value(temporary)))
+        val restored = session.request(request = SetCurrentProgramScene(sceneName = Field.Value(value = original)))
+        val removed  = session.request(request = RemoveScene(sceneName = Field.Value(value = temporary)))
         assert(restored.isRight, s"Disposable scene restoration failed: $restored")
         assert(removed.isRight, s"Disposable scene removal failed: $removed")
       val remaining =
-        session.request(GetSceneList()).fold(error => fail(s"Scene cleanup verification failed: $error"), identity)
+        session
+          .request(request = GetSceneList())
+          .fold(error => fail(s"Scene cleanup verification failed: $error"), identity)
       assertEquals(remaining.scenes.size, 1)
       println("Verified disposable scene creation, switching, event delivery, restoration and removal")
     assertEquals(result, Right(()))

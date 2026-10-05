@@ -16,26 +16,26 @@ private[codegen] object CatalogTemplate:
 
   /** Renders public request decoding and package-private response round-trip support. */
   def render(context: Context): String =
-    val names = context.names
-    val requestNames = names.map(quote).mkString(", ")
+    val names           = context.names
+    val requestNames    = names.map(quote).mkString(", ")
     val minimalRequests = names.map(name => s"requests.$name.minimal").mkString(", ")
-    val requests = dispatch(
-      "decodeRequest",
-      "Request[?]",
-      names,
-      "Right(RawRequest(name, data))",
-      name => s"requests.$name.decode(data)"
+    val requests        = dispatch(
+      method   = "decodeRequest",
+      result   = "Request[?]",
+      names    = names,
+      fallback = "Right(RawRequest(name, data))",
+      name => s"requests.$name.decode(data)",
     )
     // The response round-trip table is an internal catalog-validation aid, not published API.
     val responses = dispatch(
-      "roundTripResponse",
-      "JsonObject",
-      names,
-      "Right(data)",
+      method   = "roundTripResponse",
+      result   = "JsonObject",
+      names    = names,
+      fallback = "Right(data)",
       name => s"requests.${name}Response.decode(data).map(_.toJson)",
-      "private[protocol] "
+      visibility = "private[protocol] ",
     )
-    val fileHeader = header(base, context.provenance, withImport = false)
+    val fileHeader = header(pkg = base, provenance = context.provenance, withImport = false)
     s"""$fileHeader/** Generated catalog of the pinned request types with typed decoders and raw fallbacks. */
        |object Catalog:
        |  val requestNames: Vector[String] = Vector($requestNames)
@@ -44,18 +44,19 @@ private[codegen] object CatalogTemplate:
 
   /** Groups of 24 keep generated method bytecode below JVM class-file limits. Each helper ends with a newline. */
   private def dispatch(
-      method: String,
-      result: String,
-      names: List[String],
-      fallback: String,
-      call: String => String,
-      visibility: String = ""
+    method:     String,
+    result:     String,
+    names:      List[String],
+    fallback:   String,
+    call:       String => String,
+    visibility: String = "",
   ): String =
-    val groups = names.grouped(24).toList.zipWithIndex
+    val groups      = names.grouped(24).toList.zipWithIndex
     val decoderType = s"Map[String, JsonObject => Either[ProtocolError, $result]]"
-    val tables = if groups.isEmpty then "Map.empty" else groups.map((_, index) => s"$method$index").mkString(" ++ ")
+    val tables  = if groups.isEmpty then "Map.empty" else groups.map((_, index) => s"$method$index").mkString(" ++ ")
     val helpers = groups.map: (group, index) =>
-      val entries = group.map(name => s"    ${quote(name)} -> ((data: JsonObject) => ${call(name)})").mkString(",\n")
+      val entries =
+        group.map(name => s"    ${quote(value = name)} -> ((data: JsonObject) => ${call(name)})").mkString(",\n")
       s"""  private def $method$index: $decoderType = Map(
          |$entries
          |  )

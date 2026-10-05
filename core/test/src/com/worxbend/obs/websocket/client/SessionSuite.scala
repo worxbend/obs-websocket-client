@@ -8,11 +8,11 @@ import ox.channels.{Actor, Channel, ChannelClosed}
 import scala.concurrent.duration.*
 
 class SessionSuite extends FunSuite:
-  private val inFlightLimitResource: String = "in-flight requests"
-  private val closedWebSocketMessage: String = "WebSocket closed"
+  private val inFlightLimitResource: String     = "in-flight requests"
+  private val closedWebSocketMessage: String    = "WebSocket closed"
   private val interruptedRegistrationId: String = "interrupted-registration"
-  private val httpEndpoint: String = "http://localhost"
-  private val cleanupDefectMessage: String = "cleanup defect"
+  private val httpEndpoint: String              = "http://localhost"
+  private val cleanupDefectMessage: String      = "cleanup defect"
   private val unexpectedCallbackMessage: String = "Must not reach callback"
 
   private val empty = JsonObject.empty
@@ -21,11 +21,11 @@ class SessionSuite extends FunSuite:
   private val config = ObsConfig()
 
   private class Peer extends ObsTransport:
-    val inbound = Channel.buffered[Either[ObsError, String]](64)
-    val sent = Channel.buffered[WireMessage](64)
-    val closed = Channel.buffered[Unit](1)
+    val inbound                                    = Channel.buffered[Either[ObsError, String]](64)
+    val sent                                       = Channel.buffered[WireMessage](64)
+    val closed                                     = Channel.buffered[Unit](1)
     def send(text: String): Either[ObsError, Unit] =
-      Protocol.decode(text).left.map(SessionWire.malformed).map(sent.send)
+      Protocol.decode(text = text).left.map(SessionWire.malformed).map(sent.send)
     def receive(): Either[ObsError, String] = inbound.receiveOrClosed() match
       case Right(text: String)   => Right(text)
       case Left(error: ObsError) => Left(error)
@@ -33,58 +33,65 @@ class SessionSuite extends FunSuite:
     def close(): Unit =
       closed.trySendOrClosed(()).discard
       inbound.doneOrClosed().discard
-    def emit(op: Int, data: JsonObject): Unit = inbound.send(Right(Protocol.encode(WireMessage(op, data))))
+    def emit(op: Int, data: JsonObject): Unit =
+      inbound.send(Right(Protocol.encode(message = WireMessage(op = op, data = data))))
     def hello(auth: Option[JsonObject] = None, rpc: Int = 1): Unit =
       emit(
-        0,
-        JsonObject(
-          Map("obsWebSocketVersion" -> JsonValue.Str("5.6.3"), "rpcVersion" -> JsonValue.Num(BigDecimal(rpc))) ++
+        op   = 0,
+        data = JsonObject(
+          fields = Map(
+            "obsWebSocketVersion" -> JsonValue.Str(value = "5.6.3"),
+            "rpcVersion"          -> JsonValue.Num(value = BigDecimal(rpc)),
+          ) ++
             auth.map("authentication" -> _)
-        )
+        ),
       )
     def identify(): WireMessage =
       val identify = sent.receive()
       assertEquals(identify.op, 1)
-      emit(2, JsonObject(Map("negotiatedRpcVersion" -> JsonValue.Num(BigDecimal(1)))))
+      emit(op = 2, data = JsonObject(fields = Map("negotiatedRpcVersion" -> JsonValue.Num(value = BigDecimal(1)))))
       identify
     def discover(): Unit =
       val version = sent.receive()
-      assertEquals(version.data.string("requestType"), Right("GetVersion"))
+      assertEquals(version.data.string(name = "requestType"), Right("GetVersion"))
       respond(
-        version,
-        JsonObject(
-          Map(
-            "availableRequests" -> JsonValue.Arr(Vector("GetVersion", "Echo", "First", "Second").map(JsonValue.Str(_)))
+        request  = version,
+        response = JsonObject(
+          fields = Map(
+            "availableRequests" -> JsonValue.Arr(value =
+              Vector("GetVersion", "Echo", "First", "Second").map(JsonValue.Str(_))
+            )
           )
-        )
+        ),
       )
     def respond(request: WireMessage, response: JsonObject = JsonObject.empty, code: Int = 100): Unit =
       emit(
-        7,
-        JsonObject(
-          Map(
-            "requestId" -> request.data.fields("requestId"),
-            "requestType" -> request.data.fields("requestType"),
+        op   = 7,
+        data = JsonObject(
+          fields = Map(
+            "requestId"     -> request.data.fields("requestId"),
+            "requestType"   -> request.data.fields("requestType"),
             "requestStatus" -> JsonObject(
-              Map("result" -> JsonValue.Bool(code == 100), "code" -> JsonValue.Num(BigDecimal(code)))
+              fields =
+                Map("result" -> JsonValue.Bool(value = code == 100), "code" -> JsonValue.Num(value = BigDecimal(code)))
             ),
-            "responseData" -> response
+            "responseData" -> response,
           )
-        )
+        ),
       )
     def event(index: Int): Unit = emit(
-      5,
-      JsonObject(
-        Map(
-          "eventType" -> JsonValue.Str("FutureEvent"),
-          "eventIntent" -> JsonValue.Num(BigDecimal(1)),
-          "eventData" -> JsonObject(Map("index" -> JsonValue.Num(BigDecimal(index))))
+      op   = 5,
+      data = JsonObject(
+        fields = Map(
+          "eventType"   -> JsonValue.Str(value = "FutureEvent"),
+          "eventIntent" -> JsonValue.Num(value = BigDecimal(1)),
+          "eventData"   -> JsonObject(fields = Map("index" -> JsonValue.Num(value = BigDecimal(index)))),
         )
-      )
+      ),
     )
 
   private def connected[A](cfg: ObsConfig = config)(script: Peer => Unit)(
-      use: (ObsSession, Peer) => A
+    use: (ObsSession, Peer) => A
   ): Either[ObsError, A] =
     supervised:
       val peer = new Peer
@@ -93,7 +100,7 @@ class SessionSuite extends FunSuite:
         peer.identify().discard
         peer.discover()
         script(peer)
-      val result = ObsClient.withTransport(peer, cfg)(session => use(session, peer))
+      val result = ObsClient.withTransport(transport = peer, config = cfg)(session => use(session, peer))
       assert(peer.closed.tryReceive().nonEmpty)
       result
 
@@ -107,22 +114,25 @@ class SessionSuite extends FunSuite:
 
   test("raw requests return response data"):
     val result = connected() { peer =>
-      peer.respond(peer.sent.receive(), JsonObject(Map("value" -> JsonValue.Str("first"))))
+      peer.respond(
+        request  = peer.sent.receive(),
+        response = JsonObject(fields = Map("value" -> JsonValue.Str(value = "first"))),
+      )
     } { (session, _) =>
       assertEquals(
-        session.request(RawRequest("Echo", empty)),
-        Right(JsonObject(Map("value" -> JsonValue.Str("first"))))
+        session.request(request = RawRequest(requestType = "Echo", requestData = empty)),
+        Right(JsonObject(fields = Map("value" -> JsonValue.Str(value = "first")))),
       )
     }
     assertEquals(result, Right(()))
 
   test("request rejections preserve OBS status details"):
     val result = connected() { peer =>
-      peer.respond(peer.sent.receive(), code = 600)
+      peer.respond(request = peer.sent.receive(), code = 600)
     } { (session, _) =>
       assert(
         session
-          .rawRequest("Rejected")
+          .rawRequest(requestType = "Rejected")
           .left
           .exists:
             case ObsError.RequestRejected("Rejected", _, 600, None) => true
@@ -133,65 +143,71 @@ class SessionSuite extends FunSuite:
 
   test("raw requests bypass the capability check and let the server decide"):
     val result = connected() { peer =>
-      peer.respond(peer.sent.receive())
+      peer.respond(request = peer.sent.receive())
     } { (session, _) =>
-      assertEquals(session.request(RawRequest("Unsupported", empty)), Right(empty))
+      assertEquals(
+        session.request(request = RawRequest(requestType = "Unsupported", requestData = empty)),
+        Right(empty),
+      )
     }
     assertEquals(result, Right(()))
 
   test("typed requests absent from the capability set are rejected locally before sending"):
     val result = connected()(_ => ()) { (session, _) =>
-      assertEquals(session.request(GetSceneList()), Left(ObsError.UnsupportedRequest("GetSceneList")))
+      assertEquals(
+        session.request(request = GetSceneList()),
+        Left(ObsError.UnsupportedRequest(requestType = "GetSceneList")),
+      )
     }
     assertEquals(result, Right(()))
 
   test("concurrent requests correlate out-of-order and duplicate replies are ignored"):
     val result = connected() { peer =>
-      val first = peer.sent.receive()
+      val first  = peer.sent.receive()
       val second = peer.sent.receive()
-      peer.respond(second, JsonObject(Map("name" -> second.data.fields("requestType"))))
-      peer.respond(second)
-      peer.respond(first, JsonObject(Map("name" -> first.data.fields("requestType"))))
+      peer.respond(request = second, response = JsonObject(fields = Map("name" -> second.data.fields("requestType"))))
+      peer.respond(request = second)
+      peer.respond(request = first, response  = JsonObject(fields = Map("name" -> first.data.fields("requestType"))))
     } { (session, _) =>
       supervised:
-        val one = fork(session.rawRequest("First"))
-        val two = fork(session.rawRequest("Second"))
-        assertEquals(one.join().flatMap(_.string("name").left.map(SessionWire.malformed)), Right("First"))
-        assertEquals(two.join().flatMap(_.string("name").left.map(SessionWire.malformed)), Right("Second"))
+        val one = fork(session.rawRequest(requestType = "First"))
+        val two = fork(session.rawRequest(requestType = "Second"))
+        assertEquals(one.join().flatMap(_.string(name = "name").left.map(SessionWire.malformed)), Right("First"))
+        assertEquals(two.join().flatMap(_.string(name = "name").left.map(SessionWire.malformed)), Right("Second"))
     }
     assertEquals(result, Right(()))
 
   test("timeout removes pending entry; late response cannot complete a later request"):
-    val result = connected(config.copy(maxInFlight = 1, requestTimeout = 30.millis)) { peer =>
+    val result = connected(cfg = config.copy(maxInFlight = 1, requestTimeout = 30.millis)) { peer =>
       val late = peer.sent.receive()
       val next = peer.sent.receive()
-      peer.respond(late)
-      peer.respond(next)
+      peer.respond(request = late)
+      peer.respond(request = next)
     } { (session, _) =>
-      assertEquals(session.rawRequest("First"), Left(ObsError.Timeout("First")))
-      assertEquals(session.rawRequest("Second"), Right(empty))
+      assertEquals(session.rawRequest(requestType = "First"), Left(ObsError.Timeout(operation = "First")))
+      assertEquals(session.rawRequest(requestType = "Second"), Right(empty))
     }
     assertEquals(result, Right(()))
 
   test("disconnect completes pending requests with preserved close details"):
-    val failure = ObsError.Transport("Peer closed", Some(4011))
-    val result = connected() { peer =>
+    val failure = ObsError.Transport(message = "Peer closed", closeCode = Some(4011))
+    val result  = connected() { peer =>
       peer.sent.receive().discard
       peer.inbound.send(Left(failure))
-    } { (session, _) => assertEquals(session.rawRequest("Echo"), Left(failure)) }
+    } { (session, _) => assertEquals(session.rawRequest(requestType = "Echo"), Left(failure)) }
     assertEquals(result, Right(()))
 
   test("subscriptions broadcast independently and slow consumer overflow does not block requests"):
-    val result = connected(config.copy(subscriptionCapacity = 1)) { peer =>
-      val request = peer.sent.receive()
-      peer.event(1)
-      peer.event(2)
-      peer.respond(request)
+    val result = connected(cfg = config.copy(subscriptionCapacity = 1)) { peer =>
+      val request     = peer.sent.receive()
+      peer.event(index     = 1)
+      peer.event(index     = 2)
+      peer.respond(request = request)
     } { (session, _) =>
       session.withEvents(): slow =>
-        session.withEvents(Set("Unrelated")): filtered =>
-          assertEquals(session.rawRequest("Echo"), Right(empty))
-          assertEquals(slow.next(), Next.Failed(ObsError.Overflow("event subscription")))
+        session.withEvents(eventTypes = Set("Unrelated")): filtered =>
+          assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
+          assertEquals(slow.next(), Next.Failed(error = ObsError.Overflow(resource = "event subscription")))
           session.close()
           assertEquals(filtered.next(), Next.Ended)
     }
@@ -199,19 +215,19 @@ class SessionSuite extends FunSuite:
 
   test("drop newest and oldest are explicit and expose loss counters"):
     for policy <- Vector(OverflowPolicy.DropNewest, OverflowPolicy.DropOldest) do
-      val result = connected(config.copy(subscriptionCapacity = 1)) { peer =>
-        val request = peer.sent.receive()
-        peer.event(1)
-        peer.event(2)
-        peer.respond(request)
+      val result = connected(cfg = config.copy(subscriptionCapacity = 1)) { peer =>
+        val request     = peer.sent.receive()
+        peer.event(index     = 1)
+        peer.event(index     = 2)
+        peer.respond(request = request)
       } { (session, _) =>
         session.withEvents(policy = policy): subscription =>
-          assertEquals(session.rawRequest("Echo"), Right(empty))
+          assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
           assertEquals(subscription.droppedEvents, 1L)
           val expected = if policy == OverflowPolicy.DropNewest then 1 else 2
           subscription.next() match
             case Next.Item(event) =>
-              assertEquals(event.eventData.int("index").left.map(SessionWire.malformed), Right(expected))
+              assertEquals(event.eventData.int(name = "index").left.map(SessionWire.malformed), Right(expected))
             case other => fail(s"Expected an event, got $other")
           session.close()
           // Terminal drop counts survive session failure and close.
@@ -227,55 +243,77 @@ class SessionSuite extends FunSuite:
     assertEquals(result, Right(Right(())))
 
   test("a hello requiring authentication without a configured password fails and closes"):
-    val auth = JsonObject(Map("salt" -> JsonValue.Str("salt"), "challenge" -> JsonValue.Str("challenge")))
-    val peer = new Peer
-    peer.hello(Some(auth))
+    val auth = JsonObject(fields =
+      Map("salt" -> JsonValue.Str(value = "salt"), "challenge" -> JsonValue.Str(value = "challenge"))
+    )
+    val peer   = new Peer
+    peer.hello(auth = Some(auth))
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
+      ObsClient.withTransport(transport = peer, config = config.copy(handshakeTimeout = 20.millis))(_ =>
+        fail(unexpectedCallbackMessage)
+      )
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("an unsupported RPC version fails and closes"):
-    val peer = new Peer
+    val peer   = new Peer
     peer.hello(rpc = 0)
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
+      ObsClient.withTransport(transport = peer, config = config.copy(handshakeTimeout = 20.millis))(_ =>
+        fail(unexpectedCallbackMessage)
+      )
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("an unexpected handshake message fails and closes"):
-    val peer = new Peer
-    peer.emit(2, empty)
+    val peer   = new Peer
+    peer.emit(op = 2, data = empty)
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
+      ObsClient.withTransport(transport = peer, config = config.copy(handshakeTimeout = 20.millis))(_ =>
+        fail(unexpectedCallbackMessage)
+      )
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("a missing hello times out and closes"):
-    val peer = new Peer
+    val peer   = new Peer
     val result =
-      ObsClient.withTransport(peer, config.copy(handshakeTimeout = 20.millis))(_ => fail(unexpectedCallbackMessage))
+      ObsClient.withTransport(transport = peer, config = config.copy(handshakeTimeout = 20.millis))(_ =>
+        fail(unexpectedCallbackMessage)
+      )
     assert(result.isLeft)
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("password provider authentication and redaction"):
     supervised:
-      val peer = new Peer
+      val peer     = new Peer
       val password = "secret-秘密"
       forkDiscard:
-        peer.hello(Some(JsonObject(Map("salt" -> JsonValue.Str("salt"), "challenge" -> JsonValue.Str("challenge")))))
+        peer.hello(auth =
+          Some(
+            JsonObject(fields =
+              Map("salt" -> JsonValue.Str(value = "salt"), "challenge" -> JsonValue.Str(value = "challenge"))
+            )
+          )
+        )
         val identify = peer.identify()
         assertEquals(
-          identify.data.string("authentication"),
-          Right(Authentication.compute(password.getBytes(java.nio.charset.StandardCharsets.UTF_8), "salt", "challenge"))
+          identify.data.string(name = "authentication"),
+          Right(
+            Authentication.compute(
+              password  = password.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+              salt      = "salt",
+              challenge = "challenge",
+            )
+          ),
         )
         peer.discover()
-      val cfg = config.copy(passwordProvider = PasswordProvider.fixed(Some(password)))
+      val cfg = config.copy(passwordProvider = PasswordProvider.fixed(value = Some(password)))
       assert(!cfg.toString.contains(password))
       assert(!cfg.passwordProvider.toString.contains(password))
       // Validation rejects credential-carrying URIs, so the URI itself is not secret and renders.
       assert(cfg.toString.contains(cfg.uri))
-      assertEquals(ObsClient.withTransport(peer, cfg)(_ => ()), Right(()))
+      assertEquals(ObsClient.withTransport(transport = peer, config = cfg)(_ => ()), Right(()))
 
   test("callback defects close the transport before returning"):
     intercept[IllegalStateException]:
@@ -290,7 +328,9 @@ class SessionSuite extends FunSuite:
   test("URIs with a query string are rejected so secrets cannot leak into requests or logs"):
     assertEquals(
       config.copy(uri = "ws://localhost/?token=secret").validate,
-      Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
+      Left(
+        ObsError.InvalidConfiguration(message = "Expected ws/wss URI with host, without credentials, query or fragment")
+      ),
     )
 
   test("unparseable URIs are rejected"):
@@ -307,30 +347,30 @@ class SessionSuite extends FunSuite:
 
   test("subscription masks validate bounds and expose presets"):
     assertEquals(
-      EventSubscriptions.fromLong(-1),
-      Left(ObsError.InvalidConfiguration("Event subscription mask must be nonnegative"))
+      EventSubscriptions.fromLong(value = -1),
+      Left(ObsError.InvalidConfiguration(message = "Event subscription mask must be nonnegative")),
     )
-    assertEquals(EventSubscriptions.fromLong(0), Right(EventSubscriptions.none))
+    assertEquals(EventSubscriptions.fromLong(value = 0), Right(EventSubscriptions.none))
     assertEquals(
       EventSubscriptions.normal.value,
-      com.worxbend.obs.websocket.client.protocol.enums.EventSubscription.All.value
+      com.worxbend.obs.websocket.client.protocol.enums.EventSubscription.All.value,
     )
 
   test("the connection state table permits and rejects explicit transitions"):
-    assert(ConnectionState.transition(ConnectionState.Connecting, ConnectionState.AwaitingHello).isRight)
-    assert(ConnectionState.transition(ConnectionState.Ready, ConnectionState.Closing).isRight)
-    assert(ConnectionState.transition(ConnectionState.Closing, ConnectionState.Closed).isRight)
+    assert(ConnectionState.transition(from = ConnectionState.Connecting, to = ConnectionState.AwaitingHello).isRight)
+    assert(ConnectionState.transition(from = ConnectionState.Ready, to = ConnectionState.Closing).isRight)
+    assert(ConnectionState.transition(from = ConnectionState.Closing, to = ConnectionState.Closed).isRight)
     assertEquals(
-      ConnectionState.transition(ConnectionState.Closed, ConnectionState.Ready),
-      Left(ObsError.InternalError("Invalid state transition: Closed -> Ready"))
+      ConnectionState.transition(from = ConnectionState.Closed, to = ConnectionState.Ready),
+      Left(ObsError.InternalError(message = "Invalid state transition: Closed -> Ready")),
     )
 
   private def batchItem(name: String, code: Int = 100): JsonObject = JsonObject(
-    Map(
-      "requestType" -> JsonValue.Str(name),
+    fields = Map(
+      "requestType"   -> JsonValue.Str(value = name),
       "requestStatus" -> JsonObject(
-        Map("result" -> JsonValue.Bool(code == 100), "code" -> JsonValue.Num(BigDecimal(code)))
-      )
+        fields = Map("result" -> JsonValue.Bool(value = code == 100), "code" -> JsonValue.Num(value = BigDecimal(code)))
+      ),
     )
   )
 
@@ -338,60 +378,66 @@ class SessionSuite extends FunSuite:
     val result = connected() { peer =>
       val request = peer.sent.receive()
       assertEquals(request.op, 8)
-      assertEquals(request.data.int("executionType"), Right(1))
+      assertEquals(request.data.int(name = "executionType"), Right(1))
       peer.emit(
-        9,
-        JsonObject(
-          Map(
+        op   = 9,
+        data = JsonObject(
+          fields = Map(
             "requestId" -> request.data.fields("requestId"),
-            "results" ->
-              JsonValue.Arr(Vector(batchItem("First"), batchItem("Second", 600)))
+            "results"   ->
+              JsonValue.Arr(value = Vector(batchItem(name = "First"), batchItem(name = "Second", code = 600))),
           )
-        )
+        ),
       )
     } { (session, _) =>
       val second = new Request[String]:
-        def requestType: String = "Second"
-        def requestData: JsonObject = empty
-        def decodeResponse(data: JsonObject): Either[ProtocolError, String] = data.string("value")
+        def requestType: String                                             = "Second"
+        def requestData: JsonObject                                         = empty
+        def decodeResponse(data: JsonObject): Either[ProtocolError, String] = data.string(name = "value")
       val result = session.typedBatch(
-        (BatchCall(RawRequest("First", empty)), BatchCall(second)),
-        BatchExecution.SerialFrame
+        calls =
+          (BatchCall(request = RawRequest(requestType = "First", requestData = empty)), BatchCall(request = second)),
+        execution = BatchExecution.SerialFrame,
       )
       val typed: Either[ObsError, (TypedBatchResult[JsonObject], TypedBatchResult[String])] = result
       assert(typed.exists:
         case (
               TypedBatchResult.Completed(Right(value)),
-              TypedBatchResult.Completed(Left(ObsError.RequestRejected("Second", _, 600, None)))
+              TypedBatchResult.Completed(Left(ObsError.RequestRejected("Second", _, 600, None))),
             ) =>
           value == empty
         case _ => false)
-      assertEquals(session.typedBatch(EmptyTuple), Right(EmptyTuple))
+      assertEquals(session.typedBatch(calls = EmptyTuple), Right(EmptyTuple))
     }
     assertEquals(result, Right(()))
 
   test("halted batches mark unexecuted entries and reject impossible result sequences"):
     val cases = Vector(
-      Vector(batchItem("First", 600)) -> true,
-      Vector.empty -> false,
-      Vector(batchItem("First")) -> false,
-      Vector(batchItem("First", 600), batchItem("Second")) -> false,
-      Vector(batchItem("Wrong")) -> false,
-      Vector(JsonValue.Str("bad")) -> false,
-      Vector(batchItem("First"), batchItem("Second"), batchItem("Third")) -> false
+      Vector(batchItem(name = "First", code = 600))                                            -> true,
+      Vector.empty                                                                             -> false,
+      Vector(batchItem(name = "First"))                                                        -> false,
+      Vector(batchItem(name = "First", code = 600), batchItem(name = "Second"))                -> false,
+      Vector(batchItem(name = "Wrong"))                                                        -> false,
+      Vector(JsonValue.Str(value = "bad"))                                                     -> false,
+      Vector(batchItem(name = "First"), batchItem(name = "Second"), batchItem(name = "Third")) -> false,
     )
     for (results, valid) <- cases do
       val result = connected() { peer =>
         val request = peer.sent.receive()
         peer.emit(
-          9,
-          JsonObject(Map("requestId" -> request.data.fields("requestId"), "results" -> JsonValue.Arr(results)))
+          op   = 9,
+          data = JsonObject(fields =
+            Map("requestId" -> request.data.fields("requestId"), "results" -> JsonValue.Arr(value = results))
+          ),
         )
       } { (session, _) =>
         val result = session.typedBatch(
-          (BatchCall(RawRequest("First", empty)), BatchCall(RawRequest("Second", empty))),
-          BatchExecution.SerialFrame,
-          BatchFailurePolicy.Halt
+          calls = (
+            BatchCall(request = RawRequest(requestType = "First", requestData = empty)),
+            BatchCall(request = RawRequest(requestType = "Second", requestData = empty)),
+          ),
+          execution     = BatchExecution.SerialFrame,
+          failurePolicy = BatchFailurePolicy.Halt,
         )
         assertEquals(result.isRight, valid)
         if valid then assert(result.exists(_._2 == TypedBatchResult.NotExecuted))
@@ -399,32 +445,41 @@ class SessionSuite extends FunSuite:
       assertEquals(result, Right(()))
 
   test("batch disconnect reports ambiguous execution outcome"):
-    val failure = ObsError.Transport("lost")
-    val result = connected() { peer =>
+    val failure = ObsError.Transport(message = "lost")
+    val result  = connected() { peer =>
       peer.sent.receive().discard
       peer.inbound.send(Left(failure))
     } { (session, _) =>
-      assertEquals(session.batch(Vector(RawRequest("Echo", empty))), Left(ObsError.AmbiguousBatchOutcome(failure)))
+      assertEquals(
+        session.batch(requests = Vector(RawRequest(requestType = "Echo", requestData = empty))),
+        Left(ObsError.AmbiguousBatchOutcome(cause = failure)),
+      )
     }
     assertEquals(result, Right(()))
 
   test("in-flight bounds reject saturation and cancellation releases capacity"):
     val observed = Channel.buffered[Unit](1)
-    val release = Channel.buffered[Unit](1)
-    val result = connected(config.copy(maxInFlight = 1)) { peer =>
+    val release  = Channel.buffered[Unit](1)
+    val result   = connected(cfg = config.copy(maxInFlight = 1)) { peer =>
       peer.sent.receive().discard
       observed.send(())
       release.receive()
-      peer.respond(peer.sent.receive())
+      peer.respond(request = peer.sent.receive())
     } { (session, _) =>
       supervised:
-        val pending = forkCancellable(session.rawRequest("First"))
+        val pending = forkCancellable(session.rawRequest(requestType = "First"))
         observed.receive()
-        assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow(inFlightLimitResource)))
-        assertEquals(session.batch(Vector(RawRequest("Second", empty))), Left(ObsError.Overflow(inFlightLimitResource)))
+        assertEquals(
+          session.rawRequest(requestType = "Second"),
+          Left(ObsError.Overflow(resource = inFlightLimitResource)),
+        )
+        assertEquals(
+          session.batch(requests = Vector(RawRequest(requestType = "Second", requestData = empty))),
+          Left(ObsError.Overflow(resource = inFlightLimitResource)),
+        )
         pending.cancel().discard
         release.send(())
-        assertEquals(session.rawRequest("Second"), Right(empty))
+        assertEquals(session.rawRequest(requestType = "Second"), Right(empty))
     }
     assertEquals(result, Right(()))
 
@@ -432,25 +487,28 @@ class SessionSuite extends FunSuite:
     val escaped = connected() { peer =>
       val reidentify = peer.sent.receive()
       assertEquals(reidentify.op, 3)
-      assertEquals(reidentify.data.int("eventSubscriptions"), Right(0))
-      peer.emit(2, JsonObject(Map("negotiatedRpcVersion" -> JsonValue.Num(BigDecimal(1)))))
-      peer.respond(peer.sent.receive())
+      assertEquals(reidentify.data.int(name = "eventSubscriptions"), Right(0))
+      peer.emit(op = 2, data = JsonObject(fields = Map("negotiatedRpcVersion" -> JsonValue.Num(value = BigDecimal(1)))))
+      peer.respond(request = peer.sent.receive())
     } { (session, _) =>
-      assertEquals(session.reidentify(EventSubscriptions.none), Right(()))
-      assertEquals(session.rawRequest("Echo"), Right(empty))
+      assertEquals(session.reidentify(subscriptions = EventSubscriptions.none), Right(()))
+      assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
       // The peer acknowledged the reidentify before responding, so the backlog observed by the hook has drained.
       assertEquals(session.pendingReidentifyAcks, Right(0))
       session.close()
       session.close()
       assertEquals(session.state, Right(ConnectionState.Closed))
-      assertEquals(session.rawRequest("Echo"), Left(ObsError.Closed))
+      assertEquals(session.rawRequest(requestType = "Echo"), Left(ObsError.Closed))
       // Registration fails before anything is queued, so the batch outcome is certain, not ambiguous.
-      assertEquals(session.batch(Vector(RawRequest("Echo", empty))), Left(ObsError.Closed))
-      assertEquals(session.reidentify(EventSubscriptions.normal), Left(ObsError.Closed))
+      assertEquals(
+        session.batch(requests = Vector(RawRequest(requestType = "Echo", requestData = empty))),
+        Left(ObsError.Closed),
+      )
+      assertEquals(session.reidentify(subscriptions = EventSubscriptions.normal), Left(ObsError.Closed))
       assertEquals(session.withEvents()(_ => ()), Left(ObsError.Closed))
       session
     }.toOption.get
-    assertEquals(escaped.rawRequest("Echo"), Left(ObsError.Closed))
+    assertEquals(escaped.rawRequest(requestType = "Echo"), Left(ObsError.Closed))
     escaped.close()
 
   test("malformed frames fail pending requests without exposing frame contents"):
@@ -458,7 +516,7 @@ class SessionSuite extends FunSuite:
       peer.sent.receive().discard
       peer.inbound.send(Right("secret invalid frame"))
     } { (session, _) =>
-      val result = session.rawRequest("Echo")
+      val result = session.rawRequest(requestType = "Echo")
       assert(result.left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
       assert(!result.toString.contains("secret"))
     }
@@ -468,56 +526,71 @@ class SessionSuite extends FunSuite:
     val broken = new Peer:
       override def send(text: String): Either[ObsError, Unit] =
         assert(text.nonEmpty)
-        Left(ObsError.Transport("Send failed"))
+        Left(ObsError.Transport(message = "Send failed"))
     broken.hello()
-    assertEquals(ObsClient.withTransport(broken)(_ => ()), Left(ObsError.Transport("Send failed")))
+    assertEquals(
+      ObsClient.withTransport(transport = broken)(_ => ()),
+      Left(ObsError.Transport(message = "Send failed")),
+    )
     assert(broken.closed.tryReceive().nonEmpty)
-    for capabilities <- Vector(
-        empty,
-        JsonObject(Map("availableRequests" -> JsonValue.Arr(Vector(JsonValue.Num(BigDecimal(1))))))
-      )
+    for capabilities <-
+        Vector(
+          empty,
+          JsonObject(fields =
+            Map("availableRequests" -> JsonValue.Arr(value = Vector(JsonValue.Num(value = BigDecimal(1)))))
+          ),
+        )
     do
       supervised:
         val peer = new Peer
         forkDiscard:
           peer.hello()
           peer.identify().discard
-          peer.respond(peer.sent.receive(), capabilities)
-        assert(ObsClient.withTransport(peer, config)(_ => ()).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
+          peer.respond(request = peer.sent.receive(), response = capabilities)
+        assert(
+          ObsClient
+            .withTransport(transport = peer, config = config)(_ => ())
+            .left
+            .exists(_.isInstanceOf[ObsError.MalformedPayload])
+        )
 
   test("authentication rejection preserves its WebSocket close code"):
     val peer = new Peer
-    peer.inbound.send(Left(ObsError.Transport("Authentication failed", Some(4009))))
+    peer.inbound.send(Left(ObsError.Transport(message = "Authentication failed", closeCode = Some(4009))))
     assertEquals(
-      ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Authentication("Server rejected authentication", Some(4009)))
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.Authentication(message = "Server rejected authentication", closeCode = Some(4009))),
     )
 
   test("close code 4009 after identification keeps its transport classification"):
-    val failure = ObsError.Transport(closedWebSocketMessage, Some(4009))
-    val result = connected() { peer =>
+    val failure = ObsError.Transport(message = closedWebSocketMessage, closeCode = Some(4009))
+    val result  = connected() { peer =>
       peer.sent.receive().discard
       peer.inbound.send(Left(failure))
-    } { (session, _) => assertEquals(session.rawRequest("Echo"), Left(failure)) }
+    } { (session, _) => assertEquals(session.rawRequest(requestType = "Echo"), Left(failure)) }
     assertEquals(result, Right(()))
 
   test("oversized outbound payloads fail only the offending request or batch"):
-    val oversized = ObsError.MessageTooLarge("Outgoing message exceeds configured byte limit")
-    val peer = new Peer:
+    val oversized = ObsError.MessageTooLarge(message = "Outgoing message exceeds configured byte limit")
+    val peer      = new Peer:
       override def send(text: String): Either[ObsError, Unit] =
-        if text.length > 512 then Left(oversized) else super.send(text)
+        if text.length > 512 then Left(oversized) else super.send(text = text)
     supervised:
       forkDiscard:
         peer.hello()
         peer.identify().discard
         peer.discover()
-        peer.respond(peer.sent.receive())
-      val big = "x" * 4096
-      val result = ObsClient.withTransport(peer, config): session =>
-        assertEquals(session.rawRequest("Echo", JsonObject(Map("blob" -> JsonValue.Str(big)))), Left(oversized))
-        assertEquals(session.batch(Vector(RawRequest(s"E$big"))), Left(oversized))
+        peer.respond(request = peer.sent.receive())
+      val big    = "x" * 4096
+      val result = ObsClient.withTransport(transport = peer, config = config): session =>
+        assertEquals(
+          session
+            .rawRequest(requestType = "Echo", data = JsonObject(fields = Map("blob" -> JsonValue.Str(value = big)))),
+          Left(oversized),
+        )
+        assertEquals(session.batch(requests = Vector(RawRequest(requestType = s"E$big"))), Left(oversized))
         assertEquals(session.state, Right(ConnectionState.Ready))
-        assertEquals(session.rawRequest("Echo"), Right(empty))
+        assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
       assertEquals(result, Right(()))
       assert(peer.closed.tryReceive().nonEmpty)
 
@@ -525,8 +598,8 @@ class SessionSuite extends FunSuite:
     val peer = new Peer:
       override def receive(): Either[ObsError, String] = throw new IllegalStateException("reader defect")
     assertEquals(
-      ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.InternalError("Transport receive defect: reader defect"))
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.InternalError(message = "Transport receive defect: reader defect")),
     )
     assert(peer.closed.tryReceive().nonEmpty)
 
@@ -535,61 +608,67 @@ class SessionSuite extends FunSuite:
       override def send(text: String): Either[ObsError, Unit] = throw new IllegalStateException("writer defect")
     peer.hello()
     assertEquals(
-      ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.InternalError("Transport send defect: writer defect"))
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.InternalError(message = "Transport send defect: writer defect")),
     )
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("typed request and batch decoder failures remain typed"):
     val request = new Request[String]:
-      def requestType: String = "Echo"
-      def requestData: JsonObject = empty
-      def decodeResponse(data: JsonObject): Either[ProtocolError, String] = data.string("required")
+      def requestType: String                                             = "Echo"
+      def requestData: JsonObject                                         = empty
+      def decodeResponse(data: JsonObject): Either[ProtocolError, String] = data.string(name = "required")
     val result = connected() { peer =>
-      peer.respond(peer.sent.receive())
+      peer.respond(request = peer.sent.receive())
       val batch = peer.sent.receive()
       peer.emit(
-        9,
-        JsonObject(
-          Map("requestId" -> batch.data.fields("requestId"), "results" -> JsonValue.Arr(Vector(batchItem("Echo"))))
-        )
+        op   = 9,
+        data = JsonObject(
+          fields = Map(
+            "requestId" -> batch.data.fields("requestId"),
+            "results"   -> JsonValue.Arr(value = Vector(batchItem(name = "Echo"))),
+          )
+        ),
       )
       val malformedBatch = peer.sent.receive()
-      peer.emit(9, JsonObject(Map("requestId" -> malformedBatch.data.fields("requestId"))))
+      peer.emit(op = 9, data = JsonObject(fields = Map("requestId" -> malformedBatch.data.fields("requestId"))))
     } { (session, _) =>
-      assert(session.request(request).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
+      assert(session.request(request = request).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
       assert(
         session
-          .typedBatch(Tuple1(BatchCall(request)))
+          .typedBatch(calls = Tuple1(BatchCall(request = request)))
           .exists(_.head match
             case TypedBatchResult.Completed(Left(_: ObsError.MalformedPayload)) => true
             case _                                                              => false)
       )
-      assert(session.batch(Vector(request)).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
+      assert(session.batch(requests = Vector(request)).left.exists(_.isInstanceOf[ObsError.MalformedPayload]))
     }
     assertEquals(result, Right(()))
 
   test("invalid typed request fields are rejected before sending"):
     val invalid = com.worxbend.obs.websocket.client.protocol.requests.SetCurrentProgramScene(sceneName = Field.Null)
-    val result = connected()(_ => ()) { (session, _) =>
+    val result  = connected()(_ => ()) { (session, _) =>
       // Typed batch entries are capability-checked exactly like single typed requests.
-      assertEquals(session.batch(Vector(GetSceneList())), Left(ObsError.UnsupportedRequest("GetSceneList")))
+      assertEquals(
+        session.batch(requests = Vector(GetSceneList())),
+        Left(ObsError.UnsupportedRequest(requestType = "GetSceneList")),
+      )
       supervised:
         val allowed = new ObsSession(
-          session.metadata.copy(availableRequests = Set(invalid.requestType)),
-          config,
-          SessionDependencies.live,
-          ox.channels.Actor.create(
+          metadata     = session.metadata.copy(availableRequests = Set(invalid.requestType)),
+          config       = config,
+          dependencies = SessionDependencies.live,
+          logic        = ox.channels.Actor.create(
             new SessionLogic(
-              config,
-              None,
-              Channel.buffered[WireMessage](1),
-              Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+              config                 = config,
+              authenticationPassword = None,
+              outgoing               = Channel.buffered[WireMessage](1),
+              identified             = Channel.buffered[Either[ObsError, ConnectionMetadata]](1),
             )
-          )
+          ),
         )
-        assert(allowed.request(invalid).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
-        assert(allowed.batch(Vector(invalid)).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
+        assert(allowed.request(request = invalid).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
+        assert(allowed.batch(requests = Vector(invalid)).left.exists(_.isInstanceOf[ObsError.InvalidRequest]))
     }
     assertEquals(result, Right(()))
 
@@ -597,31 +676,34 @@ class SessionSuite extends FunSuite:
     val result = connected() { peer =>
       val request = peer.sent.receive()
       peer.emit(
-        5,
-        JsonObject(
-          Map(
-            "eventType" -> JsonValue.Str("CurrentProgramSceneChanged"),
-            "eventIntent" -> JsonValue.Num(BigDecimal(4)),
-            "eventData" -> JsonObject(
-              Map(
-                "sceneName" -> JsonValue.Str("Scene"),
-                "sceneUuid" -> JsonValue.Str("uuid"),
-                "futureField" -> JsonValue.Str("preserved")
+        op   = 5,
+        data = JsonObject(
+          fields = Map(
+            "eventType"   -> JsonValue.Str(value = "CurrentProgramSceneChanged"),
+            "eventIntent" -> JsonValue.Num(value = BigDecimal(4)),
+            "eventData"   -> JsonObject(
+              fields = Map(
+                "sceneName"   -> JsonValue.Str(value = "Scene"),
+                "sceneUuid"   -> JsonValue.Str(value = "uuid"),
+                "futureField" -> JsonValue.Str(value = "preserved"),
               )
-            )
+            ),
           )
-        )
+        ),
       )
-      peer.respond(request)
+      peer.respond(request = request)
     } { (session, _) =>
       session.withRawEvents() { events =>
-        assertEquals(session.rawRequest("Echo"), Right(empty))
+        assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
         events.next() match
           case Next.Item(event) =>
             assert(event match
               case UnknownEvent("CurrentProgramSceneChanged", _) => true
               case _                                             => false)
-            assertEquals(event.eventData.string("futureField").left.map(SessionWire.malformed), Right("preserved"))
+            assertEquals(
+              event.eventData.string(name = "futureField").left.map(SessionWire.malformed),
+              Right("preserved"),
+            )
           case other => fail(s"Expected an event, got $other")
       }
     }
@@ -632,11 +714,22 @@ class SessionSuite extends FunSuite:
       for policy <- BatchFailurePolicy.values do
         assert(
           session
-            .batch(Vector(RawRequest("Echo")), BatchExecution.Parallel, policy)
+            .batch(
+              requests      = Vector(RawRequest(requestType = "Echo")),
+              execution     = BatchExecution.Parallel,
+              failurePolicy = policy,
+            )
             .left
             .exists(_.isInstanceOf[ObsError.InvalidConfiguration])
         )
-      assert(session.typedBatch(Tuple1(BatchCall(RawRequest("Echo"))), BatchExecution.Parallel).isLeft)
+      assert(
+        session
+          .typedBatch(
+            calls     = Tuple1(BatchCall(request = RawRequest(requestType = "Echo"))),
+            execution = BatchExecution.Parallel,
+          )
+          .isLeft
+      )
       assertEquals(peer.sent.tryReceive(), None)
     }
     assertEquals(result, Right(()))
@@ -653,88 +746,115 @@ class SessionSuite extends FunSuite:
 
   test("close code 4010 during identification maps to incompatible protocol"):
     val peer = new Peer
-    peer.inbound.send(Left(ObsError.Transport("Unsupported RPC version", Some(4010))))
-    assertEquals(ObsClient.withTransport(peer, config)(_ => ()), Left(ObsError.IncompatibleProtocol(1)))
+    peer.inbound.send(Left(ObsError.Transport(message = "Unsupported RPC version", closeCode = Some(4010))))
+    assertEquals(
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.IncompatibleProtocol(version = 1)),
+    )
 
   test("close code 4011 during identification maps to the authentication family"):
     val peer = new Peer
-    peer.inbound.send(Left(ObsError.Transport("Session invalidated", Some(4011))))
+    peer.inbound.send(Left(ObsError.Transport(message = "Session invalidated", closeCode = Some(4011))))
     assertEquals(
-      ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Authentication("Session invalidated by the server", Some(4011)))
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.Authentication(message = "Session invalidated by the server", closeCode = Some(4011))),
     )
 
   test("other close codes during the handshake keep their transport classification"):
     val peer = new Peer
-    peer.inbound.send(Left(ObsError.Transport(closedWebSocketMessage, Some(4000))))
+    peer.inbound.send(Left(ObsError.Transport(message = closedWebSocketMessage, closeCode = Some(4000))))
     assertEquals(
-      ObsClient.withTransport(peer, config)(_ => ()),
-      Left(ObsError.Transport(closedWebSocketMessage, Some(4000)))
+      ObsClient.withTransport(transport = peer, config = config)(_ => ()),
+      Left(ObsError.Transport(message = closedWebSocketMessage, closeCode = Some(4000))),
     )
 
   private val versionRead: Request[JsonObject] = new Request[JsonObject]:
-    def requestType: String = "GetVersion"
-    def requestData: JsonObject = JsonObject.empty
+    def requestType: String                                                 = "GetVersion"
+    def requestData: JsonObject                                             = JsonObject.empty
     def decodeResponse(data: JsonObject): Either[ProtocolError, JsonObject] = Right(data)
 
   test("per-operation deadlines validate and override the session default"):
     connected() { peer =>
       val request = peer.sent.receive()
-      assertEquals(request.data.string("requestType"), Right("Echo"))
+      assertEquals(request.data.string(name = "requestType"), Right("Echo"))
     } { (session, _) =>
-      assert(session.rawRequest("Echo", options = RequestOptions(Some(Duration.Zero))).isLeft)
+      assert(session.rawRequest(requestType = "Echo", options = RequestOptions(timeout = Some(Duration.Zero))).isLeft)
       assertEquals(
-        session.rawRequest("Echo", options = RequestOptions(Some(10.millis))),
-        Left(ObsError.Timeout("Echo"))
+        session.rawRequest(requestType = "Echo", options = RequestOptions(timeout = Some(10.millis))),
+        Left(ObsError.Timeout(operation = "Echo")),
       )
     }
 
   test("response envelopes retain unknown fields and decode errors from exactly one request"):
-    val payload = JsonObject(Map("future" -> JsonValue.Str("retained")))
-    connected()(peer => peer.respond(peer.sent.receive(), payload)) { (session, _) =>
+    val payload = JsonObject(fields = Map("future" -> JsonValue.Str(value = "retained")))
+    connected()(peer => peer.respond(request = peer.sent.receive(), response = payload)) { (session, _) =>
       val envelope =
-        session.requestEnvelope(com.worxbend.obs.websocket.client.protocol.requests.GetVersion()).toOption.get
+        session.requestEnvelope(request = com.worxbend.obs.websocket.client.protocol.requests.GetVersion()).toOption.get
       assertEquals(envelope.raw, payload)
       assert(envelope.decoded.isLeft)
     }
 
   test("configured facade adapter shares request budget and typed decoder"):
-    connected()(peer => peer.respond(peer.sent.receive())) { (session, _) =>
-      assertEquals(session.withOptions(RequestOptions(Some(1.second))).request(versionRead), Right(empty))
+    connected()(peer => peer.respond(request = peer.sent.receive())) { (session, _) =>
+      assertEquals(
+        session.withOptions(options = RequestOptions(timeout = Some(1.second))).request(request = versionRead),
+        Right(empty),
+      )
     }
 
   test("readiness retries explicit NotReady then returns read response"):
     connected() { peer =>
-      peer.respond(peer.sent.receive(), code = 207)
-      peer.respond(peer.sent.receive(), JsonObject(Map("ready" -> JsonValue.Bool(true))))
+      peer.respond(request = peer.sent.receive(), code = 207)
+      peer.respond(
+        request  = peer.sent.receive(),
+        response = JsonObject(fields = Map("ready" -> JsonValue.Bool(value = true))),
+      )
     } { (session, _) =>
       assertEquals(
-        session.requestWhenReady(versionRead, ReadinessPolicy(2, Duration.Zero)).toOption.get.boolean("ready"),
-        Right(true)
+        session
+          .requestWhenReady(request = versionRead, policy = ReadinessPolicy(maxAttempts = 2, delay = Duration.Zero))
+          .toOption
+          .get
+          .boolean(name = "ready"),
+        Right(true),
       )
     }
 
   test("readiness rejects extension requests, mutation requests and invalid policies locally"):
     connected()(_ => ()) { (session, _) =>
-      assert(session.requestWhenReady(RawRequest("GetVersion")).isLeft)
-      assert(session.requestWhenReady(com.worxbend.obs.websocket.client.protocol.requests.StartRecord()).isLeft)
-      assert(session.requestWhenReady(versionRead, ReadinessPolicy(0)).isLeft)
-      assert(session.requestWhenReady(versionRead, options = RequestOptions(Some(Duration.Zero))).isLeft)
+      assert(session.requestWhenReady(request = RawRequest(requestType = "GetVersion")).isLeft)
+      assert(
+        session.requestWhenReady(request = com.worxbend.obs.websocket.client.protocol.requests.StartRecord()).isLeft
+      )
+      assert(session.requestWhenReady(request = versionRead, policy = ReadinessPolicy(maxAttempts = 0)).isLeft)
+      assert(
+        session.requestWhenReady(request = versionRead, options = RequestOptions(timeout = Some(Duration.Zero))).isLeft
+      )
     }
 
   test("readiness attempts stop at their configured limit"):
-    connected()(peer => peer.respond(peer.sent.receive(), code = 207)) { (session, _) =>
-      assert(session.requestWhenReady(versionRead, ReadinessPolicy(1)).left.toOption.exists {
-        case ObsError.RequestRejected(_, _, 207, _) => true
-        case _                                      => false
-      })
+    connected()(peer => peer.respond(request = peer.sent.receive(), code = 207)) { (session, _) =>
+      assert(
+        session
+          .requestWhenReady(request = versionRead, policy = ReadinessPolicy(maxAttempts = 1))
+          .left
+          .toOption
+          .exists {
+            case ObsError.RequestRejected(_, _, 207, _) => true
+            case _                                      => false
+          }
+      )
     }
 
   test("readiness total deadline includes backoff"):
-    connected()(peer => peer.respond(peer.sent.receive(), code = 207)) { (session, _) =>
+    connected()(peer => peer.respond(request = peer.sent.receive(), code = 207)) { (session, _) =>
       assertEquals(
-        session.requestWhenReady(versionRead, ReadinessPolicy(2, 1.second), RequestOptions(Some(20.millis))),
-        Left(ObsError.Timeout("GetVersion"))
+        session.requestWhenReady(
+          request = versionRead,
+          policy  = ReadinessPolicy(maxAttempts = 2, delay = 1.second),
+          options = RequestOptions(timeout = Some(20.millis)),
+        ),
+        Left(ObsError.Timeout(operation = "GetVersion")),
       )
     }
 
@@ -744,27 +864,30 @@ class SessionSuite extends FunSuite:
       forkDiscard:
         peer.hello()
         peer.identify().discard
-        peer.respond(peer.sent.receive(), code = 207)
+        peer.respond(request = peer.sent.receive(), code = 207)
         peer.discover()
       assertEquals(
-        ObsClient.withTransport(peer, config.copy(readiness = Some(ReadinessPolicy(2, Duration.Zero))))(
-          _.metadata.availableRequests.contains("GetVersion")
+        ObsClient.withTransport(
+          transport = peer,
+          config    = config.copy(readiness = Some(ReadinessPolicy(maxAttempts = 2, delay = Duration.Zero))),
+        )(
+          use = _.metadata.availableRequests.contains("GetVersion")
         ),
-        Right(true)
+        Right(true),
       )
-      assert(config.copy(readiness = Some(ReadinessPolicy(0))).validate.isLeft)
+      assert(config.copy(readiness = Some(ReadinessPolicy(maxAttempts = 0))).validate.isLeft)
 
   test("diagnostics record metadata and complete counters despite bounded observer overflow"):
     connected() { peer =>
-      peer.respond(peer.sent.receive())
+      peer.respond(request = peer.sent.receive())
     } { (session, _) =>
-      assert(session.withDiagnostics(0)(_ => ()).isLeft)
-      val observed = session.withDiagnostics(1): diagnostics =>
+      assert(session.withDiagnostics(capacity = 0)(_ => ()).isLeft)
+      val observed = session.withDiagnostics(capacity = 1): diagnostics =>
         // The writer fork's traffic accounting trails the wire send and races the statistics read
         // below. This observer receives each Echo record exactly as it lands — send traffic, receive
         // traffic, request completion — so draining all three makes every counter deterministic.
-        val drained = session.withDiagnostics(16): echo =>
-          assertEquals(session.rawRequest("Echo"), Right(empty))
+        val drained = session.withDiagnostics(capacity = 16): echo =>
+          assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
           assert(echo.next().isRight)
           assert(echo.next().isRight)
           assert(echo.next().isRight)
@@ -786,16 +909,18 @@ class SessionSuite extends FunSuite:
     connected()(_ => ()) { (session, peer) =>
       val selector = com.worxbend.obs.websocket.client.protocol.events.CurrentProgramSceneChanged.selector
       assertEquals(
-        session.withEvents(selector): subscription =>
+        session.withEvents(selector = selector): subscription =>
           peer.emit(
-            5,
-            JsonObject(
-              Map(
-                "eventType" -> JsonValue.Str("CurrentProgramSceneChanged"),
-                "eventIntent" -> JsonValue.Num(BigDecimal(1)),
-                "eventData" -> JsonObject(Map("sceneName" -> JsonValue.Str("Main"), "sceneUuid" -> JsonValue.Str("id")))
+            op   = 5,
+            data = JsonObject(
+              fields = Map(
+                "eventType"   -> JsonValue.Str(value = "CurrentProgramSceneChanged"),
+                "eventIntent" -> JsonValue.Num(value = BigDecimal(1)),
+                "eventData"   -> JsonObject(fields =
+                  Map("sceneName" -> JsonValue.Str(value = "Main"), "sceneUuid" -> JsonValue.Str(value = "id"))
+                ),
               )
-            )
+            ),
           )
           val event = subscription.next() match
             case Next.Item(event) => event
@@ -803,13 +928,13 @@ class SessionSuite extends FunSuite:
           assertEquals(event.sceneName, "Main")
           assertEquals(subscription.droppedEvents, 0L)
         ,
-        Right(())
+        Right(()),
       )
     }
 
   test("readiness returns non-NotReady server rejections without another attempt"):
-    connected()(peer => peer.respond(peer.sent.receive(), code = 500)) { (session, _) =>
-      assert(session.requestWhenReady(versionRead).left.toOption.exists {
+    connected()(peer => peer.respond(request = peer.sent.receive(), code = 500)) { (session, _) =>
+      assert(session.requestWhenReady(request = versionRead).left.toOption.exists {
         case ObsError.RequestRejected(_, _, 500, _) => true
         case _                                      => false
       })
@@ -821,12 +946,13 @@ class SessionSuite extends FunSuite:
       forkDiscard:
         peer.hello()
         peer.identify().discard
-        peer.respond(peer.sent.receive(), code = 207)
+        peer.respond(request = peer.sent.receive(), code = 207)
       val result = ObsClient.withTransport(
-        peer,
-        config.copy(requestTimeout = 20.millis, readiness = Some(ReadinessPolicy(2, 1.second)))
+        transport = peer,
+        config    =
+          config.copy(requestTimeout = 20.millis, readiness = Some(ReadinessPolicy(maxAttempts = 2, delay = 1.second))),
       )(_ => ())
-      assertEquals(result, Left(ObsError.Timeout("GetVersion")))
+      assertEquals(result, Left(ObsError.Timeout(operation = "GetVersion")))
 
   private def closeFailure(error: Throwable): Peer = new Peer:
     override def close(): Unit =
@@ -834,45 +960,45 @@ class SessionSuite extends FunSuite:
       throw error
 
   test("a nonfatal close defect does not replace the typed configuration failure"):
-    val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
+    val peer    = closeFailure(error = new IllegalStateException(cleanupDefectMessage))
     val invalid = config.copy(uri = httpEndpoint)
-    assertEquals(ObsClient.withTransport(peer, invalid)(_ => ()), invalid.validate.map(_ => ()))
+    assertEquals(ObsClient.withTransport(transport = peer, config = invalid)(_ => ()), invalid.validate.map(_ => ()))
     assert(peer.closed.tryReceive().nonEmpty)
 
   test("a nonfatal close defect preserves a successful callback result"):
     supervised:
-      val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
+      val peer = closeFailure(error = new IllegalStateException(cleanupDefectMessage))
       forkDiscard:
         peer.hello()
         peer.identify().discard
         peer.discover()
-      assertEquals(ObsClient.withTransport(peer, config)(_ => 42), Right(42))
+      assertEquals(ObsClient.withTransport(transport = peer, config = config)(_ => 42), Right(42))
       assert(peer.closed.tryReceive().nonEmpty)
 
   test("a nonfatal close defect preserves callback cancellation"):
     val cancelled = new InterruptedException("cancelled")
-    val observed = captureInterruption:
+    val observed  = captureInterruption:
       supervised:
-        val peer = closeFailure(new IllegalStateException(cleanupDefectMessage))
+        val peer = closeFailure(error = new IllegalStateException(cleanupDefectMessage))
         forkDiscard:
           peer.hello()
           peer.identify().discard
           peer.discover()
-        ObsClient.withTransport(peer, config)(_ => throw cancelled).discard
+        ObsClient.withTransport(transport = peer, config = config)(_ => throw cancelled).discard
     assert(observed eq cancelled)
 
   test("interruption from transport close propagates"):
     val interrupted = new InterruptedException("close interrupted")
-    val peer = closeFailure(interrupted)
-    val observed = captureInterruption:
-      ObsClient.withTransport(peer, config.copy(uri = httpEndpoint))(_ => ()).discard
+    val peer        = closeFailure(error = interrupted)
+    val observed    = captureInterruption:
+      ObsClient.withTransport(transport = peer, config = config.copy(uri = httpEndpoint))(_ => ()).discard
     assert(observed eq interrupted)
 
   test("fatal transport close errors propagate"):
-    val fatal = new java.lang.InternalError("synthetic fatal cleanup error")
-    val peer = closeFailure(fatal)
+    val fatal    = new java.lang.InternalError("synthetic fatal cleanup error")
+    val peer     = closeFailure(error = fatal)
     val observed = try
-      ObsClient.withTransport(peer, config.copy(uri = httpEndpoint))(_ => ()).discard
+      ObsClient.withTransport(transport = peer, config = config.copy(uri = httpEndpoint))(_ => ()).discard
       fail("Expected the fatal cleanup error to propagate")
     catch case error: java.lang.InternalError => error
     assert(observed eq fatal)
@@ -887,25 +1013,25 @@ class SessionSuite extends FunSuite:
   test("oversized incoming JSON retains its size-limit classification"):
     val peer = new Peer
     peer.hello()
-    val result = ObsClient.withTransport(peer, config.copy(maxMessageBytes = 1))(_ => ())
-    assertEquals(result, Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit")))
+    val result = ObsClient.withTransport(transport = peer, config = config.copy(maxMessageBytes = 1))(_ => ())
+    assertEquals(result, Left(ObsError.MessageTooLarge(message = "Incoming message exceeds configured byte limit")))
 
   test("subscription drop counts remain readable after callback and session scopes end"):
-    val escaped = connected(config.copy(subscriptionCapacity = 1)) { peer =>
-      val request = peer.sent.receive()
-      peer.event(1)
-      peer.event(2)
-      peer.respond(request)
+    val escaped = connected(cfg = config.copy(subscriptionCapacity = 1)) { peer =>
+      val request     = peer.sent.receive()
+      peer.event(index     = 1)
+      peer.event(index     = 2)
+      peer.respond(request = request)
     } { (session, _) =>
       session.withEvents(policy = OverflowPolicy.DropOldest): subscription =>
-        assertEquals(session.rawRequest("Echo"), Right(empty))
+        assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
         subscription
     }.toOption.get.toOption.get
     assertEquals(escaped.droppedEvents, 1L)
 
   test("diagnostics subscribers observe the concrete session failure once before completion"):
-    val failure = ObsError.Transport("Peer closed", Some(1006))
-    val result = connected()(_ => ()) { (session, peer) =>
+    val failure = ObsError.Transport(message = "Peer closed", closeCode = Some(1006))
+    val result  = connected()(_ => ()) { (session, peer) =>
       session.withDiagnostics(): diagnostics =>
         peer.inbound.send(Left(failure))
         val observed = diagnostics.flow.runToList()
@@ -924,19 +1050,22 @@ class SessionSuite extends FunSuite:
 
   test("requests rejected at registration do not move session statistics"):
     val observed = Channel.buffered[Unit](1)
-    val release = Channel.buffered[Unit](1)
-    val result = connected(config.copy(maxInFlight = 1)) { peer =>
+    val release  = Channel.buffered[Unit](1)
+    val result   = connected(cfg = config.copy(maxInFlight = 1)) { peer =>
       val first = peer.sent.receive()
       observed.send(())
       release.receive()
-      peer.respond(first)
+      peer.respond(request = first)
     } { (session, _) =>
       supervised:
-        val drained = session.withDiagnostics(16): settled =>
-          val pending = fork(session.rawRequest("First"))
+        val drained = session.withDiagnostics(capacity = 16): settled =>
+          val pending = fork(session.rawRequest(requestType = "First"))
           observed.receive()
           val before = session.statistics.toOption.get
-          assertEquals(session.rawRequest("Second"), Left(ObsError.Overflow(inFlightLimitResource)))
+          assertEquals(
+            session.rawRequest(requestType = "Second"),
+            Left(ObsError.Overflow(resource = inFlightLimitResource)),
+          )
           val after = session.statistics.toOption.get
           // The peer observing the frame does not imply the writer fork's traffic(Sent) ask has landed:
           // that accounting races these snapshots, so only the request-finish counters are compared
@@ -956,7 +1085,7 @@ class SessionSuite extends FunSuite:
           assert(settled.next().isRight)
           val closed = session.statistics.toOption.get
           assertEquals(closed.completedRequests, before.completedRequests + 1)
-          assertEquals(session.rawRequest("Echo"), Left(ObsError.Closed))
+          assertEquals(session.rawRequest(requestType = "Echo"), Left(ObsError.Closed))
           assertEquals(session.statistics.toOption.get, closed)
         assert(drained.isRight)
     }
@@ -966,47 +1095,63 @@ class SessionSuite extends FunSuite:
     supervised:
       val logic = Actor.create(
         new SessionLogic(
-          config,
-          None,
-          Channel.buffered[WireMessage](1),
-          Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
+          config                 = config,
+          authenticationPassword = None,
+          outgoing               = Channel.buffered[WireMessage](1),
+          identified             = Channel.buffered[Either[ObsError, ConnectionMetadata]](1),
         )
       )
       val session =
-        new ObsSession(ConnectionMetadata("5.6.3", 1, Set.empty), config, SessionDependencies.live, logic)
+        new ObsSession(
+          metadata =
+            ConnectionMetadata(obsWebSocketVersion = "5.6.3", negotiatedRpcVersion = 1, availableRequests = Set.empty),
+          config       = config,
+          dependencies = SessionDependencies.live,
+          logic        = logic,
+        )
       session.tellSafely(_ => throw new IllegalStateException("bookkeeping defect"))
       assertEquals(session.state, Right(ConnectionState.AwaitingHello))
 
   test("an interrupted registration cannot orphan a pending request entry"):
     supervised:
-      val outgoing = Channel.buffered[WireMessage](4)
+      val outgoing   = Channel.buffered[WireMessage](4)
       val identified = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
-      val logic = Actor.create(new SessionLogic(config, None, outgoing, identified))
+      val logic      = Actor.create(
+        new SessionLogic(config = config, authenticationPassword = None, outgoing = outgoing, identified = identified)
+      )
       val session = new ObsSession(
-        ConnectionMetadata("5.6.3", 1, Set.empty),
-        config,
-        SessionDependencies(nextRequestId = () => interruptedRegistrationId),
-        logic
+        metadata =
+          ConnectionMetadata(obsWebSocketVersion = "5.6.3", negotiatedRpcVersion = 1, availableRequests = Set.empty),
+        config       = config,
+        dependencies = SessionDependencies(nextRequestId = () => interruptedRegistrationId),
+        logic        = logic,
       )
       // Drive the handshake so a registration can succeed.
       logic
         .ask(
           _.incoming(
-            WireMessage(
-              0,
-              JsonObject(
-                Map(
-                  "rpcVersion" -> JsonValue.Num(BigDecimal(1)),
-                  "obsWebSocketVersion" -> JsonValue.Str("5.6.3")
+            message = WireMessage(
+              op   = 0,
+              data = JsonObject(
+                fields = Map(
+                  "rpcVersion"          -> JsonValue.Num(value = BigDecimal(1)),
+                  "obsWebSocketVersion" -> JsonValue.Str(value = "5.6.3"),
                 )
-              )
+              ),
             )
           )
         )
         .discard
       outgoing.receive().discard // Identify
       logic
-        .ask(_.incoming(WireMessage(2, JsonObject(Map("negotiatedRpcVersion" -> JsonValue.Num(BigDecimal(1)))))))
+        .ask(
+          _.incoming(message =
+            WireMessage(
+              op   = 2,
+              data = JsonObject(fields = Map("negotiatedRpcVersion" -> JsonValue.Num(value = BigDecimal(1)))),
+            )
+          )
+        )
         .discard
       identified.receive().discard
       // Stall the actor so the register invocation queues behind the blocked one.
@@ -1018,13 +1163,16 @@ class SessionSuite extends FunSuite:
           release.receive()
       entered.receive()
       // The register ask is enqueued but still unprocessed when the timeout interrupts the caller.
-      assertEquals(timeoutOption(500.millis)(session.rawRequest("Probe")), None)
+      assertEquals(timeoutOption(500.millis)(session.rawRequest(requestType = "Probe")), None)
       release.send(())
       stalled.join()
       // The queued register ran and the unconditional cancel removed the pending entry again: the
       // request id is unknown to the writer guard, nothing was accounted, yet the message did queue —
       // proving the enqueue-then-interrupt path (not a registration that never landed) was exercised.
-      val orphaned = WireMessage(6, JsonObject(Map("requestId" -> JsonValue.Str(interruptedRegistrationId))))
-      assertEquals(logic.ask(_.canSend(orphaned)), false)
+      val orphaned = WireMessage(
+        op   = 6,
+        data = JsonObject(fields = Map("requestId" -> JsonValue.Str(value = interruptedRegistrationId))),
+      )
+      assertEquals(logic.ask(_.canSend(message = orphaned)), false)
       assertEquals(logic.ask(_.statistics), SessionStats())
-      assert(outgoing.tryReceive().exists(_.data.string("requestId").contains(interruptedRegistrationId)))
+      assert(outgoing.tryReceive().exists(_.data.string(name = "requestId").contains(interruptedRegistrationId)))

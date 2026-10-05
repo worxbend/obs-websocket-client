@@ -9,9 +9,9 @@ final class TypedObsSubscription[E <: Event] private[client] (source: ObsSubscri
   def next(): Next[E] = source.next() match
     case Next.Item(event) =>
       selector.select(event) match
-        case Some(value) => Next.Item(value)
+        case Some(value) => Next.Item(value = value)
         case None        => next()
-    case Next.Failed(error) => Next.Failed(error)
+    case Next.Failed(error) => Next.Failed(error = error)
     case Next.Ended         => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */

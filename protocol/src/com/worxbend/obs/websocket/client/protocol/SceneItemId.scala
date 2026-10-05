@@ -5,7 +5,8 @@ opaque type SceneItemId = BigDecimal
 
 object SceneItemId:
   def from(value: BigDecimal): Either[ProtocolError, SceneItemId] =
-    if value < 0 || !value.isWhole then Left(ProtocolError("sceneItemId", "Expected a nonnegative integer"))
+    if value < 0 || !value.isWhole then
+      Left(ProtocolError(path = "sceneItemId", message = "Expected a nonnegative integer"))
     else Right(value)
 
   extension (id: SceneItemId) def value: BigDecimal = id

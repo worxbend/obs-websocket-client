@@ -8,18 +8,19 @@ object Protocol:
     */
   val defaultMaxBytes: Int = 16 * 1024 * 1024
 
-  def decode(text: String, maxBytes: Int = defaultMaxBytes): Either[ProtocolError, WireMessage] = for
-    json <- JsonValue.parse(text, maxBytes)
-    envelope <- ValueCodec.obj.decode(json, "$")
-    op <- envelope.int("op")
-    data <- envelope.obj("d")
-  yield WireMessage(op, data)
+  def decode(text: String, maxBytes: Int = defaultMaxBytes): Either[ProtocolError, WireMessage] =
+    for
+      json     <- JsonValue.parse(text = text, maxBytes = maxBytes)
+      envelope <- ValueCodec.obj.decode(value = json, path = "$")
+      op       <- envelope.int(name = "op")
+      data     <- envelope.obj(name = "d")
+    yield WireMessage(op = op, data = data)
 
   def encode(message: WireMessage): String = JsonValue.render(
-    JsonObject(
-      Map(
-        "op" -> JsonValue.Num(BigDecimal(message.op)),
-        "d" -> message.data
+    value = JsonObject(
+      fields = Map(
+        "op" -> JsonValue.Num(value = BigDecimal(message.op)),
+        "d"  -> message.data,
       )
     )
   )

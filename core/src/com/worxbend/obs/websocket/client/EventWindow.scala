@@ -8,4 +8,4 @@ final case class EventWindow[K](values: Vector[(K, Event)] = Vector.empty, coale
     val remaining = values.filterNot(_._1 == key)
     if remaining.size < values.size then copy(values = remaining :+ (key -> event), coalesced = coalesced + 1)
     else if remaining.size == maxKeys then copy(values = remaining.tail :+ (key -> event), evicted = evicted + 1)
-    else copy(values = remaining :+ (key -> event))
+    else copy(values                                   = remaining :+ (key -> event))

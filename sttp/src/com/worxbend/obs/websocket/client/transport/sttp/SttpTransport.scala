@@ -17,29 +17,29 @@ import scala.concurrent.duration.*
   * invalid bytes with U+FFFD, that replacement can remain valid inside a JSON string and pass protocol decoding. Strict
   * rejection of malformed wire UTF-8 therefore depends on the selected WebSocket backend.
   */
-private[sttp] final class SttpTransport(
-    socket: SyncWebSocket,
-    maxMessageBytes: Int,
-    shutdownTimeout: FiniteDuration,
-    abortConnection: () => Unit,
-    writeTimeout: FiniteDuration = SttpOptions.DefaultWriteTimeout,
-    readIdleTimeout: Option[FiniteDuration] = None
+final private[sttp] class SttpTransport(
+  socket:          SyncWebSocket,
+  maxMessageBytes: Int,
+  shutdownTimeout: FiniteDuration,
+  abortConnection: () => Unit,
+  writeTimeout:    FiniteDuration = SttpOptions.DefaultWriteTimeout,
+  readIdleTimeout: Option[FiniteDuration] = None,
 ) extends ObsTransport:
   override def receive(): Either[ObsError, String] =
     readIdleTimeout match
-      case None           => socketBoundary(readMessage(new java.lang.StringBuilder, 0L)).flatten
-      case Some(deadline) => boundedRead(deadline)
+      case None => socketBoundary(operation = readMessage(text = new java.lang.StringBuilder, bytes = 0L)).flatten
+      case Some(deadline) => boundedRead(deadline = deadline)
 
   override def send(text: String): Either[ObsError, Unit] =
     // SyncWebSocket guarantees thread-safe sends, including serialization against control frames.
-    if Utf8.encodedLength(text) > maxMessageBytes then
-      Left(ObsError.MessageTooLarge("Outgoing message exceeds configured byte limit"))
-    else boundedWrite(writeTimeout, "write")(socket.sendText(text))
+    if Utf8.encodedLength(text = text) > maxMessageBytes then
+      Left(ObsError.MessageTooLarge(message = "Outgoing message exceeds configured byte limit"))
+    else boundedWrite(deadline = writeTimeout, stage = "write")(operation = socket.sendText(text))
 
   override def close(): Unit =
     try
       try
-        val _ = boundedWrite(shutdownTimeout, "shutdown")(socket.close())
+        val _ = boundedWrite(deadline = shutdownTimeout, stage = "shutdown")(operation = socket.close())
       catch case _: InterruptedException => Thread.currentThread().interrupt()
     finally abortConnection()
 
@@ -48,11 +48,11 @@ private[sttp] final class SttpTransport(
     */
   private def boundedWrite(deadline: FiniteDuration, stage: String)(operation: => Unit): Either[ObsError, Unit] =
     supervised:
-      val writing = fork(socketBoundary(operation))
+      val writing = fork(socketBoundary(operation = operation))
       try
         timeoutOption(deadline)(writing.join()).getOrElse:
           abortConnection()
-          Left(ObsError.Timeout(stage))
+          Left(ObsError.Timeout(operation = stage))
       catch
         case interrupted: InterruptedException =>
           abortConnection()
@@ -65,11 +65,12 @@ private[sttp] final class SttpTransport(
     */
   private def boundedRead(deadline: FiniteDuration): Either[ObsError, String] =
     supervised:
-      val reading = fork(socketBoundary(readMessage(new java.lang.StringBuilder, 0L)).flatten)
+      val reading =
+        fork(socketBoundary(operation = readMessage(text = new java.lang.StringBuilder, bytes = 0L)).flatten)
       try
         timeoutOption(deadline)(reading.join()).getOrElse:
           abortConnection()
-          Left(ObsError.Timeout("read"))
+          Left(ObsError.Timeout(operation = "read"))
       catch
         case interrupted: InterruptedException =>
           abortConnection()
@@ -80,32 +81,35 @@ private[sttp] final class SttpTransport(
     socket.receive() match
       case WebSocketFrame.Text(payload, finalFragment, _) =>
         // Arithmetic per fragment, so no encoded array is materialized per fragment.
-        val total = bytes + Utf8.encodedLength(payload)
-        if total > maxMessageBytes then Left(ObsError.MessageTooLarge("Incoming message exceeds configured byte limit"))
+        val total = bytes + Utf8.encodedLength(text = payload)
+        if total > maxMessageBytes then
+          Left(ObsError.MessageTooLarge(message = "Incoming message exceeds configured byte limit"))
         else
           val _ = text.append(payload)
           if finalFragment then Right(text.toString)
-          else readMessage(text, total)
+          else readMessage(text = text, bytes = total)
       case WebSocketFrame.Ping(payload) =>
-        boundedWrite(writeTimeout, "write")(socket.send(WebSocketFrame.Pong(payload))) match
+        boundedWrite(deadline = writeTimeout, stage = "write")(operation =
+          socket.send(WebSocketFrame.Pong(payload))
+        ) match
           case Left(error) => Left(error)
-          case Right(_)    => readMessage(text, bytes)
-      case _: WebSocketFrame.Pong      => readMessage(text, bytes)
+          case Right(_)    => readMessage(text = text, bytes = bytes)
+      case _: WebSocketFrame.Pong      => readMessage(text = text, bytes = bytes)
       case close: WebSocketFrame.Close =>
-        Left(ObsError.Transport("WebSocket closed", Some(close.statusCode)))
+        Left(ObsError.Transport(message = "WebSocket closed", closeCode = Some(close.statusCode)))
       case _: WebSocketFrame.Binary =>
-        Left(ObsError.UnsupportedMessage("Binary messages are unsupported; use OBS JSON encoding"))
+        Left(ObsError.UnsupportedMessage(message = "Binary messages are unsupported; use OBS JSON encoding"))
 
   private def socketBoundary[A](operation: => A): Either[ObsError, A] =
     operation
       .catching[WebSocketClosed]
       .left
-      .map(error => ObsError.Transport("WebSocket closed", error.frame.map(_.statusCode)))
+      .map(error => ObsError.Transport(message = "WebSocket closed", closeCode = error.frame.map(_.statusCode)))
       .catching[IOException]
       .left
-      .map(_ => ObsError.Transport("WebSocket I/O failed"))
+      .map(_ => ObsError.Transport(message = "WebSocket I/O failed"))
       .flatten
       .catching[ExecutionException]
       .left
-      .map(_ => ObsError.Transport("WebSocket operation failed"))
+      .map(_ => ObsError.Transport(message = "WebSocket operation failed"))
       .flatten

@@ -14,7 +14,7 @@ private[bench] object Payloads:
 
   /** ~64 KiB of ASCII, standing in for a large batched event. */
   val largeAscii: String =
-    val chunk = s"""{"key":"value","nested":{"list":[1,2,3,4,5],"flag":false},"padding":"${"x" * 96}"},"""
+    val chunk   = s"""{"key":"value","nested":{"list":[1,2,3,4,5],"flag":false},"padding":"${"x" * 96}"},"""
     val builder = new StringBuilder(64 * 1024 + 16)
     builder.append('[')
     while builder.length < 64 * 1024 do builder.append(chunk)
@@ -22,7 +22,7 @@ private[bench] object Payloads:
 
   /** Multi-byte-heavy text: CJK (3-byte UTF-8) and emoji (4-byte surrogate pairs). */
   val cjkEmoji: String =
-    val unit = "配信シーン切替🎥録画開始🔴チャット通知💬"
+    val unit    = "配信シーン切替🎥録画開始🔴チャット通知💬"
     val builder = new StringBuilder(unit.length * 64 + 32)
     builder.append("{\"events\":\"")
     var index = 0

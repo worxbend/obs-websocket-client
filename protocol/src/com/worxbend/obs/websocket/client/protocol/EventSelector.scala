@@ -2,8 +2,8 @@ package com.worxbend.obs.websocket.client.protocol
 
 /** Typed event selection. Generated event companions provide a selector that checks the actual decoded subtype. */
 final class EventSelector[E <: Event] private (
-    val eventType: String,
-    val select: Event => Option[E]
+  val eventType: String,
+  val select:    Event => Option[E],
 )
 
 object EventSelector:

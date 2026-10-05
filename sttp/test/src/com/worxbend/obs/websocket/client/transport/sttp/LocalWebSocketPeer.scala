@@ -24,8 +24,8 @@ private[client] object LocalWebSocketPeer:
       finally listener.close()
 
   def upgrade(socket: Socket): Unit =
-    val header = readHeaders(socket)
-    val key = header.split("\r\n").find(_.toLowerCase.startsWith("sec-websocket-key:")).get.split(":", 2)(1).trim
+    val header = readHeaders(socket = socket)
+    val key    = header.split("\r\n").find(_.toLowerCase.startsWith("sec-websocket-key:")).get.split(":", 2)(1).trim
     val accept = Base64.getEncoder.encodeToString(
       MessageDigest
         .getInstance("SHA-1")
@@ -37,7 +37,7 @@ private[client] object LocalWebSocketPeer:
     socket.getOutputStream.flush()
 
   def readHeaders(socket: Socket): String =
-    val input = socket.getInputStream
+    val input  = socket.getInputStream
     val header = new java.lang.StringBuilder
     while !header.toString.endsWith("\r\n\r\n") do
       val byte = input.read()
@@ -47,7 +47,7 @@ private[client] object LocalWebSocketPeer:
 
   def send(socket: Socket, text: String, opcode: Int = 1, finalFragment: Boolean = true): Unit =
     val bytes = text.getBytes(UTF_8)
-    val out = socket.getOutputStream
+    val out   = socket.getOutputStream
     out.write((if finalFragment then 128 else 0) | opcode)
     if bytes.length < 126 then out.write(bytes.length)
     else
@@ -66,7 +66,7 @@ private[client] object LocalWebSocketPeer:
       case 126 => (input.read() << 8) | input.read()
       case 127 => throw new IllegalArgumentException("Test frame too large")
       case n   => n
-    val mask = if (second & 128) != 0 then input.readNBytes(4) else Array.emptyByteArray
-    val data = input.readNBytes(length)
+    val mask    = if (second & 128) != 0 then input.readNBytes(4) else Array.emptyByteArray
+    val data    = input.readNBytes(length)
     val decoded = data.indices.map(i => (data(i) ^ (if mask.nonEmpty then mask(i % 4) else 0)).toByte).toArray
     (first & 15, new String(decoded, UTF_8))

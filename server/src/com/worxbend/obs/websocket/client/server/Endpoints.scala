@@ -23,13 +23,13 @@ private[server] object Endpoints:
 
   def all(service: ObsReadService): List[ServerEndpoint[Any, Identity]] =
     val api = List(
-      health.handleSuccess(_ => Health("ok")),
-      version.handle(_ => obsVersion(service))
+      health.handleSuccess(_ => Health(status = "ok")),
+      version.handle(_ => obsVersion(service = service)),
     )
     api ++ SwaggerInterpreter()
       .fromServerEndpoints[Identity](api, "OBS WebSocket client sample", BuildInfo.version)
 
   /** Unchecked service defects get the same redacted 503 as expected OBS failures. */
   private def obsVersion(service: ObsReadService): Either[ApiFailure, VersionInformation] =
-    try service.version().left.map(_ => ApiFailure("OBS is unavailable"))
-    catch case NonFatal(_) => Left(ApiFailure("OBS is unavailable"))
+    try service.version().left.map(_ => ApiFailure(message = "OBS is unavailable"))
+    catch case NonFatal(_) => Left(ApiFailure(message = "OBS is unavailable"))

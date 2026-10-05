@@ -6,7 +6,7 @@ import scala.concurrent.duration.*
 final case class ReadinessPolicy(maxAttempts: Int = 3, delay: FiniteDuration = 100.millis):
   private[client] def validate: Either[ObsError, Unit] =
     if maxAttempts <= 0 || delay < Duration.Zero then
-      Left(ObsError.InvalidConfiguration("Readiness attempts must be positive and delay nonnegative"))
+      Left(ObsError.InvalidConfiguration(message = "Readiness attempts must be positive and delay nonnegative"))
     else Right(())
 
 object ReadinessPolicy:
@@ -20,5 +20,5 @@ object ReadinessPolicy:
     "GetCurrentPreviewScene",
     "GetRecordStatus",
     "GetStreamStatus",
-    "GetStudioModeEnabled"
+    "GetStudioModeEnabled",
   )

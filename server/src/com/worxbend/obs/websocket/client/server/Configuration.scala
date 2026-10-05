@@ -5,7 +5,7 @@ import pureconfig.{ConfigReader, ConfigSource}
 private[server] enum ConfigurationError:
   case MissingOrMalformed, InvalidHttpHost, InvalidHttpPort, InvalidObsSettings
 
-private[server] final case class Configuration(http: HttpConfig, obs: ObsSettings) derives ConfigReader
+final private[server] case class Configuration(http: HttpConfig, obs: ObsSettings) derives ConfigReader
 
 private[server] object Configuration:
   /** Loading is explicit so applications and tests can supply an alternate HOCON source. */
@@ -22,9 +22,9 @@ private[server] object Configuration:
           normalized.obs.clientConfig.validate.left.map(_ => ConfigurationError.InvalidObsSettings).map(_ => normalized)
 
   /** Invalid startup configuration is terminal; diagnostics never render the source or secret values. */
-  def read: Configuration = read(ConfigSource.default)
+  def read: Configuration = read(source = ConfigSource.default)
 
-  def read(source: ConfigSource): Configuration = load(source).fold(
+  def read(source: ConfigSource): Configuration = load(source = source).fold(
     error => throw new IllegalArgumentException(s"Invalid server configuration: $error"),
-    identity
+    identity,
   )

@@ -3,7 +3,7 @@ package com.worxbend.obs.websocket.client.codegen.templates
 import com.worxbend.obs.websocket.client.codegen.model.{RequestCategory, RequestDefinition}
 import com.worxbend.obs.websocket.client.codegen.schema.Provenance
 import SourceFragments.*
-import FieldFragments.{parameters, arguments}
+import FieldFragments.{arguments, parameters}
 
 /** Source layout for protocol-only category facades; the error parameter prescribes no effect runtime.
   *
@@ -21,7 +21,7 @@ private[codegen] object RequestApiTemplate:
       .map(category => s"  val ${category.name}: ${category.className}[E] = new ${category.className}(this)\n")
       .mkString
     val categories = context.categories.map(renderCategory).mkString("\n")
-    val fileHeader = header(base, context.provenance, withImport = false)
+    val fileHeader = header(pkg = base, provenance = context.provenance, withImport = false)
     s"""$fileHeader/** Discoverable categories for the full pinned catalog. Implementations retain ownership of request policy. */
        |trait RequestApi[E]:
        |  def request[A](request: Request[A]): Either[E, A]
@@ -34,9 +34,9 @@ private[codegen] object RequestApiTemplate:
        |$methods""".stripMargin
 
   private def renderMethod(request: RequestDefinition): String =
-    val name = request.name
-    val methodParameters = parameters(request.requestFields)
-    val methodArguments = arguments(request.requestFields)
+    val name             = request.name
+    val methodParameters = parameters(fields = request.requestFields)
+    val methodArguments  = arguments(fields = request.requestFields)
     s"""  /** Executes [[$base.requests.$name]] using the owning request executor. */
        |  def ${request.methodName}($methodParameters): Either[E, requests.${name}Response] =
        |    executor.request(requests.$name($methodArguments))

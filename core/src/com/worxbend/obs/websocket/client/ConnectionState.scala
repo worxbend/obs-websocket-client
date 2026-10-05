@@ -18,4 +18,4 @@ object ConnectionState:
       case (Connecting | AwaitingHello | Identifying | Ready, Closing | Failed)              => true
       case (Closing, Closed)                                                                 => true
       case _                                                                                 => false
-    if allowed then Right(to) else Left(ObsError.InternalError(s"Invalid state transition: $from -> $to"))
+    if allowed then Right(to) else Left(ObsError.InternalError(message = s"Invalid state transition: $from -> $to"))

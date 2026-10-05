@@ -12,53 +12,56 @@ trait PasswordProvider:
   final override def toString: String = "PasswordProvider(<redacted>)"
 
 object PasswordProvider:
-  val none: PasswordProvider = fixed(None)
+  val none: PasswordProvider                         = fixed(value = None)
   def fixed(value: Option[String]): PasswordProvider = new PasswordProvider:
     def password(): Either[ObsError, Option[String]] = Right(value)
 
 /** OBS's normal-volume event categories; meter subscriptions must be explicit. */
 final case class EventSubscriptions private (value: Long)
 object EventSubscriptions:
-  val none: EventSubscriptions = new EventSubscriptions(0L)
+  val none: EventSubscriptions = new EventSubscriptions(value = 0L)
 
   /** Every generated normal-volume category bit; tracks schema upgrades automatically. */
-  val normal: EventSubscriptions = new EventSubscriptions(EventSubscription.All.value)
+  val normal: EventSubscriptions = new EventSubscriptions(value = EventSubscription.All.value)
   def fromLong(value: Long): Either[ObsError, EventSubscriptions] =
-    if value >= 0 then Right(new EventSubscriptions(value))
-    else Left(ObsError.InvalidConfiguration("Event subscription mask must be nonnegative"))
+    if value >= 0 then Right(new EventSubscriptions(value = value))
+    else Left(ObsError.InvalidConfiguration(message = "Event subscription mask must be nonnegative"))
 
 final case class ObsConfig(
-    uri: String = "ws://localhost:4455",
-    passwordProvider: PasswordProvider = PasswordProvider.none,
-    connectionTimeout: FiniteDuration = 10.seconds,
-    handshakeTimeout: FiniteDuration = 10.seconds,
-    requestTimeout: FiniteDuration = 10.seconds,
-    shutdownTimeout: FiniteDuration = 3.seconds,
-    maxInFlight: Int = 256,
-    outgoingCapacity: Int = 256,
-    subscriptionCapacity: Int = 128,
-    /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
-      * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session.
-      */
-    maxMessageBytes: Int = Protocol.defaultMaxBytes,
-    eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
-    readiness: Option[ReadinessPolicy] = None
+  uri:                  String = "ws://localhost:4455",
+  passwordProvider:     PasswordProvider = PasswordProvider.none,
+  connectionTimeout:    FiniteDuration = 10.seconds,
+  handshakeTimeout:     FiniteDuration = 10.seconds,
+  requestTimeout:       FiniteDuration = 10.seconds,
+  shutdownTimeout:      FiniteDuration = 3.seconds,
+  maxInFlight:          Int = 256,
+  outgoingCapacity:     Int = 256,
+  subscriptionCapacity: Int = 128,
+  /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
+    * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session.
+    */
+  maxMessageBytes:    Int = Protocol.defaultMaxBytes,
+  eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
+  readiness:          Option[ReadinessPolicy] = None,
 ):
   def validate: Either[ObsError, ObsConfig] =
     URI
       .create(uri)
       .catching[IllegalArgumentException]
       .left
-      .map(_ => ObsError.InvalidConfiguration("Invalid WebSocket URI"))
+      .map(_ => ObsError.InvalidConfiguration(message = "Invalid WebSocket URI"))
       .flatMap: parsed =>
-        if !hasWebSocketAddress(parsed) || hasPrivateComponents(parsed) then
-          Left(ObsError.InvalidConfiguration("Expected ws/wss URI with host, without credentials, query or fragment"))
+        if !hasWebSocketAddress(parsed = parsed) || hasPrivateComponents(parsed = parsed) then
+          Left(
+            ObsError
+              .InvalidConfiguration(message = "Expected ws/wss URI with host, without credentials, query or fragment")
+          )
         else if parsed.getPort != -1 && (parsed.getPort < 1 || parsed.getPort > 65535) then
-          Left(ObsError.InvalidConfiguration("Explicit WebSocket port must be between 1 and 65535"))
+          Left(ObsError.InvalidConfiguration(message = "Explicit WebSocket port must be between 1 and 65535"))
         else if List(connectionTimeout, handshakeTimeout, requestTimeout, shutdownTimeout).exists(_ <= Duration.Zero)
-        then Left(ObsError.InvalidConfiguration("All deadlines must be positive"))
+        then Left(ObsError.InvalidConfiguration(message = "All deadlines must be positive"))
         else if List(maxInFlight, outgoingCapacity, subscriptionCapacity, maxMessageBytes).exists(_ <= 0) then
-          Left(ObsError.InvalidConfiguration("All buffer and message limits must be positive"))
+          Left(ObsError.InvalidConfiguration(message = "All buffer and message limits must be positive"))
         else readiness.map(_.validate).getOrElse(Right(())).map(_ => this)
 
   private def hasWebSocketAddress(parsed: URI): Boolean =
