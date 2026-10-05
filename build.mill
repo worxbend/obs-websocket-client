@@ -149,7 +149,11 @@ object sttp extends LibraryModule:
 object okhttp extends LibraryModule:
   def artifactName = "obs-websocket-client-okhttp"
   def moduleDeps   = Seq(sttp)
-  def mvnDeps      = Seq(mvn"com.softwaremill.sttp.client4::okhttp-backend:${Versions.sttp}")
+  def mvnDeps      = Seq(
+    mvn"com.softwaremill.sttp.client4::okhttp-backend:${Versions.sttp}",
+    // Direct import (okhttp3.*); pin mirrors sttp 4.0.27's transitive resolution — recheck on sttp bumps.
+    mvn"com.squareup.okhttp3:okhttp:5.5.0",
+  )
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
 
@@ -159,6 +163,8 @@ object zio extends LibraryModule:
   def mvnDeps      = Seq(
     mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
     mvn"com.softwaremill.sttp.client4::zio:${Versions.sttp}",
+    // Direct import (_root_.zio.*); pin mirrors sttp 4.0.27's transitive resolution — recheck on sttp bumps.
+    mvn"dev.zio::zio:2.1.26",
   )
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
@@ -169,6 +175,8 @@ object fs2 extends LibraryModule:
   def mvnDeps      = Seq(
     mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
     mvn"com.softwaremill.sttp.client4::fs2:${Versions.sttp}",
+    // Direct import (cats.effect.*); pin mirrors sttp 4.0.27's transitive resolution — recheck on sttp bumps.
+    mvn"org.typelevel::cats-effect:3.7.1",
   )
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)

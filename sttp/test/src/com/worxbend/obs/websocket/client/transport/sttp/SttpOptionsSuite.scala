@@ -3,8 +3,6 @@ package com.worxbend.obs.websocket.client.transport.sttp
 import com.worxbend.obs.websocket.client.reconnect.{ReconnectDecision, ReconnectPolicy}
 import com.worxbend.obs.websocket.client.transport.HandshakeHeaders
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError}
-import java.net.{InetSocketAddress, ProxySelector}
-import javax.net.ssl.SSLContext
 import munit.FunSuite
 import scala.concurrent.duration.*
 
@@ -44,18 +42,6 @@ class SttpOptionsSuite extends FunSuite:
     val invalid = Left(ObsError.InvalidConfiguration(message = "Read idle deadline must be positive"))
     assertEquals(SttpOptions(readIdleTimeout = Some(Duration.Zero)).validate, invalid)
     assertEquals(SttpOptions(readIdleTimeout = Some((-1).second)).validate, invalid)
-
-  test("private JDK client applies proxy trust context and precise connection deadline"):
-    val proxy   = ProxySelector.of(new InetSocketAddress("127.0.0.1", 8080))
-    val tls     = SSLContext.getDefault
-    val options = JdkClientOptions(proxy = Some(proxy), sslContext = Some(tls))
-    val client  = options.build(connectionTimeout = 1.nanosecond)
-    try
-      assertEquals(client.proxy().get(), proxy)
-      assertEquals(client.sslContext(), tls)
-      assertEquals(client.connectTimeout().get(), java.time.Duration.ofNanos(1))
-      assertEquals(options.toString, "JdkClientOptions(<redacted>)")
-    finally client.shutdownNow()
 
   test("custom upgrade header reaches a real peer without redirects or response disclosure"):
     def reject(socket: java.net.Socket): Unit =

@@ -1,5 +1,6 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
+import com.worxbend.obs.websocket.client.transport.JdkClientOptions
 import com.worxbend.obs.websocket.client.{ObsClient, ObsConfig, ObsError, ObsSession}
 import _root_.sttp.client4.{basicRequest, SttpClientException, WebSocketSyncBackend}
 import _root_.sttp.client4.httpclient.HttpClientSyncBackend

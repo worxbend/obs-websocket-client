@@ -348,11 +348,11 @@ Evaluate sttp-ai, Orca, Parlance, and Besom independently after the client is st
 
 ### Phase 7 — Backend modules
 
-- [ ] Move backend-agnostic reconnect/handshake machinery from `transport.sttp` into `core`.
-- [ ] Add the `okhttp` sync adapter artifact (`obs-websocket-client-okhttp`).
-- [ ] Add the `zio`, `fs2`, and `pekko` bridged async adapter artifacts.
-- [ ] Wire every new module into coverage, Scalafix, release, consumer-smoke, API-site, and CI enumerations.
-- [ ] Document backend selection and coordinates in README, quickstart, and guides.
+- [x] Move backend-agnostic reconnect/handshake machinery from `transport.sttp` into `core`.
+- [x] Add the `okhttp` sync adapter artifact (`obs-websocket-client-okhttp`).
+- [x] Add the `zio`, `fs2`, and `pekko` bridged async adapter artifacts.
+- [x] Wire every new module into coverage, Scalafix, release, consumer-smoke, API-site, and CI enumerations.
+- [x] Document backend selection and coordinates in README, quickstart, and guides.
 
 Gate: each backend artifact compiles, passes its own 100% statement/branch coverage gate, and builds as a standalone consumer dependency per [ADR-005](docs/decisions/005-backend-modules.md).
 

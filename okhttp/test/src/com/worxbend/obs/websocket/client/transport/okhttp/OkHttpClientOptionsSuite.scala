@@ -6,10 +6,23 @@ import munit.FunSuite
 import scala.concurrent.duration.*
 
 class OkHttpClientOptionsSuite extends FunSuite:
-  test("defaults validate and render redacted"):
+  test("defaults validate and render innocuous deadlines with the proxy redacted"):
     val options = OkHttpClientOptions()
     assertEquals(options.validate, Right(options))
-    assertEquals(options.toString, "OkHttpClientOptions(<redacted>)")
+    assertEquals(
+      options.toString,
+      "OkHttpClientOptions(proxy=<redacted>, readTimeout=None, writeTimeout=None, callTimeout=None)",
+    )
+    val rendering = OkHttpClientOptions(
+      proxy        = Some(new java.net.Proxy(java.net.Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", 3128))),
+      readTimeout  = Some(2.seconds),
+      writeTimeout = Some(3.seconds),
+      callTimeout  = Some(4.seconds),
+    ).toString
+    assert(rendering.contains("readTimeout=Some(2 seconds)"))
+    assert(rendering.contains("writeTimeout=Some(3 seconds)"))
+    assert(rendering.contains("callTimeout=Some(4 seconds)"))
+    assert(!rendering.contains("3128"), "Proxy details must stay redacted")
 
   test("nonpositive deadlines are rejected"):
     val error = Left(ObsError.InvalidConfiguration(message = "OkHttp client deadlines must be positive"))

@@ -9,15 +9,21 @@ import scala.concurrent.duration.*
 
 /** Independent minimal RFC6455 peer; exercises the actual sttp/JDK socket path. */
 private[client] object LocalWebSocketPeer:
-  def run[A](server: Socket => Unit)(client: String => A): A = timeout(8.seconds):
+  def run[A](server: Socket => Unit)(client: String => A): A = runAll(scripts = List(server))(client = client)
+
+  /** Accepts one connection per script, sequentially, on a single listener. The client runs concurrently; each script
+    * owns exactly one accepted socket and must release it.
+    */
+  def runAll[A](scripts: List[Socket => Unit])(client: String => A): A = timeout(8.seconds):
     supervised:
       val listener = new ServerSocket(0, 1, InetAddress.getLoopbackAddress)
       try
         val peer = fork:
-          val socket = listener.accept()
-          socket.setSoTimeout(3000)
-          try server(socket)
-          finally socket.close()
+          scripts.foreach: script =>
+            val socket = listener.accept()
+            socket.setSoTimeout(3000)
+            try script(socket)
+            finally socket.close()
         val result = client(s"ws://localhost:${listener.getLocalPort}")
         peer.join()
         result
@@ -55,6 +61,15 @@ private[client] object LocalWebSocketPeer:
       out.write(bytes.length >> 8)
       out.write(bytes.length & 255)
     out.write(bytes)
+    out.flush()
+
+  /** Close frame carrying an arbitrary status code, which text payloads cannot encode. */
+  def sendClose(socket: Socket, statusCode: Int): Unit =
+    val out = socket.getOutputStream
+    out.write(136) // FIN + Close opcode
+    out.write(2)
+    out.write(statusCode >> 8)
+    out.write(statusCode & 255)
     out.flush()
 
   def receive(socket: Socket): (Int, String) =

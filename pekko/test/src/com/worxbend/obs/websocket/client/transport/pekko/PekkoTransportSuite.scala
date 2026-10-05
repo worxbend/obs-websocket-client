@@ -225,7 +225,7 @@ class PekkoTransportSuite extends FunSuite:
     val peer   = new BlockedPeer(frames = Nil)
     val result = ox.timeout(2.seconds)(blockedTransport(peer = peer).send(text = "{}"))
     assertEquals(result, Left(ObsError.Timeout(operation = "write")))
-    assert(peer.finished.await(2, java.util.concurrent.TimeUnit.SECONDS))
+    assert(peer.finished.await(10, java.util.concurrent.TimeUnit.SECONDS))
 
   test("pong write deadline terminates receive without waiting for the next frame"):
     val peer = new BlockedPeer(frames = List(WebSocketFrame.ping))
@@ -233,12 +233,12 @@ class PekkoTransportSuite extends FunSuite:
       ox.timeout(2.seconds)(blockedTransport(peer = peer).receive()),
       Left(ObsError.Timeout(operation = "write")),
     )
-    assert(peer.finished.await(2, java.util.concurrent.TimeUnit.SECONDS))
+    assert(peer.finished.await(10, java.util.concurrent.TimeUnit.SECONDS))
 
   test("close deadline aborts an uninterruptible close before joining its worker"):
     val peer = new BlockedPeer(frames = Nil)
     ox.timeout(2.seconds)(blockedTransport(peer = peer).close())
-    assert(peer.finished.await(2, java.util.concurrent.TimeUnit.SECONDS))
+    assert(peer.finished.await(10, java.util.concurrent.TimeUnit.SECONDS))
 
   test("caller interruption aborts an in-progress write before the scope can join it"):
     val peer = new BlockedPeer(frames = Nil)
@@ -246,7 +246,7 @@ class PekkoTransportSuite extends FunSuite:
       val sending = ox.forkCancellable(blockedTransport(peer = peer).send(text = "{}"))
       peer.awaitWrite()
       val _ = sending.cancel()
-      assert(peer.finished.await(2, java.util.concurrent.TimeUnit.SECONDS))
+      assert(peer.finished.await(10, java.util.concurrent.TimeUnit.SECONDS))
 
   /** Models a foreign backend whose read blocks indefinitely until its socket is aborted. */
   final private class SilentPeer(frames: List[WebSocketFrame] = Nil) extends WebSocket[Future]:
@@ -331,3 +331,40 @@ class PekkoTransportSuite extends FunSuite:
       peer.awaitRead()
       val _ = receiving.cancel()
     assert(peer.aborted)
+
+  /** Models a backend operation that fails with an unmapped exception type once the abort lands. */
+  final private class CancellingPeer extends WebSocket[Future]:
+    private val started                            = new java.util.concurrent.Semaphore(0)
+    private val released                           = new java.util.concurrent.Semaphore(0)
+    override def receive(): Future[WebSocketFrame] = Future.failed(new UnsupportedOperationException)
+    override def send(frame: WebSocketFrame, isContinuation: Boolean): Future[Unit] =
+      Future {
+        started.release()
+        released.acquireUninterruptibly()
+        throw new java.util.concurrent.CancellationException("pool cancelled after abort")
+      }(using ExecutionContext.global)
+    def awaitSend(): Unit                           = started.acquire()
+    def abort(): Unit                               = released.release(10)
+    override def isOpen(): Future[Boolean]          = Future.successful(true)
+    override val upgradeHeaders: Headers            = Headers(Nil)
+    implicit override val monad: MonadError[Future] = new FutureMonad()(using ExecutionContext.parasitic)
+
+  test("a post-abort write failure maps to a transport error instead of a foreign defect"):
+    val peer      = new CancellingPeer
+    val result    = new java.util.concurrent.LinkedBlockingQueue[Either[ObsError, Unit]]()
+    val transport = new PekkoTransport(
+      socket          = peer,
+      maxMessageBytes = 1024,
+      shutdownTimeout = 40.millis,
+      () => peer.abort(),
+      writeTimeout = 10.seconds,
+    )
+    val sending = new Thread(() => result.put(transport.send(text = "{}")))
+    sending.start()
+    peer.awaitSend()
+    transport.close()
+    sending.join(5000)
+    assert(!sending.isAlive, "The guarded send must finish promptly")
+    val sent = result.poll(5, java.util.concurrent.TimeUnit.SECONDS)
+    assert(sent != null, "The send must produce a result instead of dying with the foreign exception")
+    assertEquals(sent, Left(ObsError.Transport(message = "WebSocket closed", closeCode = None)))

@@ -52,7 +52,10 @@ A session or subscription must not escape its callback. Cancellation of one requ
 
 `SttpObsClient.connect` always owns a single connection. Use
 `ReconnectingObsClient.run` to explicitly enable bounded reconnect with
-exponential backoff and jitter. `ReconnectPolicy.create` validates the retry
+exponential backoff and jitter. Every backend adapter ships the same wrapper
+(`OkHttpReconnectingObsClient`, `ZioReconnectingObsClient`,
+`Fs2ReconnectingObsClient`, `PekkoReconnectingObsClient`) over the shared
+`reconnect.Reconnect.run` loop in core; the sttp variant is shown below. `ReconnectPolicy.create` validates the retry
 budget, initial and maximum delay, and jitter fraction. Tests inject
 `ReconnectTiming` for deterministic timing; live backoff uses interruptible Ox
 sleep.

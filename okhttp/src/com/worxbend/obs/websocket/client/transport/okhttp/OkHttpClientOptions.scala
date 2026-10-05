@@ -29,4 +29,5 @@ final case class OkHttpClientOptions(
     callTimeout.foreach(value => builder.callTimeout(java.time.Duration.ofNanos(value.toNanos)))
     builder.build()
 
-  override def toString: String = "OkHttpClientOptions(<redacted>)"
+  override def toString: String =
+    s"OkHttpClientOptions(proxy=<redacted>, readTimeout=$readTimeout, writeTimeout=$writeTimeout, callTimeout=$callTimeout)"

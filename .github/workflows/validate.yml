@@ -43,10 +43,8 @@ jobs:
         run: tools/coverage.sh
       - name: Offline regeneration consistency
         run: python3 tools/check_generation.py
-      - name: Source, API docs, and local consumer
-        run: |
-          ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishLocal'
-          tools/consumer_smoke.sh
+      - name: Documentation and isolated local consumer
+        run: tools/consumer_smoke.sh
       - name: Documentation and repository base path checks
         run: |
           ./mill --no-server integration.test.compile

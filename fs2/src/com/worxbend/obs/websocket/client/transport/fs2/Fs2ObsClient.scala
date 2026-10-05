@@ -2,6 +2,7 @@ package com.worxbend.obs.websocket.client.transport.fs2
 
 import cats.effect.IO
 import cats.effect.std.Dispatcher
+import com.worxbend.obs.websocket.client.transport.JdkClientOptions
 import com.worxbend.obs.websocket.client.{ObsClient, ObsConfig, ObsError, ObsSession}
 import Fs2Runner.given
 import ox.either.catching
@@ -14,8 +15,8 @@ import sttp.model.{Header, Uri}
 
 /** fs2 entrypoints own each connection for precisely the callback's lifetime, mirroring `SttpObsClient`. The blocking
   * direct-style session API is presented unchanged; the cats-effect runtime and the dispatcher stay internal
-  * implementation details. Callers needing a custom JDK client (proxy, TLS) supply their own backend through
-  * [[withBackend]].
+  * implementation details. Callers needing a fully custom client supply their own backend through [[withBackend]];
+  * proxy and TLS knobs for the owned JDK client live in [[com.worxbend.obs.websocket.client.transport.JdkClientOptions]].
   *
   * sttp's async HTTP-client backend recovers a failed upgrade handshake into a delivered response, so an HTTP upgrade
   * rejection always surfaces as "WebSocket upgrade rejected" through the response-body path; a thrown backend exception
@@ -24,29 +25,25 @@ import sttp.model.{Header, Uri}
 object Fs2ObsClient:
   /** Create and close a private JDK client, dispatcher, and fs2 backend together with the OBS connection. */
   def connect[A](
-    config:  ObsConfig,
-    options: Fs2Options = Fs2Options(),
+    config:        ObsConfig,
+    options:       Fs2Options = Fs2Options(),
+    clientOptions: JdkClientOptions = JdkClientOptions(),
   )(use: ObsSession => A): Either[ObsError, A] =
     config.validate.flatMap: valid =>
-      resourceScope:
-        val client = useInScope(
-          java.net.http.HttpClient
-            .newBuilder()
-            .connectTimeout(java.time.Duration.ofNanos(valid.connectionTimeout.toNanos))
-            .build()
-        )(_.shutdownNow())
-        val (dispatcher, releaseDispatcher) = Dispatcher.parallel[IO].allocated.unsafeRunSync()
-        val backend                         = useInScope(
-          HttpClientFs2Backend.usingClient[IO](client = client, dispatcher = dispatcher)
-        )(_ => releaseDispatcher.unsafeRunSync())
-        withBackend(
-          backend = backend,
-          config  = valid,
-          () => client.shutdownNow(),
-          options = options,
-        )(
-          use = use
-        )
+      options.validate.flatMap: validOptions =>
+        resourceScope:
+          val client = useInScope(clientOptions.build(connectionTimeout = valid.connectionTimeout))(_.shutdownNow())
+          // Register the release immediately after allocation so a failed backend construction cannot leak it.
+          val (dispatcher, releaseDispatcher) = Dispatcher.parallel[IO].allocated.unsafeRunSync()
+          val ownedDispatcher                 = useInScope(dispatcher)(_ => releaseDispatcher.unsafeRunSync())
+          withBackend(
+            backend = HttpClientFs2Backend.usingClient[IO](client = client, dispatcher = ownedDispatcher),
+            config  = valid,
+            () => client.shutdownNow(),
+            options = validOptions,
+          )(
+            use = use
+          )
 
   /** The caller retains ownership of the injected backend, including on failure. The backend must enforce its own
     * finite connection/upgrade timeout. Acquisition is shielded because the underlying JDK client may otherwise leave

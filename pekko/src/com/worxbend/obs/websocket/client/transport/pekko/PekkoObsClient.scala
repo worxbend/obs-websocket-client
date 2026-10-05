@@ -6,6 +6,7 @@ import org.apache.pekko.http.scaladsl.Http
 import ox.either.catching
 import ox.{resourceScope, timeoutOption, uninterruptible, useInScope, ResourceScope}
 import scala.concurrent.Future
+import scala.concurrent.duration.*
 import sttp.capabilities.pekko.PekkoStreams
 import sttp.client4.pekkohttp.PekkoHttpBackend
 import sttp.client4.ws.async.asWebSocketUnsafe
@@ -15,7 +16,9 @@ import sttp.model.{Header, Uri}
 /** Pekko entrypoints own each connection for precisely the callback's lifetime, mirroring `SttpObsClient`. The
   * blocking direct-style session API is presented unchanged; the `ActorSystem` stays an internal implementation
   * detail. Callers needing a custom actor system supply their own backend through [[withBackend]]; the library never
-  * terminates a caller-owned system.
+  * terminates a caller-owned system. Unlike the JDK-backed adapters (sttp, zio, fs2), there is no `JdkClientOptions`
+  * parameter: the backend is Pekko-native, so proxy/TLS/pool tuning belongs to the caller-supplied backend through
+  * [[withBackend]] or to Pekko configuration.
   *
   * sttp's Pekko backend reports a failed upgrade handshake as a delivered response, so an HTTP upgrade rejection
   * always surfaces as "WebSocket upgrade rejected" through the response-body path; a thrown backend exception means
@@ -32,16 +35,17 @@ object PekkoObsClient:
     options: PekkoOptions = PekkoOptions(),
   )(use: ObsSession => A): Either[ObsError, A] =
     config.validate.flatMap: valid =>
-      resourceScope:
-        val system = useInScope(ActorSystem(name = "obs-websocket-client-pekko"))(shutdown)
-        withBackend(
-          backend = PekkoHttpBackend.usingActorSystem(actorSystem = system),
-          config  = valid,
-          () => shutdownConnectionPools(system = system),
-          options = options,
-        )(
-          use = use
-        )
+      options.validate.flatMap: validOptions =>
+        resourceScope:
+          val system = useInScope(ActorSystem(name = newSystemName()))(shutdownSystem(_))
+          withBackend(
+            backend = PekkoHttpBackend.usingActorSystem(actorSystem = system),
+            config  = valid,
+            () => shutdownConnectionPools(system = system),
+            options = validOptions,
+          )(
+            use = use
+          )
 
   /** The caller retains ownership of the injected backend and its actor system, including on failure; the library
     * never terminates them. The backend must enforce its own finite connection/upgrade timeout. Acquisition is
@@ -127,6 +131,20 @@ object PekkoObsClient:
   private def shutdownConnectionPools(system: ActorSystem): Unit =
     val _ = Http(system).shutdownAllConnectionPools()
 
-  private def shutdown(system: ActorSystem): Unit =
+  /** Termination normally completes in milliseconds; the bounded await exists so a wedged actor system cannot pin the
+    * closing scope forever. After expiry the scope proceeds and termination continues in the background.
+    */
+  private[pekko] def shutdownSystem(
+    system:  ActorSystem,
+    timeout: FiniteDuration = PekkoObsClient.TerminationTimeout,
+  ): Unit =
     val _ = system.terminate()
-    val _ = PekkoRunner.await(future = system.whenTerminated)
+    val _ = timeoutOption(timeout)(PekkoRunner.await(future = system.whenTerminated))
+
+  private[pekko] def newSystemName(): String =
+    s"obs-websocket-client-pekko-${SystemIds.incrementAndGet()}"
+
+  private val SystemIds = new java.util.concurrent.atomic.AtomicLong(0)
+
+  /** Bounds the termination wait at scope exit; see [[shutdownSystem]]. */
+  private val TerminationTimeout: FiniteDuration = 5.seconds

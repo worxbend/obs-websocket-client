@@ -1078,11 +1078,14 @@ class SessionSuite extends FunSuite:
           session.close()
           // Exactly four records reach this observer: First's send and receive traffic, its
           // RequestFinished, and the Closed state change. Draining them bounds the writer fork's
-          // trailing accounting, so every counter is settled below this line.
-          assert(settled.next().isRight)
-          assert(settled.next().isRight)
-          assert(settled.next().isRight)
-          assert(settled.next().isRight)
+          // trailing accounting, so every counter is settled below this line. Each read carries a
+          // short deadline so a lost record fails fast instead of hanging the suite.
+          def drainedRecord(): Unit =
+            assert(ox.timeout(2.seconds)(settled.next()).isRight)
+          drainedRecord()
+          drainedRecord()
+          drainedRecord()
+          drainedRecord()
           val closed = session.statistics.toOption.get
           assertEquals(closed.completedRequests, before.completedRequests + 1)
           assertEquals(session.rawRequest(requestType = "Echo"), Left(ObsError.Closed))

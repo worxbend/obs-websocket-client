@@ -66,3 +66,28 @@ must be documented so ZIO/fs2/Pekko users are not surprised. The package name
 `_root_.zio` imports, following the existing `transport.sttp` convention. `transport.fs2`
 and `transport.pekko` needed no `_root_` imports in practice: neither module references
 the shadowed root package it shares a name with.
+
+Post-implementation review (quorum remediation) refined the design further:
+
+- The four transports' duplicated frame loops were extracted into
+  `transport.AbstractObsTransport` over the neutral `transport.TransportFrame` ADT in
+  core; each adapter keeps only its frame and error mapping. The loop includes a
+  post-abort guard: once a transport aborts, a non-fatal failure of an in-flight
+  operation reports `ObsError.Transport` instead of flipping an already-computed
+  retryable result into a defect. This guard is part of the transport contract.
+- The `private[client]` cross-artifact seam now spans `TransportFrame`,
+  `AbstractObsTransport`, `MessageAssembler`, `HandshakeHeaders`, `JdkClientOptions`,
+  and the `reconnect.*` family. These are internal APIs shared across independently
+  published artifacts, so the artifacts release in lockstep and the seam is treated as
+  binary-internal, never as public surface.
+- `JdkClientOptions` moved from the sttp module into core (`transport` package) so the
+  zio and fs2 adapters offer the same proxy/TLS knobs for their owned JDK clients;
+  pekko is deliberately excluded (Pekko-native backend).
+- A per-connection `ActorSystem` is a real cost on the Pekko adapter: systems get
+  unique monotonic names and a bounded 5-second termination wait, and the guide
+  recommends grouping work inside one connection callback.
+- Each adapter publishes a reconnect wrapper (`OkHttpReconnectingObsClient` completes
+  the set), and a shared cross-backend contract suite in `sttp/test` pins the wire
+  behavior of every adapter, including the documented per-backend divergences
+  (upgrade-rejection wording, clean-close surfacing of 1005 versus synthetic 1000, and
+  pekko-http's restricted close-code validity set).

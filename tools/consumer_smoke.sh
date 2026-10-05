@@ -61,6 +61,15 @@ object Main:
     assert(ZioObsClient.connect(invalid)(_ => ()).isLeft)
     assert(Fs2ObsClient.connect(invalid)(_ => ()).isLeft)
     assert(PekkoObsClient.connect(invalid)(_ => ()).isLeft)
+    // A real connect to a guaranteed-closed port initializes each runtime bridge
+    // (JDK client, OkHttp dispatcher, ZIO Runtime, IORuntime + Dispatcher, ActorSystem)
+    // on the isolated-repo classpath and fails fast.
+    val closed = ObsConfig(uri = "ws://127.0.0.1:1", connectionTimeout = scala.concurrent.duration.Duration(2, "s"))
+    assert(SttpObsClient.connect(closed)(_ => ()).isLeft)
+    assert(OkHttpObsClient.connect(closed)(_ => ()).isLeft)
+    assert(ZioObsClient.connect(closed)(_ => ()).isLeft)
+    assert(Fs2ObsClient.connect(closed)(_ => ()).isLeft)
+    assert(PekkoObsClient.connect(closed)(_ => ()).isLeft)
     assert(OkHttpClientOptions().validate.isRight)
     assert(ZioOptions().validate.isRight)
     assert(Fs2Options().validate.isRight)
