@@ -1,4 +1,0 @@
-package example
-
-object Support:
-  def header(pkg: String, enabled: Boolean): String = if enabled then pkg else ""

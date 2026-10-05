@@ -33,9 +33,9 @@ clearly distinguished in documentation. Coverage must reach 100% statements and
 branches under the measurement rules in `PLAN.md`; do not invent passing badges.
 
 Use named arguments for ordinary Scala method and constructor calls, including single-argument calls,
-when the parameter names are available. Preserve evaluation order. Run
-`./mill sourceStyle.namedArguments` to migrate supported calls, format the changed modules, then run
-`./mill sourceStyle.namedArguments --check` before committing. The rule uses SemanticDB; do not invent
-names for Java APIs or unresolved third-party signatures. Positional exceptions and the rule's
-scope are documented in `docs/contributing.md`. Keep action-named zero-argument methods such as
+when the parameter names are available. Preserve evaluation order and review this convention manually;
+do not invent names for Java APIs or unresolved third-party signatures. Use only built-in Scalafix
+rules configured in `.scalafix.conf`; do not add custom rule implementations to this repository.
+Run `./mill sourceStyle.fix --check` and formatting checks before committing. See
+`docs/contributing.md` for scope and commands. Keep action-named zero-argument methods such as
 `setProgram()` parenthesized; document request builders as builders rather than live mutations.

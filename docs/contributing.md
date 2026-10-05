@@ -39,40 +39,35 @@ Use named arguments for ordinary Scala methods and constructors, including singl
 `header(pkg = base, provenance = provenance, withImport = false)` exposes the meaning of each value without
 making the reader locate the declaration. Keep argument evaluation in its existing order.
 
-The repository's `NamedArguments` semantic Scalafix rule is written in Scala 3 in `namedArgumentRules`.
-It uses resolved overloads and compiler-produced parameter signatures, including an index of the supplied
-SemanticDB directories for cross-file Scala 3 calls. It labels arguments; it does not reorder expressions.
+Named arguments are a code-review convention. Scalafix has no built-in rule that adds or enforces them,
+and Scalafmt controls layout rather than parameter names. Preserve idiomatic operators, varargs,
+function applications, block/colon arguments, and `using` clauses; do not guess names for Java APIs
+or unresolved third-party signatures.
+
+## Built-in Scalafix checks
+
+The repository uses only [built-in Scalafix rules](https://scalacenter.github.io/scalafix/docs/rules/overview.html),
+configured in `.scalafix.conf`, with no custom rule source, rule module, or external rule dependency:
+
+- `RedundantSyntax` removes redundant object modifiers and unnecessary standard string interpolators.
+- `DisableSyntax` rejects XML literals and finalizers. It permits mutable state, loops, exceptions, and
+  null interop where this project's direct-style Scala and Java boundaries require them.
+
+These syntactic rules run with the project's Scala 3 dialect without SemanticDB. Import ordering stays
+with Scalafmt; unused-code checks stay with the existing `-Wunused:all` and `-Werror` compiler options.
+Scala 2 migration rules are unnecessary here. The check covers handwritten production, test, integration,
+and benchmark sources, excluding the frozen `LegacyJsonValue` baseline. Generated output, golden resources,
+and embedded source-template text are not rewritten. Interpolation expressions are ordinary Scala source.
 
 ```sh
-# Rewrite supported calls throughout handwritten production code, tests, and development tooling.
-./mill sourceStyle.namedArguments
-# Format the changed modules before the final check.
+# Apply built-in rewrites, then format.
+./mill sourceStyle.fix
 ./mill mill.scalalib.scalafmt.ScalafmtModule/scalafmt build.mill
-./mill '{codegen,protocol,core,sttp,examples,server,bench,namedArgumentRules}.reformat'
+./mill '{codegen,protocol,core,sttp,examples,server,bench}.reformat'
 ./mill '{codegen,protocol,core,sttp,examples,server,integration}.test.reformat'
-# CI runs both the executable rule fixtures and the read-only semantic check.
-python3 tools/check_named_arguments.py
-./mill sourceStyle.namedArguments --check
+# Read-only CI check; reports rewrites and forbidden syntax.
+./mill sourceStyle.fix --check
 ```
-
-Scalafmt controls layout (`binPack.callSite = never` keeps multiline arguments expanded); it cannot infer
-parameter names. Scalafix supplies that semantic enforcement. The check recompiles SemanticDB as needed and
-fails when the rule would change a supported call. Do not bypass it with broad suppressions.
-
-The rule covers parenthesized calls with trustworthy Scala signatures, case-class factories, unambiguous
-constructors, defaults, generic and curried methods. It deliberately leaves these positional forms alone:
-
-- Java APIs and unresolved third-party signatures: parameter names are not reliably available.
-- Varargs, operators/infix syntax, function-value application, and placeholder arguments.
-- Block/colon control-flow syntax, lambda/partial-function arguments, and explicit `using` clauses.
-- Extension methods with hidden receiver clauses and overloaded constructors whose selected constructor
-  Scala 3 SemanticDB does not identify. Use names manually when the declaration makes them unambiguous.
-
-Generated output, golden resources, embedded source-template text, and the frozen `LegacyJsonValue` benchmark
-are outside the migration. Build definitions retain Mill's task/DSL syntax and are reviewed manually. Calls inside
-template interpolation expressions are normal generator code and are checked. The lint-rule and scratch-fixture
-modules are development build tools, not published library code or additions to the production coverage denominator;
-their executable fixtures check exact rewrites, compilation, laziness, evaluation order, and idempotence.
 
 For zero-argument methods with action names, use parentheses consistently. `SceneRef.setProgram()` and
 `setPreview()` construct requests; a caller still has to send them through a session. Property-like accessors

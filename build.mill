@@ -54,29 +54,10 @@ trait Java25Module extends ScalaModule:
     Some(PathRef(home))
   def scalacOptions = Seq("-release:25", "-Wunused:all", "-Wvalue-discard", "-Wnonunit-statement", "-Werror")
 
-/** Loads our semantic naming rule as a build tool, never as a library runtime dependency. */
-trait NamedArgumentsModule extends ScalaModule with ScalafixModule:
-  def namedArgumentsConfig = Task.Source(mill.api.BuildCtx.workspaceRoot / ".scalafix.conf")
-  def scalafixConfig       = Task:
-    val output = Task.dest / "scalafix.conf"
-    val root   = upickle.default.write(mill.api.BuildCtx.workspaceRoot.toString)
-    os.write(output, os.read(namedArgumentsConfig().path) + s"\nNamedArguments.sourceRoot = $root\n")
-    Some(output)
-  def scalafixToolClasspath = Task:
-    Seq(namedArgumentRules.jar()) ++ namedArgumentRules.runClasspath()
-
-/** Scala 3 implementation of the repository's Scalafix rule; build tooling only. */
-object namedArgumentRules extends Java25Module with ScalafmtModule:
-  def mvnDeps = Seq(mvn"ch.epfl.scala:scalafix-core_2.13:0.14.9")
-
-/** Scratch compilation module used by the rule's apply/compile/idempotence fixture test. */
-object namedArgumentFixtures extends Java25Module with NamedArgumentsModule:
-  def sources = Task.Sources(mill.api.BuildCtx.workspaceRoot / "out" / "named-argument-fixture")
-
-trait ProjectModule extends Java25Module with ScoverageModule with ScalafmtModule with NamedArgumentsModule:
+trait ProjectModule extends Java25Module with ScoverageModule with ScalafmtModule with ScalafixModule:
   def scoverageVersion = Versions.scoverage
   // Exact 100% coverage enforcement lives in tools/check_coverage.py per PLAN §23, not Mill percentage minimums.
-  trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule with NamedArgumentsModule:
+  trait Tests extends ScoverageTests with TestModule.Munit with ScalafmtModule with ScalafixModule:
     def mvnDeps = Seq(mvn"org.scalameta::munit:${Versions.munit}")
 
 trait LibraryModule extends ProjectModule with PublishModule:
@@ -197,7 +178,7 @@ object server extends ProjectModule:
       mvn"com.softwaremill.sttp.tapir::tapir-sttp-client4:${Versions.tapir}",
     )
 
-// Benchmarks are development-only: not published or in coverage.measured. CI compiles them for source-style checks only.
+// Benchmarks are development-only: not published or in coverage.measured. CI lints and formats their sources.
 // Mixin order matters: JmhModule alone extends only JavaModule, whose sourceFileExtensions filter
 // would silently drop every .scala file from `sources`.
 object bench extends Java25Module with JmhModule with ScalafmtModule:
@@ -229,7 +210,7 @@ object site extends Module:
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
     ()
 
-/** Semantic source-style checks across handwritten sources; generated output and the frozen benchmark stay untouched. */
+/** Runs built-in Scalafix rules on handwritten sources, preserving generated output and the frozen benchmark. */
 object sourceStyle extends Module:
   val modules: Seq[ScalaModule] = Seq(
     codegen,
@@ -246,28 +227,25 @@ object sourceStyle extends Module:
     server.test,
     integration.test,
     bench,
-    namedArgumentRules,
   )
 
-  /** Run without arguments to migrate, or with `--check` to fail CI on a positional argument. */
-  def namedArguments(args: String*) = Task.Command:
-    val roots    = Task.sequence(modules.map(_.sources))().flatten
-    val sources  = ScalafixModule.filesToFix(sources = roots).map(_.path).filterNot(_.last == "LegacyJsonValue.scala")
-    val semantic = Task.sequence(modules.map(_.semanticDbData))()
-    val dependencies = Task.sequence(modules.map(_.compileClasspath))().flatten
-    val classes      = Task.sequence(modules.map(_.localClasspath))().flatten
+  def config = Task.Source(mill.api.BuildCtx.workspaceRoot / ".scalafix.conf")
+
+  /** Apply built-in syntax rewrites, or use `--check` for the read-only CI gate. No SemanticDB is needed. */
+  def fix(args: String*) = Task.Command:
+    val roots   = Task.sequence(modules.map(_.sources))().flatten
+    val sources = ScalafixModule.filesToFix(sources = roots).map(_.path).filterNot(_.last == "LegacyJsonValue.scala")
     ScalafixModule.fixAction(
-      log                   = Task.ctx().log,
-      repositories          = codegen.scalafixRepositories(),
-      sources               = sources,
-      classpath             = (dependencies ++ classes ++ semantic).map(_.path).distinct,
-      scalaVersion          = Versions.scala,
-      scalacOptions         = codegen.scalacOptions(),
-      scalafixIvyDeps       = Seq.empty,
-      scalafixConfig        = codegen.scalafixConfig(),
-      args                  = args,
-      wd                    = mill.api.BuildCtx.workspaceRoot,
-      scalafixToolClasspath = (Seq(namedArgumentRules.jar()) ++ namedArgumentRules.runClasspath()).map(_.path),
+      log             = Task.ctx().log,
+      repositories    = codegen.scalafixRepositories(),
+      sources         = sources,
+      classpath       = Seq.empty,
+      scalaVersion    = Versions.scala,
+      scalacOptions   = codegen.scalacOptions(),
+      scalafixIvyDeps = Seq.empty,
+      scalafixConfig  = Some(config().path),
+      args            = args,
+      wd              = mill.api.BuildCtx.workspaceRoot,
     )
 
 object coverage extends Module:
