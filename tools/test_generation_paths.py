@@ -45,6 +45,30 @@ class GenerationPathTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 doc_snippets.snippet_destination(root, destination)
 
+    def test_python_cache_is_outside_generated_inventory(self):
+        from check_generation import build_snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / 'out/protocol/generatedSources.dest'
+            (destination / 'scala').mkdir(parents=True)
+            (destination / 'cache').mkdir()
+            (destination / 'cache/main.pyc').write_bytes(b'bytecode')
+            (destination / 'scala/Catalog.scala').write_text('object Catalog\n')
+            (destination / 'scala/catalog-inventory.tsv').write_text('inventory\n')
+            self.assertEqual(set(build_snapshot(root)), {'Catalog.scala', 'catalog-inventory.tsv'})
+            (destination / 'scala/stray.pyc').write_bytes(b'bytecode')
+            with self.assertRaisesRegex(ValueError, 'Unexpected files'):
+                build_snapshot(root)
+
+    def test_missing_or_empty_generation_is_not_reproducibility(self):
+        from check_generation import snapshot
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, 'Missing generated'):
+                snapshot(root / 'missing')
+            with self.assertRaisesRegex(ValueError, 'Incomplete generated'):
+                snapshot(root)
+
     def test_snippets_keep_ascii_identifier_recognition(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

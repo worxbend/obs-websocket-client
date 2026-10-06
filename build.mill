@@ -72,13 +72,98 @@ trait LibraryModule extends ProjectModule with PublishModule:
     developers     = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend")),
   )
 
-/** Build-time schema compiler, with sources in `codegen/src` and fixtures/tests in `codegen/test`.
-  * `protocol.generatedSources` uses its runtime classpath to launch Generate in a separate JVM.
-  * This is a build dependency only: published protocol/client artifacts do not depend on codegen.
+/** Native Python toolchain. Provision the exact .python-version interpreter externally; optionally set
+  * OBS_CODEGEN_PYTHON to its command or absolute path. Never installs into the host environment.
   */
-object codegen extends ProjectModule:
-  def mvnDeps = Deps.jsoniter
-  object test extends Tests
+trait PinnedPython extends mill.pythonlib.PythonModule:
+  def interpreterVersion = Task.Source(mill.api.BuildCtx.workspaceRoot / ".python-version")
+  def hostInterpreter    = Task.Input:
+    val command = Task.env.getOrElse("OBS_CODEGEN_PYTHON", "python3")
+    val probe   = os.proc(
+      command,
+      "-c",
+      "import os,sys; print('.'.join(map(str,sys.version_info[:3]))); print(os.path.realpath(sys.executable))",
+    )
+      .call().out.text().trim.linesIterator.toSeq
+    (probe.head, PathRef(os.Path(probe(1))))
+  def hostPythonCommand = Task:
+    val (actual, executable) = hostInterpreter()
+    val expected             = os.read(interpreterVersion().path).trim
+    require(actual == expected, s"Expected Python $expected, got $actual; provision it and set OBS_CODEGEN_PYTHON")
+    executable.path.toString
+  // Do not combine native mypy/pex defaults with the hash-enforced requirements.
+  def pythonToolDeps = Seq.empty[String]
+  // Mill 1.1.10 hardcodes bin/python3. Override every platform-dependent venv path.
+  override def venv = Task:
+    // Keep the executable content fingerprint, not only its stable command path.
+    val _         = hostInterpreter()
+    val directory = Task.dest / "venv"
+    os.proc(hostPythonCommand(), "-m", "venv", directory).call(stdout = os.Inherit)
+    val python    = if scala.util.Properties.isWin then directory / "Scripts" / "python.exe"
+    else directory / "bin" / "python3"
+    os.proc(Seq(python.toString, "-m", "pip", "--isolated", "install", "--require-hashes", "--only-binary=:all:") ++
+      pipInstallArgs().args)
+      .call(stdout = os.Inherit)
+    PathRef(directory)
+  override def venvBin = Task:
+    PathRef(venv().path / (if scala.util.Properties.isWin then "Scripts" else "bin"))
+  override def pythonExe = Task:
+    PathRef(venvBin().path / (if scala.util.Properties.isWin then "python.exe" else "python3"))
+  // The native runner exposes only pythonExe: a package change may leave that PathRef unchanged.
+  // Explicitly propagate the complete environment to generation AND cached tests/tool tasks.
+  override def runner = Task.Anon:
+    val _ = venv()
+    super.runner()
+
+/** Build-time schema compiler only; published Scala artifacts have no Python runtime dependency. */
+object codegen extends PinnedPython:
+  def pythonRequirementFiles = Task.Sources("requirements.lock")
+  def templates              = Task.Source("templates")
+  def config                 = Task.Source("pyproject.toml")
+  def resources              = Task { super.resources() ++ Seq(templates()) }
+
+  object test extends PythonTests with PinnedPython with mill.pythonlib.TestModule.Unittest:
+    def pythonRequirementFiles = Task.Sources(mill.api.BuildCtx.workspaceRoot / "codegen" / "requirements-dev.lock")
+    def testRunner             = Task.Source(mill.api.BuildCtx.workspaceRoot / "tools" / "run_codegen_tests.py")
+    def resources              = Task:
+      super.resources() ++ Seq(
+        codegen.templates(),
+        codegen.config(),
+        testRunner(),
+        protocol.specification(),
+        protocol.overrides(),
+        protocol.provenance(),
+      )
+    override protected def testTask(args: Task[Seq[String]]) = Task.Anon:
+      runner().run(
+        Seq(testRunner().path.toString, "--output", Task.dest.toString) ++ args(),
+        workingDir = mill.api.BuildCtx.workspaceRoot,
+      )
+      Seq.empty[Unit]
+    // Explicit roots are essential: native mypy/Ruff check this module, not moduleDeps.
+    def toolSources = Task { codegen.sources() ++ sources() }
+    def lint        = Task:
+      runner().run(Seq("-m", "ruff", "check", "--no-cache", "--config", codegen.config().path.toString) ++
+        toolSources().map(_.path.toString))
+    def formatCheck = Task:
+      runner().run(Seq("-m", "ruff", "format", "--check", "--no-cache", "--config", codegen.config().path.toString) ++
+        toolSources().map(_.path.toString))
+    override def typeCheck = Task:
+      runner().run(Seq(
+        "-m",
+        "mypy",
+        "--config-file",
+        codegen.config().path.toString,
+        "--cache-dir",
+        (Task.dest / "mypycache").toString,
+      ) ++ toolSources().map(_.path.toString))
+    // A command, never a cached target: coverage.sh requires fresh measurements after its manifest.
+    def coverage() = Task.Command:
+      runner().run(
+        Seq(testRunner().path.toString, "--coverage", "--output", Task.dest.toString),
+        workingDir = mill.api.BuildCtx.workspaceRoot,
+      )
+      PathRef(Task.dest / "coverage.json")
 
 object protocol extends LibraryModule:
   // Resolve inputs from the checkout root, independent of the shell's current directory.
@@ -95,7 +180,7 @@ object protocol extends LibraryModule:
     *
     * The four positional CLI arguments below are, in order:
     *   1. `<checkout>/protocol-spec/protocol.json`: pinned schema bytes.
-    *   2. `Task.dest`: Mill-owned output root (normally `<checkout>/out/protocol/generatedSources.dest`).
+    *   2. `Task.dest/scala`: Mill-owned output root, separate from Python bytecode caches.
     *   3. `<checkout>/protocol-spec/overrides.json`: reviewed semantic corrections.
     *   4. `<checkout>/protocol-spec/provenance.json`: schema checksum and upstream documentation origin.
     *
@@ -110,26 +195,19 @@ object protocol extends LibraryModule:
     * task dependencies are unchanged. See `docs/code-generation.md` for the pipeline and fixture workflow.
     */
   def generatedSources = Task:
-    // Reading runClasspath makes compilation of codegen a prerequisite and includes its JSON dependencies.
-    // Use the platform classpath separator (`:` on Unix, `;` on Windows), not a hard-coded separator.
-    val classpath = codegen.runClasspath().map(_.path.toString).mkString(_root_.java.io.File.pathSeparator)
-    // Launch with the codegen module's checked Java 25 home, rather than whichever java is on PATH.
-    val executable = if scala.util.Properties.isWin then "java.exe" else "java"
-    val java       = codegen.javaHome().get.path / "bin" / executable
-    os.proc(
-      java.toString,
-      "-cp",
-      classpath,
-      "com.worxbend.obs.websocket.client.codegen.Generate",
-      specification().path.toString,
-      Task.dest.toString,
-      overrides().path.toString,
-      provenance().path.toString,
-    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
-    // Register the output directory as a Scala source root alongside handwritten protocol/src.
-    // Mill compiles its Scala files recursively; the TSV inventory is metadata, not a Scala source.
-    // A nonzero generator exit makes os.proc.call fail, so compilation cannot use a failed task result.
-    Seq(PathRef(Task.dest))
+    val output = Task.dest / "scala"
+    val _      = codegen.templates()
+    codegen.runner().run(args =
+      Seq(
+        codegen.mainScript().path.toString,
+        specification().path.toString,
+        output.toString,
+        overrides().path.toString,
+        provenance().path.toString,
+      )
+    )
+    // Keep Python bytecode caches outside the registered Scala tree and preserve inherited roots.
+    super.generatedSources() ++ Seq(PathRef(output))
   def artifactName = "obs-websocket-client-protocol"
   def mvnDeps      = Deps.jsoniter
   object test extends Tests
@@ -185,7 +263,7 @@ object pekko extends LibraryModule:
   def artifactName = "obs-websocket-client-pekko"
   def moduleDeps   = Seq(core)
   // pekko-http declares pekko-stream as `provided`; the backend cannot run without it.
-  def mvnDeps      = Seq(
+  def mvnDeps = Seq(
     mvn"com.softwaremill.sttp.client4::core:${Versions.sttp}",
     mvn"com.softwaremill.sttp.client4::pekko-http-backend:${Versions.sttp}",
     mvn"org.apache.pekko::pekko-stream:1.1.5",
@@ -196,7 +274,7 @@ object pekko extends LibraryModule:
 object examples extends ProjectModule:
   def moduleDeps = Seq(sttp)
   // Keeps `./mill examples.run` unambiguous; StudioMonitor runs via `examples.runMain`.
-  def mainClass  = Some("com.worxbend.obs.websocket.client.examples.Quickstart")
+  def mainClass = Some("com.worxbend.obs.websocket.client.examples.Quickstart")
   object test extends Tests:
     def moduleDeps = super.moduleDeps ++ Seq(build.sttp.test)
 
@@ -271,7 +349,6 @@ object site extends Module:
 /** Runs built-in Scalafix rules on handwritten sources, preserving generated output and the frozen benchmark. */
 object sourceStyle extends Module:
   val modules: Seq[ScalaModule] = Seq(
-    codegen,
     protocol,
     core,
     sttp,
@@ -281,7 +358,6 @@ object sourceStyle extends Module:
     pekko,
     examples,
     server,
-    codegen.test,
     protocol.test,
     core.test,
     sttp.test,
@@ -303,11 +379,11 @@ object sourceStyle extends Module:
     val sources = ScalafixModule.filesToFix(sources = roots).map(_.path).filterNot(_.last == "LegacyJsonValue.scala")
     ScalafixModule.fixAction(
       log             = Task.ctx().log,
-      repositories    = codegen.scalafixRepositories(),
+      repositories    = protocol.scalafixRepositories(),
       sources         = sources,
       classpath       = Seq.empty,
       scalaVersion    = Versions.scala,
-      scalacOptions   = codegen.scalacOptions(),
+      scalacOptions   = protocol.scalacOptions(),
       scalafixIvyDeps = Seq.empty,
       scalafixConfig  = Some(config().path),
       args            = args,
@@ -318,11 +394,13 @@ object coverage extends Module:
   /** Modules measured by the exact gate in tools/check_coverage.py. Integration coverage is collected separately
     * per PLAN §23, so `integration` is deliberately absent here.
     */
-  val measured: Seq[ProjectModule] = Seq(codegen, protocol, core, sttp, okhttp, zio, fs2, pekko, examples, server)
+  val measured: Seq[ProjectModule] = Seq(protocol, core, sttp, okhttp, zio, fs2, pekko, examples, server)
 
   /** Start a measurement run only after instrumentation is up to date. */
   def reset() = Task.Command:
-    val _           = Task.sequence(measured.map(_.scoverage.compile))()
+    val _ = Task.sequence(measured.map(_.scoverage.compile))()
+    // Remove only retired Scala-codegen instrumentation; keep stray-module detection fail-closed.
+    os.remove.all(mill.api.BuildCtx.workspaceRoot / "out" / "codegen" / "scoverage")
     val directories = Task.sequence(measured.map(_.scoverage.data))()
     directories.foreach: directory =>
       os.list(directory.path).filter(_.last.startsWith("scoverage.measurements.")).foreach(os.remove(_))

@@ -34,7 +34,7 @@ The dependency declarations are in [build.mill](../build.mill). Seven modules ar
 | `zio` | Bridged ZIO adapter; internal ZIO runtime behind the blocking `ObsTransport` | [ZioObsClient.scala](../zio/src/com/worxbend/obs/websocket/client/transport/zio/ZioObsClient.scala) |
 | `fs2` | Bridged cats-effect/fs2 adapter; internal `IORuntime` and dispatcher | [Fs2ObsClient.scala](../fs2/src/com/worxbend/obs/websocket/client/transport/fs2/Fs2ObsClient.scala) |
 | `pekko` | Bridged Pekko adapter; owned `ActorSystem` behind the blocking `ObsTransport` | [PekkoObsClient.scala](../pekko/src/com/worxbend/obs/websocket/client/transport/pekko/PekkoObsClient.scala) |
-| `codegen` | Validate pinned inputs and emit Scala plus catalog inventory | [Generate.scala](../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala) |
+| `codegen` | Validate pinned inputs and emit Scala plus catalog inventory | [main.py](../codegen/src/main.py) |
 | `examples` | Runnable version and scene discovery, plus an event-driven studio monitor | [Quickstart.scala](../examples/src/com/worxbend/obs/websocket/client/examples/Quickstart.scala), [StudioMonitor.scala](../examples/src/com/worxbend/obs/websocket/client/examples/StudioMonitor.scala) |
 | `server` | Local HTTP sample and generated Swagger/OpenAPI | [Endpoints.scala](../server/src/com/worxbend/obs/websocket/client/server/Endpoints.scala) |
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed on missing, stale, or less-than-complete Scoverage evidence."""
+"""Fail closed on missing, stale, or incomplete Scoverage and Python coverage evidence."""
 import argparse
 from collections import Counter
 import hashlib
@@ -9,7 +9,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULES = ('codegen', 'protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko', 'examples', 'server')
+MODULES = ('protocol', 'core', 'sttp', 'okhttp', 'zio', 'fs2', 'pekko', 'examples', 'server')
 # Integration coverage is collected separately per PLAN §23; any other directory with scoverage
 # data under out/ means a production module escapes this gate.
 SEPARATE = ('integration',)
@@ -48,9 +48,19 @@ def instrumented_statements(root, module):
 
 
 def source_digest(root):
-    files = sorted(p for p in root.rglob('*') if p.is_file()
-                   and not any(part in {'.git', 'out', '.bsp', '.metals'} for part in p.relative_to(root).parts)
-                   and (p.suffix in {'.scala', '.mill', '.md', '.json', '.conf', '.py', '.sh', '.yml', '.yaml'} or p.name in {'.mill-version', '.scalafmt.conf', 'mill'}))
+    import os
+    excluded = {'.git', 'out', '.bsp', '.metals', '.venv', 'venv', '__pycache__',
+                '.mypy_cache', '.ruff_cache', '.pytest_cache'}
+    suffixes = {'.scala', '.mill', '.md', '.json', '.conf', '.py', '.sh', '.yml', '.yaml',
+                '.j2', '.toml', '.lock', '.in'}
+    names = {'.python-version', '.mill-version', '.scalafmt.conf', 'mill', 'mill.bat'}
+    files = []
+    for directory, dirs, entries in os.walk(root):
+        dirs[:] = [name for name in dirs if name not in excluded
+                   and not (Path(directory) / name / 'pyvenv.cfg').is_file()]
+        files.extend(Path(directory) / name for name in entries
+                     if Path(name).suffix in suffixes or name in names)
+    files.sort()
     digest = hashlib.sha256()
     for path in files:
         digest.update(str(path.relative_to(root)).encode())
@@ -113,6 +123,76 @@ def verify_report(root, module, path, started_ns):
     return counts, row, errors
 
 
+def verify_python_report(root, path, started_ns):
+    """Require all production files and exact statement/branch counts, never rounded percentages."""
+    errors = []
+    if not path.is_file():
+        return [0, 0, 0, 0], 'codegen: missing Python coverage JSON', ['codegen: missing Python coverage JSON']
+    if path.stat().st_mtime_ns < started_ns:
+        errors.append('codegen: stale Python coverage JSON')
+    report = json.loads(path.read_text())
+    if report['meta']['branch_coverage'] is not True:
+        errors.append('codegen: Python branch measurement is disabled')
+    expected = {p.resolve() for p in (root / 'codegen/src').rglob('*.py')
+                if '__pycache__' not in p.parts}
+    inventory_path = path.with_name('coverage-inventory.json')
+    if inventory_path.stat().st_mtime_ns < started_ns:
+        errors.append('codegen: stale Python statement inventory')
+    inventory = json.loads(inventory_path.read_text())
+    files = report['files']
+    if set(inventory) != set(files):
+        errors.append('codegen: Python statement inventory differs from report')
+    actual = [(root / name.replace('\\', '/')).resolve() for name in files]
+    if not expected or set(actual) != expected or len(actual) != len(set(actual)):
+        errors.append('codegen: Python report does not match production source inventory')
+    totals = [0, 0, 0, 0]
+    for name, data in files.items():
+        summary = data['summary']
+        fields = ('num_statements', 'covered_lines', 'num_branches', 'covered_branches',
+                  'missing_lines', 'missing_branches', 'excluded_lines')
+        if any(type(summary[field]) is not int or summary[field] < 0 for field in fields):
+            raise ValueError(f'codegen: invalid Python counts: {name}')
+        statement_lines = set(inventory[name]['statements'])
+        # coverage.py records executed docstring lines but does not count them as statements.
+        executed = [line for line in data['executed_lines'] if line in statement_lines]
+        lines = executed + data['missing_lines']
+        branches = [tuple(arc) for arc in data['executed_branches'] + data['missing_branches']]
+        branch_counts = Counter(str(arc[0]) for arc in branches)
+        if (set(lines) != statement_lines or inventory[name]['excluded']
+                or dict(branch_counts) != inventory[name]['branches']
+                or len(set(data['executed_lines'])) != len(data['executed_lines'])
+                or len(set(lines)) != len(lines) or len(set(branches)) != len(branches)
+                or len(lines) != summary['num_statements']
+                or len(executed) != summary['covered_lines']
+                or len(data['missing_lines']) != summary['missing_lines']
+                or len(branches) != summary['num_branches']
+                or len(data['executed_branches']) != summary['covered_branches']
+                or len(data['missing_branches']) != summary['missing_branches']):
+            errors.append(f'codegen: Python inventory disagrees with totals: {name}')
+        if data['excluded_lines'] or summary['excluded_lines']:
+            errors.append(f'codegen: excluded Python production statements are forbidden: {name}')
+        counts = [summary[field] for field in fields[:4]]
+        if counts[0] != counts[1] or counts[2] != counts[3]:
+            errors.append(f'codegen: coverage below 100%: {name}')
+        totals = [a + b for a, b in zip(totals, counts)]
+    if [report['totals'][field] for field in ('num_statements', 'covered_lines', 'num_branches', 'covered_branches')] != totals:
+        errors.append('codegen: Python aggregate disagrees with file totals')
+    errors.extend(validate_counts('codegen', totals))
+    tests_path = path.with_name('tests.json')
+    if not tests_path.is_file():
+        errors.append('codegen: missing Python test result')
+    else:
+        tests = json.loads(tests_path.read_text())
+        if tests_path.stat().st_mtime_ns < started_ns:
+            errors.append('codegen: stale Python test result')
+        if type(tests['tests']) is not int or tests['tests'] <= 0 or any(
+                type(tests[key]) is not int or tests[key] != 0
+                for key in ('failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes')):
+            errors.append('codegen: Python tests are empty, failing, or skipped')
+    row = f'codegen: statements {totals[1]}/{totals[0]}; branches {totals[3]}/{totals[2]}'
+    return totals, row, errors
+
+
 def verify(root, report_paths, manifest_path):
     manifest = json.loads(manifest_path.read_text())
     errors = []
@@ -135,6 +215,11 @@ def verify(root, report_paths, manifest_path):
         errors.extend(report_errors)
         totals = [a + b for a, b in zip(totals, counts)]
         rows.append(row)
+    python_path = report_paths.get('codegen', root / 'out/codegen/test/coverage.dest/coverage.json')
+    counts, row, report_errors = verify_python_report(root, python_path, started_ns)
+    errors.extend(report_errors)
+    totals = [a + b for a, b in zip(totals, counts)]
+    rows.append(row)
     rows.append(f'aggregate: statements {totals[1]}/{totals[0]}; branches {totals[3]}/{totals[2]}')
     return rows, errors
 
@@ -152,7 +237,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--start', action='store_true')
     parser.add_argument('--manifest', type=Path, default=ROOT / 'out/coverage-run.json')
-    parser.add_argument('--report', action='append', default=[], metavar='MODULE=XML')
+    parser.add_argument('--report', action='append', default=[], metavar='MODULE=REPORT')
     args = parser.parse_args()
     if args.start:
         import time
@@ -175,7 +260,7 @@ def main():
                 elif len(candidates) > 1:
                     raise ValueError(f'{module}: multiple scoverage.xml candidates: ' + ', '.join(map(str, candidates)))
         rows, errors = verify(ROOT, reports, args.manifest)
-    except (OSError, ValueError, KeyError, ET.ParseError) as error:
+    except (OSError, ValueError, KeyError, TypeError, IndexError, ET.ParseError) as error:
         print(f'Coverage verification failed: {error}', file=sys.stderr)
         return 1
     print('\n'.join(rows))

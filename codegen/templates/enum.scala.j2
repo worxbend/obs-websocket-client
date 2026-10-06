@@ -1,0 +1,12 @@
+{% import 'macros/source.j2' as source %}
+{{ source.header(base ~ '.enums', provenance) }}{{ source.see_doc(enumeration.name ~ ' values; unknown values are preserved as data.', enumeration.name, enumeration.name, provenance) }}final case class {{ enumeration.name }}(value: {{ enumeration.scala_type }})
+
+{{ source.see_doc('Published constants for [[' ~ enumeration.name ~ ']].', enumeration.name, enumeration.name, provenance) }}object {{ enumeration.name }}:
+{% for constant in enumeration.constants %}
+{% if constant.description %}
+  /** {{ constant.description | collapse }} */
+{% endif %}
+  val `{{ constant.identifier }}`: {{ enumeration.name }} = {{ enumeration.name }}({{ constant.expression }})
+{% else %}
+
+{% endfor %}

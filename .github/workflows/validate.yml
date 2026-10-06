@@ -15,6 +15,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Provision pinned codegen Python
+        id: python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version-file: .python-version
+      - name: Select provisioned interpreter
+        shell: bash
+        run: printf '%s\n' 'OBS_CODEGEN_PYTHON=${{ steps.python.outputs.python-path }}' >> "$GITHUB_ENV"
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -26,9 +34,9 @@ jobs:
           path: |
             ~/.cache/coursier
             out/
-          key: ${{ runner.os }}-mill-${{ hashFiles('build.mill', '.mill-version') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-mill-python-${{ hashFiles('build.mill', '.mill-version', '.python-version', 'codegen/requirements*.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mill-
+            ${{ runner.os }}-${{ runner.arch }}-mill-python-
       - name: Save Mill build outputs and Coursier artifacts
         # Only trusted main builds may write the shared cache; pull requests restore read-only.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.cache-mill.outputs.cache-hit != 'true'
@@ -37,16 +45,18 @@ jobs:
           path: |
             ~/.cache/coursier
             out/
-          key: ${{ runner.os }}-mill-${{ hashFiles('build.mill', '.mill-version') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-mill-python-${{ hashFiles('build.mill', '.mill-version', '.python-version', 'codegen/requirements*.lock') }}
       - name: Compile all production modules
-        run: ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
+        run: ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.compile'
       - name: Built-in Scalafix rules
         run: ./mill --no-server sourceStyle.fix --check
       - name: Formatting
         run: |
           ./mill --no-server mill.scalalib.scalafmt.ScalafmtModule/scalafmt --test build.mill
-          ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,bench}.checkFormat'
-          ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,integration}.test.checkFormat'
+          ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,bench}.checkFormat'
+          ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server,integration}.test.checkFormat'
+      - name: Python codegen lint, formatting and strict types
+        run: ./mill --no-server 'codegen.test.{lint,formatCheck,typeCheck}'
       - name: Coverage verifier fault tests
         run: python3 -m unittest discover -s tools -p 'test_*.py'
       - name: Fresh tests and exact coverage gate
@@ -70,6 +80,7 @@ jobs:
             out/*/scoverage/xmlReport.dest/
             out/*/scoverage/htmlReport.dest/
             out/*/test/testForked.dest/
+            out/codegen/test/coverage.dest/
             out/coverage-run.json
           if-no-files-found: error
       - name: Upload documentation preview

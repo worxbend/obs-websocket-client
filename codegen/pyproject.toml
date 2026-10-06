@@ -1,0 +1,23 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+show_error_codes = true
+
+[tool.coverage.run]
+branch = true
+source = ["codegen/src"]
+relative_files = true
+
+[tool.coverage.report]
+# No production statement or branch may be silently excluded.
+exclude_lines = []
+partial_branches = []
+precision = 6
+show_missing = true

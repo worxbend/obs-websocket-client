@@ -1,68 +1,81 @@
 # Code generation
 
-The `codegen` Mill module is an offline schema compiler. It has no runtime dependency relationship with the published client. Its implementation lives under `com.worxbend.obs.websocket.client.codegen`.
+The `codegen` Mill module is a Python/Jinja offline schema compiler. It is the only generator implementation. Published Scala artifacts have no Python runtime dependency.
 
-## Build invocation and paths
+## Toolchain and build invocation
 
-`protocol.generatedSources` in `build.mill` connects the generator to compilation. Running `./mill protocol.compile` (or compiling a module that depends on `protocol`) makes Mill evaluate generated sources first. You can inspect this step on its own:
+Provision Python **3.12.12**, recorded in `.python-version`. Set `OBS_CODEGEN_PYTHON` to its command or absolute executable path when it is not the default `python3`. Mill checks the exact version before generation and creates isolated virtual environments under `out/`. It installs checked-in hash-locked requirements, never into the host interpreter.
 
 ```sh
-./mill protocol.generatedSources
-./mill show protocol.generatedSources
+export OBS_CODEGEN_PYTHON=/absolute/path/to/python3.12
+./mill --no-server protocol.generatedSources
+./mill --no-server show protocol.generatedSources
+./mill --no-server protocol.compile
 ```
 
-The task reads `codegen.runClasspath()`, which makes the compiled generator and its dependencies available, then launches `com.worxbend.obs.websocket.client.codegen.Generate` in a separate JVM using the module's Java 25 home. The classpath uses the operating system's separator. The process working directory is the checkout root.
+The export is an example: replace the path with your installed Python 3.12.12 executable. On PowerShell set `$env:OBS_CODEGEN_PYTHON` and use `.\mill.bat`. The build uses platform-specific virtualenv executable paths; Linux is locally verified, while macOS/Windows remain covered by the compatibility workflow rather than a claim of local execution.
 
-The runner receives exactly four positional arguments:
+`protocol.generatedSources` invokes `codegen/src/main.py` through native Mill `PythonModule.runner`. It passes four positional arguments:
 
-| Position | Normal build path, relative to the checkout | Purpose |
-| --- | --- | --- |
-| 1 | `protocol-spec/protocol.json` | Pinned upstream schema bytes; ordinary builds do not download a schema. |
-| 2 | `out/protocol/generatedSources.dest/` | Mill's `Task.dest`, the root beneath which output filenames are resolved. |
-| 3 | `protocol-spec/overrides.json` | Reviewed nullable-field corrections applied during normalization. |
-| 4 | `protocol-spec/provenance.json` | Expected schema SHA-256 and upstream repository/revision for documentation links. |
+1. `protocol-spec/protocol.json`: pinned upstream schema bytes.
+2. `out/protocol/generatedSources.dest/scala/`: task-owned generated source root.
+3. `protocol-spec/overrides.json`: reviewed semantic corrections.
+4. `protocol-spec/provenance.json`: schema checksum and upstream documentation origin.
 
-The three input paths are resolved from `BuildCtx.workspaceRoot` and declared as `Task.Source` dependencies. Mill tracks these files and the generator task dependencies, so unchanged inputs can reuse cached results. The default output path above belongs to Mill; use the `show` command to inspect the actual destination when using a different output configuration.
+The inputs are absolute paths resolved from the checkout root. Python sources, templates, requirements, interpreter selection, schema, overrides, and provenance participate in the task dependency graph. The shared runner explicitly depends on the complete virtual environment: Mill 1.1.10's native interpreter-only dependency can otherwise miss installed-package changes. Environment creation also directly tracks the interpreter executable fingerprint, so replacement at an unchanged path invalidates the environment.
 
-The output directory contains `requests/<Name>.scala` (request and response together), `events/<Name>.scala`, `enums/<Name>.scala`, and the shared `Event.scala`, `Catalog.scala`, `RequestApi.scala`, and `catalog-inventory.tsv`. There is no additional `com/worxbend/...` prefix under this root: Scala package declarations establish the packages. For example, `requests/GetVersion.scala` declares the protocol requests package.
+The task returns the generated Scala subtree alongside inherited source roots. Python bytecode caches stay outside that subtree. Compiling `protocol` or any dependent module runs generation first when inputs change; failed generation blocks compilation.
 
-Returning `Seq(PathRef(Task.dest))` registers the generated directory as a source root alongside handwritten `protocol/src`. Mill finds Scala sources recursively; the TSV is review metadata. Codegen is a build dependency, not a runtime dependency of the published protocol library.
+Ordinary generation makes no upstream requests. Initial interpreter/dependency provisioning may need network access; fully provisioned generation is offline. Runtime and developer dependency locks are separate. Updating dependencies requires reviewed exact versions and distribution hashes, plus tests of the resulting environment; normal builds never regenerate locks.
 
-Mill manages destination cleanup when the task reruns. Do not edit or commit generated files. The runner itself overwrites matching paths but does not remove obsolete files, so standalone invocations should use a fresh output directory. It parses all inputs, verifies the checksum, normalizes, and renders before writing; writes are not transactional. A failing subprocess fails the Mill task rather than supplying a successful generation result to compilation.
+## Output and ownership
+
+The pinned catalog produces 218 files: 147 request/response files, 60 event files, seven enum files, and four shared files. Outputs are `requests/<Name>.scala`, `events/<Name>.scala`, `enums/<Name>.scala`, `Event.scala`, `Catalog.scala`, `RequestApi.scala`, and `catalog-inventory.tsv`. Scala package declarations establish namespaces; no extra package-directory prefix is added.
+
+Mill cleans the generated task destination on rerun. Do not edit or commit generated sources. Standalone CLI callers must use a fresh output directory: the writer validates all paths before writing, rejects duplicate/case-folded or resolved aliases and escaping symlinks, but does not delete stale caller-owned files. Rendering finishes before writing. Multi-file writes are not transactional; filesystem failures fail the build rather than returning a successful partial source root.
 
 ## Responsibilities
 
-- `Generate` owns CLI arguments, file reads, checksum verification, and writes. Its fully qualified entrypoint is referenced by `build.mill`.
-- `schema` contains JSON input records, parsing, and schema normalization. Validation resolves naming collisions, supported types, nullable overrides, enum values, and request categories before rendering.
-- `model` holds immutable normalized definitions shared by the generator and templates.
-- `CodeGenerator` maps normalized definitions to deterministic output filenames and template contexts.
-- `templates` contains a renderer for each output family and focused shared source fragments. Templates receive typed contexts and use Scala multiline interpolation.
+Implementation lives in `codegen/src/obs_codegen/`:
 
-The schema layer does not depend on templates. Templates do not read files or decode JSON. Internal declarations remain `private[codegen]`; the generated protocol API is a separate contract.
+- `cli.py` preserves the four-argument interface and coordinates the pipeline.
+- `inputs.py` reads bytes and checks SHA-256 against provenance.
+- `parsing.py` validates raw JSON shapes without coercing booleans into numbers.
+- `model.py` holds immutable records.
+- `normalize.py` resolves supported types, wire/member names, nullable overrides, categories, enum expressions, and deterministic order.
+- `scala.py` handles Scala literal and documentation escaping.
+- `render.py` selects templates and returns complete relative-path/content records.
+- `output.py` validates destinations and writes UTF-8 files.
+- `errors.py` provides contextual generator errors.
 
-## Editing a template
+The parser/normalizer do not depend on templates. Templates do not read files or decode JSON. The generated Scala API is independent of generator implementation types.
 
-Choose the relevant output family: request/response, event, enum, event dispatch, catalog, request API, or inventory. Keep source layout visible in its multiline string. Prepare variable sections as named values instead of assembling the file with concatenated lines. Put schema decisions in normalization, and repeated Scala syntax in a focused shared renderer.
+## Editing templates
 
-Interpolation does not automatically indent subsequent lines of a fragment. Each multiline fragment must own its output indentation and document whether it includes a final newline. Insert complete blocks at the template margin without adding indentation to only their first line. Inline fragments such as parameter lists contain no newline. Preserve blank lines and final newlines explicitly; do not trim rendered files.
+`codegen/templates/` contains complete-file Jinja templates for request/response, event, enum, event dispatch, catalog, request API, and inventory output. Shared macros handle repeated source/field syntax; keep full declarations readable in their output-family template rather than assembling opaque whole-class fragments in Python.
 
-Keep literal escaping separate from Scaladoc escaping. JSON property names must retain their wire names even when Scala members are renamed. Optional, nullable, and dotted fields have distinct codec behavior. Decoder dispatch maps remain chunked into 24 entries to avoid JVM method-size limits.
+Jinja runs with StrictUndefined, HTML autoescaping disabled, explicit LF output, and preserved trailing newlines. Keep whitespace intentional. Do not trim complete rendered files or change golden expectations merely to silence a formatting difference. Semantic decisions belong in normalization; layout belongs in templates.
 
-## Verification and fixtures
+Keep Scala literal escaping separate from Scaladoc escaping. Wire names survive member renaming. Optional, nullable, and dotted fields retain distinct codec behavior. Dispatch maps remain chunked into 24 entries to avoid JVM method-size limits. Unknown future enum values and established raw-object behavior are preserved.
 
-`codegen/test/resources/golden` contains a small input schema, overrides, provenance, and complete outputs captured before the template refactor. The generator test compares the entire output map, including filenames and whitespace. The fixtures cover all seven output families, empty payloads, optional dotted fields, required nullable fields, renamed members, enums, and documentation escaping. Existing behavioral tests cover additional schema failures and wire-shape cases.
-
-Run:
+## Tests and quality gates
 
 ```sh
-./mill codegen.test
-./mill protocol.test
+./mill --no-server codegen.test
+./mill --no-server 'codegen.test.{lint,formatCheck,typeCheck}'
+./mill --no-server codegen.test.coverage
+./mill --no-server protocol.test
 python3 tools/check_generation.py
+python3 -m unittest discover -s tools -p 'test_*.py'
 tools/coverage.sh
 ```
 
-`check_generation.py` verifies the pinned checksum, compares two independent generations, and checks that Mill-managed generated sources agree. For structural refactors, also capture the old generator's full output in a temporary directory and compare every file after the change. Reproducibility alone cannot prove equivalence to the old implementation.
+Run commands separately or use Mill brace selectors. Arguments after a runnable command can become test/application arguments. `codegen.test.testCached` is available for local no-change checks; the coverage command deliberately produces fresh evidence every time.
 
-When intentionally changing output, review the generated API and full fixture diff before updating expected files. Never refresh fixtures just to make a failing comparison pass. A schema upgrade must also update its reviewed provenance and overrides. Normal generation never fetches an upstream branch.
+The Python suite retains the nine miniature golden files in `codegen/test/resources/golden/expected` and compares the full catalog against `codegen/test/resources/catalog-sha256.json`, captured from the pre-migration Scala generator. The hash fixture establishes historical byte parity, not just repeatability. The existing Scala protocol tests independently exercise generated APIs and codecs.
 
-Scala interpolation was selected for templates because it gives compiler-checked context references and source-shaped layouts without a template compiler or runtime dependency. Test and coverage outcomes must be measured independently; this document does not establish a passing coverage result.
+`check_generation.py` verifies provenance, compares two independent generations, and compares them with the Mill-managed source subtree. Python tests cover parsing, normalization, field combinations, documentation/escaping, dispatch chunking, CLI behavior, and filesystem failures. Ruff and strict mypy use explicit production/test roots and the tracked `pyproject.toml` configuration.
+
+`tools/coverage.sh` enforces exact complete statements and branches for nine Scala modules plus the Python generator. Python evidence includes tests, source inventory, static statement/branch inventory, and fresh coverage reports. Missing, stale, skipped, excluded, or incomplete evidence fails. Python percentages do not measure Jinja branch coverage; render matrices, goldens, and generated Scala tests cover template behavior.
+
+For intentional schema/output changes, review the full generated diff and public API before updating hashes or fixtures. Keep provenance and overrides synchronized with the reviewed schema. Never fetch a moving upstream branch during generation.

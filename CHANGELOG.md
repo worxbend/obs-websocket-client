@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.0 — 2026-10-07
+
+Source release tag only; Maven artifacts have not been published.
+
+### Python/Jinja code generation
+
+- Replace the Scala generator and its implementation tests with a Python/Jinja generator integrated into Mill; retain Scala golden fixtures.
+- Preserve all 218 generated files byte-for-byte, with pinned Python 3.12.12 and hash-locked dependencies.
+- Add strict typing, lint/format checks, exact Python statement/branch coverage, and dependency/interpreter cache invalidation tracking.
+- Known release blocker: isolated consumer smoke still fails on the pre-existing private `ObsConfig` companion. Windows/macOS verification remains pending CI.
+
+### Initial library implementation
+
 - Add Scala 3 protocol, core, and sttp modules for OBS WebSocket 5.x/RPC 1.
 - Generate typed bindings from the pinned 147-request/60-event catalog.
 - Add scoped authentication, bounded request/event dispatch, typed batching, raw extensions, and opt-in reconnect.

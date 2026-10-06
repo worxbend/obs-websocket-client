@@ -19,6 +19,21 @@ class CoverageGateTests(unittest.TestCase):
                                            str(index), str(index + 1), '1', 'symbol', 'tree',
                                            'true', '0', 'false', 'description']) + '\n\f\n')
             instrumentation.write_text('# Coverage data, format version: 3.0\n' + ''.join(records))
+        (root / 'codegen/src').mkdir(parents=True)
+        (root / 'codegen/src/main.py').write_text('x = 1\nif x:\n    x = 2\nelse:\n    x = 3\n')
+        python_path = root / 'out/codegen/test/coverage.dest/coverage.json'
+        python_path.parent.mkdir(parents=True)
+        counts = {'num_statements': 4, 'covered_lines': 4, 'num_branches': 2,
+                  'covered_branches': 2, 'missing_lines': 0, 'missing_branches': 0,
+                  'excluded_lines': 0}
+        python_path.write_text(json.dumps({'meta': {'branch_coverage': True}, 'totals': counts,
+            'files': {'codegen/src/main.py': {'summary': counts, 'executed_lines': [1, 2, 3, 5],
+                'missing_lines': [], 'excluded_lines': [],
+                'executed_branches': [[2, 3], [2, 5]], 'missing_branches': []}}}))
+        python_path.with_name('coverage-inventory.json').write_text(json.dumps({
+            'codegen/src/main.py': {'statements': [1, 2, 3, 5], 'excluded': [], 'branches': {'2': 2}}}))
+        python_path.with_name('tests.json').write_text(json.dumps({'tests': 2, 'failures': 0,
+            'errors': 0, 'skipped': 0, 'expected_failures': 0, 'unexpected_successes': 0}))
         manifest = root / 'run.txt'
         manifest.write_text(json.dumps({'source_sha256': source_digest(root), 'started_ns': 0, 'instrumentation_sha256': instrumentation_digests(root)}))
         reports = {}
@@ -127,6 +142,102 @@ class CoverageGateTests(unittest.TestCase):
                 tree.write(reports['core'])
                 self.assertIn('core: report does not match instrumented statement inventory',
                               verify(root, reports, manifest)[1])
+
+
+    def test_python_report_faults_fail_closed(self):
+        for fault in ('missing', 'stale', 'unimported', 'branches_disabled', 'missed_branch',
+                      'excluded', 'rounded', 'missing_tests', 'skipped', 'zero_tests', 'duplicate'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, reports = self.fixture(root)
+                path = root / 'out/codegen/test/coverage.dest/coverage.json'
+                report = json.loads(path.read_text())
+                entry = report['files']['codegen/src/main.py']
+                if fault == 'missing':
+                    path.unlink()
+                elif fault == 'stale':
+                    import os
+                    os.utime(path, ns=(0, 0))
+                    evidence = json.loads(manifest.read_text())
+                    evidence['started_ns'] = 1
+                    manifest.write_text(json.dumps(evidence))
+                elif fault == 'unimported':
+                    (root / 'codegen/src/unimported.py').write_text('x = 1\n')
+                elif fault in ('missing_tests', 'skipped', 'zero_tests'):
+                    tests_path = path.with_name('tests.json')
+                    if fault == 'missing_tests':
+                        tests_path.unlink()
+                    else:
+                        tests = json.loads(tests_path.read_text())
+                        tests['skipped' if fault == 'skipped' else 'tests'] = 1 if fault == 'skipped' else 0
+                        tests_path.write_text(json.dumps(tests))
+                else:
+                    if fault == 'branches_disabled':
+                        report['meta']['branch_coverage'] = False
+                    elif fault in ('missed_branch', 'rounded'):
+                        entry['missing_branches'] = [entry['executed_branches'].pop()]
+                        entry['summary']['covered_branches'] = 1
+                        entry['summary']['missing_branches'] = 1
+                        report['totals']['covered_branches'] = 1
+                        report['totals']['percent_covered'] = 100.0
+                    elif fault == 'excluded':
+                        entry['excluded_lines'] = [99]
+                    else:
+                        entry['executed_lines'].append(1)
+                    path.write_text(json.dumps(report))
+                self.assertTrue(any('codegen:' in error for error in verify(root, reports, manifest)[1]))
+
+    def test_executed_docstrings_are_not_counted_as_statements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, reports = self.fixture(root)
+            path = root / 'out/codegen/test/coverage.dest/coverage.json'
+            report = json.loads(path.read_text())
+            report['files']['codegen/src/main.py']['executed_lines'].append(99)
+            path.write_text(json.dumps(report))
+            self.assertEqual(verify(root, reports, manifest)[1], [])
+
+    def test_python_inventory_cannot_drop_uncovered_statements(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, reports = self.fixture(root)
+            path = root / 'out/codegen/test/coverage.dest/coverage.json'
+            report = json.loads(path.read_text())
+            entry = report['files']['codegen/src/main.py']
+            entry['executed_lines'].pop()
+            entry['summary']['covered_lines'] = 3
+            entry['summary']['num_statements'] = 3
+            report['totals']['covered_lines'] = 3
+            report['totals']['num_statements'] = 3
+            path.write_text(json.dumps(report))
+            self.assertTrue(any('inventory disagrees' in error for error in verify(root, reports, manifest)[1]))
+
+    def test_codegen_inputs_invalidate_freshness(self):
+        for name in ('template.j2', 'pyproject.toml', 'requirements.lock',
+                     'requirements-dev.lock', 'requirements.in', '.python-version'):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest, reports = self.fixture(root)
+                (root / name).write_text('changed')
+                self.assertIn('Source inputs changed since instrumentation began',
+                              verify(root, reports, manifest)[1])
+
+    def test_virtualenv_and_cache_files_do_not_invalidate_freshness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            before = source_digest(root)
+            for name in ('venv', '.venv', '__pycache__', 'out', 'custom-environment'):
+                path = root / name
+                path.mkdir()
+                (path / 'pyvenv.cfg').write_text('home = somewhere')
+                (path / 'unrelated.py').write_text('changed')
+            self.assertEqual(source_digest(root), before)
+
+    def test_retired_scala_codegen_is_not_silently_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'out/codegen/scoverage').mkdir(parents=True)
+            self.assertEqual(stray_instrumentation(root), ['codegen'])
 
 
 if __name__ == '__main__':

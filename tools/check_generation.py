@@ -3,13 +3,29 @@
 import hashlib
 import json
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 
 
+def mill_command(root):
+    return [str(root / ('mill.bat' if os.name == 'nt' else 'mill')), '--no-server']
+
 
 def snapshot(directory):
-    return {str(p.relative_to(directory)): p.read_bytes() for p in directory.rglob('*') if p.is_file()}
+    if not directory.is_dir():
+        raise ValueError(f'Missing generated source directory: {directory}')
+    files = {p.relative_to(directory).as_posix(): p.read_bytes()
+             for p in directory.rglob('*') if p.is_file()}
+    if not files or 'catalog-inventory.tsv' not in files:
+        raise ValueError(f'Incomplete generated source inventory: {directory}')
+    if any(not (name.endswith('.scala') or name == 'catalog-inventory.tsv') for name in files):
+        raise ValueError(f'Unexpected files in generated Scala source tree: {directory}')
+    return files
+
+
+def build_snapshot(root):
+    return snapshot(root / 'out/protocol/generatedSources.dest/scala')
 
 
 def main():
@@ -28,13 +44,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix='obs-codegen-') as directory:
         runs = [Path(directory) / 'first', Path(directory) / 'second']
         for target in runs:
-            subprocess.run([str(root / 'mill'), '--no-server', 'codegen.run', str(schema), str(target),
+            subprocess.run(mill_command(root) + ['codegen.run', str(schema), str(target),
                             str(root / 'protocol-spec/overrides.json'),
                             str(root / 'protocol-spec/provenance.json')], cwd=root, check=True)
         if snapshot(runs[0]) != snapshot(runs[1]):
             raise SystemExit('Generation is nondeterministic')
-        subprocess.run([str(root / 'mill'), '--no-server', 'protocol.generatedSources'], cwd=root, check=True)
-        if snapshot(runs[0]) != snapshot(root / 'out/protocol/generatedSources.dest'):
+        subprocess.run(mill_command(root) + ['protocol.generatedSources'], cwd=root, check=True)
+        if snapshot(runs[0]) != build_snapshot(root):
             raise SystemExit('Build generated sources differ from reproducible output')
         print(f'Pinned schema verified; {len(snapshot(runs[0]))} generated files match byte-for-byte')
 

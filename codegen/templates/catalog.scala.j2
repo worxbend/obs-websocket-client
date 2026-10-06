@@ -1,0 +1,22 @@
+{% import 'macros/source.j2' as source %}
+{% macro dispatch(method, result, fallback, response=false) %}
+  private val {{ method }}Decoders: Map[String, JsonObject => Either[ProtocolError, {{ result }}]] = {% for group in schema.requests | batch(24) %}{{ method }}{{ loop.index0 }}{{ ' ++ ' if not loop.last else '' }}{% else %}Map.empty{% endfor %}
+
+  {{ 'private[protocol] ' if response else '' }}def {{ method }}(name: String, data: JsonObject): Either[ProtocolError, {{ result }}] =
+    {{ method }}Decoders.get(name).fold[Either[ProtocolError, {{ result }}]]({{ fallback }})(_(data))
+{% for group in schema.requests | batch(24) %}
+  private def {{ method }}{{ loop.index0 }}: Map[String, JsonObject => Either[ProtocolError, {{ result }}]] = Map(
+{% for request in group %}
+    {{ request.name | quote }} -> ((data: JsonObject) => requests.{{ request.name }}{% if response %}Response{% endif %}.decode(data){% if response %}.map(_.toJson){% endif %}){{ ',' if not loop.last else '' }}
+{% endfor %}
+  )
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
+{% endmacro %}
+{{ source.header(base, provenance) }}/** Generated catalog of the pinned request types with typed decoders and raw fallbacks. */
+object Catalog:
+  val requestNames: Vector[String] = Vector({% for request in schema.requests %}{{ request.name | quote }}{{ ', ' if not loop.last else '' }}{% endfor %})
+  private[protocol] val minimalRequests: Vector[Request[?]] = Vector({% for request in schema.requests %}requests.{{ request.name }}.minimal{{ ', ' if not loop.last else '' }}{% endfor %})
+{{ dispatch('decodeRequest', 'Request[?]', 'Right(RawRequest(name, data))') }}{{ dispatch('roundTripResponse', 'JsonObject', 'Right(data)', true) -}}

@@ -1,0 +1,18 @@
+{% import 'macros/source.j2' as source %}
+{{ source.header(base, provenance) }}/** Typed OBS event with its decoded payload. */
+trait Event:
+  def eventType: String
+  def eventData: JsonObject
+
+/** Raw representation for events unknown to the pinned catalog. */
+final case class UnknownEvent(eventType: String, eventData: JsonObject) extends Event
+
+/** Event envelope dispatch by `eventType`; unknown events decode to [[UnknownEvent]]. */
+object Event:
+  def decode(eventType: String, data: JsonObject): Either[ProtocolError, Event] = eventType match
+{% for event in schema.events %}
+    case {{ event.name | quote }} => events.{{ event.name }}.decode(data)
+{% else %}
+
+{% endfor %}
+    case _ => Right(UnknownEvent(eventType, data))

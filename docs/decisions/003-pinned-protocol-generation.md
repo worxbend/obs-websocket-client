@@ -28,4 +28,4 @@ Ordinary builds do not need an upstream schema download. Upgrades require review
 
 ## Evidence
 
-See [provenance.json](../../protocol-spec/provenance.json), [Generate.scala](../../codegen/src/com/worxbend/obs/websocket/client/codegen/Generate.scala), [Field.scala](../../protocol/src/com/worxbend/obs/websocket/client/protocol/Field.scala), and [check_generation.py](../../tools/check_generation.py). The [compatibility matrix](../compatibility.md) distinguishes tested behavior from catalog scope.
+See [provenance.json](../../protocol-spec/provenance.json), [main.py](../../codegen/src/main.py), [Field.scala](../../protocol/src/com/worxbend/obs/websocket/client/protocol/Field.scala), and [check_generation.py](../../tools/check_generation.py). The [compatibility matrix](../compatibility.md) distinguishes tested behavior from catalog scope.

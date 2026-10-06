@@ -5,7 +5,7 @@ commit `b994a9c0f8d0cdb15f28618dfb18e4d7da235f76`, before the interpolation-temp
 refactor. They exercise all seven output families using the adjacent synthetic
 schema, overrides, and checksum provenance.
 
-`GenerateSuite` compares the full output map against these files. Preserve
+The Python renderer tests compare the full output map against these files. Preserve
 whitespace, including trailing spaces in empty parameter documentation and the
 newline after every file. These fixtures establish behavior preservation, not
 live OBS compatibility.

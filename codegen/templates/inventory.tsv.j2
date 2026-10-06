@@ -1,0 +1,6 @@
+kind	name	initial-version	status	restrictions
+{% for entry in schema.inventory | sort(attribute='kind,name,initial_version,restrictions', case_sensitive=true) %}
+{{ entry.kind }}	{{ entry.name }}	{{ entry.initial_version }}	generated; live OBS verification deferred	{{ entry.restrictions | collapse }}
+{% else %}
+
+{% endfor %}

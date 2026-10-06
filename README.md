@@ -76,6 +76,9 @@ and per-backend behavioral differences.
 ## Build and run
 
 The checked-in wrapper pins **Mill 1.1.10, Scala 3.9.0, and Temurin Java 25.0.3**.
+Building from source also requires **Python 3.12.12** for the Jinja generator. Provision that interpreter and set
+`OBS_CODEGEN_PYTHON` to its executable if it is not your `python3`. Mill creates isolated, hash-locked environments;
+Python is not a runtime dependency of published Scala artifacts. See [code generation](docs/code-generation.md).
 
 ```sh
 ./mill --no-server '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.test'
@@ -99,7 +102,7 @@ from packaged artifacts.
 ## Measured quality
 
 The clean local coverage gate enforces exactly 100% statements and 100% branches in
-every production module — ten modules checked by `tools/check_coverage.py`, including
+every production module — nine Scala modules and the Python generator checked by `tools/check_coverage.py`, including
 generator logic, generated bindings, backend adapters, and examples. It rejects missing, stale, or
 inconsistent evidence. It does not establish real OBS compatibility or certify a public
 CI run; fresh measurements are produced by `tools/coverage.sh` and archived as CI artifacts.
