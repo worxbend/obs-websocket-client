@@ -2,7 +2,7 @@ package com.worxbend.obs.websocket.client.examples
 
 import com.worxbend.obs.websocket.client.protocol.Event
 import com.worxbend.obs.websocket.client.protocol.events.{ExitStarted, RecordStateChanged, StreamStateChanged}
-import com.worxbend.obs.websocket.client.protocol.requests.{GetStreamStatus, GetStreamStatusResponse}
+import com.worxbend.obs.websocket.client.protocol.requests.{GetRecordStatus, GetStreamStatus, GetStreamStatusResponse}
 import com.worxbend.obs.websocket.client.transport.sttp.{SttpObsClient, SttpOptions}
 import com.worxbend.obs.websocket.client.{Next, ObsConfig, ObsError, ObsSession, PasswordProvider}
 import scala.concurrent.duration.*
@@ -54,53 +54,67 @@ object StudioMonitor:
     s"stream health: skipped ${dropped.bigDecimal.toPlainString} of ${total.bigDecimal.toPlainString} frames ($ratio%), " +
       s"congestion ${status.outputCongestion.bigDecimal.toPlainString}, ${status.outputBytes.bigDecimal.toPlainString} bytes sent"
 
-  /** One event-triggered [[GetStreamStatus]] read; failures degrade to a log line instead of ending the monitor. */
-  private def snapshot(session: ObsSession, report: String => Unit): Unit =
-    session.request(request = GetStreamStatus()) match
-      case Right(status) => report(describeStatus(status = status))
-      case Left(error)   => report(s"stream status unavailable: $error")
-
-  /** React to events until OBS exits, the session ends, or the subscription fails. A baseline snapshot is taken when
-    * the subscription goes live; after that, a status snapshot is requested only when a stream state event makes it
-    * meaningful, so every request is triggered by an event.
-    *
-    * The event loop blocks in `ObsSubscription.next` without an intrinsic deadline: callers that do not go through
-    * [[run]] must bound the wait themselves — e.g. `SttpOptions.readIdleTimeout` on the transport — or a dead
-    * connection whose close frame never arrives can park the loop indefinitely.
+  /** Pending event lines are bounded; a full worker mailbox replaces older state lines and reports the loss.
+    * Snapshot triggers coalesce per drained batch, with at most one request in flight. Recovery is a cumulative
+    * lifetime budget, not an unbounded retry loop. Shutdown bounds cooperative request/report cancellation.
     */
-  def monitor(session: ObsSession, report: String => Unit): Either[ObsError, Unit] =
-    session
-      .withEvents(eventTypes = watchedEvents): sub =>
-        snapshot(session = session, report = report)
-        var running = true
-        var failure = Option.empty[ObsError]
-        while running do
-          sub.next() match
-            case Next.Item(event) =>
-              describe(event = event).foreach(report)
-              event match
-                case _: ExitStarted                                                           => running = false
-                case stream: StreamStateChanged if snapshotWorthy(state = stream.outputState) =>
-                  snapshot(session = session, report = report)
-                case _ => ()
-            case Next.Failed(error) =>
-              failure = Some(error)
-              running = false
-            case Next.Ended => running = false
-        failure.toLeft(right = ())
-      .flatten
+  final case class MonitorOptions(
+    pendingCapacity:       Int = 32,
+    maxOverflowRecoveries: Int = 3,
+    shutdownTimeout:       FiniteDuration = 1.second,
+  ):
+    private[examples] def validate: Either[ObsError, Unit] =
+      if pendingCapacity < 2 || maxOverflowRecoveries < 0 || shutdownTimeout <= Duration.Zero then
+        Left(ObsError.InvalidConfiguration(message =
+          "Monitor needs capacity >= 2, nonnegative recoveries, and positive shutdown deadline"
+        ))
+      else Right(())
 
-  /** A long-lived monitor needs liveness detection: without `readIdleTimeout`, a dead connection whose close frame
-    * never arrives (crash, NAT timeout, half-open TCP) stalls the event loop forever. The default here fails any
-    * receive idle for 30 seconds, surfacing a retryable `ObsError.Timeout` the caller can feed to a reconnect policy.
+  /** React until OBS exits or the session ends. The fast control reader is independent of snapshot latency and
+    * reporting. A baseline, meaningful stream transitions, and post-loss state invalidations cause reads.
+    * Overflow recreates the subscription and refreshes stream AND recording state; recovery failure is terminal.
+    * Old-generation work is discarded. State events drained during recovery retain a coalesced invalidation,
+    * not replayable historical state. In a recovered generation, later state events are also only
+    * invalidations for coalesced authoritative reads: OBS provides no event/snapshot ordering boundary.
+    * OBS also does not provide an atomic cross-output snapshot/revision.
+    */
+  def monitor(
+    session:        ObsSession,
+    report:         String => Unit,
+    monitorOptions: MonitorOptions = MonitorOptions(),
+  ): Either[ObsError, Unit] =
+    StudioObservation.run(observationSource(session), report, monitorOptions)
+
+  private[examples] def observationSource(session: ObsSession): StudioObservation.Source =
+    new StudioObservation.Source:
+      def withEvents[A](use: (() => Next[Event]) => A): Either[ObsError, A] =
+        session.withEvents(eventTypes = watchedEvents)(sub => use(() => sub.next()))
+
+      def snapshot(kind: StudioObservation.SnapshotKind): Either[ObsError, Vector[String]] =
+        session.request(request = GetStreamStatus()).flatMap: stream =>
+          val health = describeStatus(stream)
+          if kind != StudioObservation.SnapshotKind.Recovery then Right(Vector(health))
+          else
+            session.request(request = GetRecordStatus()).map: record =>
+              Vector(
+                s"stream snapshot: active=${stream.outputActive} (reconnecting=${stream.outputReconnecting})",
+                health,
+                s"record snapshot: active=${record.outputActive} (paused=${record.outputPaused})",
+              )
+
+  /** Healthy OBS sessions can be indefinitely quiet: lack of application events is not proof of transport death.
+    * Default backend policy therefore has no read-idle deadline. An explicitly supplied `readIdleTimeout` still
+    * fails silent receives (including HEALTHY quiet sessions); it is not a heartbeat. Half-open detection without
+    * that tradeoff belongs to a backend's transport ping/pong policy, not timer-based application snapshots.
     */
   def run(
-    config:  ObsConfig,
-    report:  String => Unit,
-    options: SttpOptions = SttpOptions(readIdleTimeout = Some(30.seconds)),
+    config:         ObsConfig,
+    report:         String => Unit,
+    options:        SttpOptions = SttpOptions(),
+    monitorOptions: MonitorOptions = MonitorOptions(),
   ): Either[ObsError, Unit] =
     SttpObsClient
-      .connect(config = config, options = options)(use = session => monitor(session = session, report = report))
+      .connect(config = config, options = options)(use = session => monitor(session, report, monitorOptions))
       .flatten
 
   def configuration(args: Array[String], environment: Map[String, String]): ObsConfig =

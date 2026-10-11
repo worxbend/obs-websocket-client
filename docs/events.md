@@ -60,9 +60,9 @@ exponential backoff and jitter. Every backend adapter ships the same wrapper
 (`OkHttpReconnectingObsClient`, `ZioReconnectingObsClient`,
 `Fs2ReconnectingObsClient`, `PekkoReconnectingObsClient`) over the shared
 `reconnect.Reconnect.run` loop in core; the sttp variant is shown below. `ReconnectPolicy.create` validates the retry
-budget, initial and maximum delay, and jitter fraction. Tests inject
-`ReconnectTiming` for deterministic timing; live backoff uses interruptible Ox
-sleep.
+budget, initial and maximum delay, jitter fraction, and stability duration. Tests
+inject `ReconnectTiming` for deterministic backoff and stability timing; live
+backoff uses interruptible Ox sleep.
 
 Each successful connection invokes the application callback with a new
 `ConnectionGeneration`. The previous session and its pending requests have
@@ -109,10 +109,24 @@ actually follows, immediately before its `RetryScheduled`. A notice callback
 that throws surfaces as `Left(ObsError.InternalError)`; interruption still
 propagates so cancellation stays responsive.
 Generation numbers identify attempts within one `run`, including unsuccessful
-attempts. The retry budget and backoff delay progression restart whenever a
-generation's callback completes: a completed callback means the connection was
-healthy, so only consecutive attempts that fail before reaching the callback
-consume the cumulative budget.
+attempts. Opening failures and short-lived generation callbacks share the same
+retry budget and exponential backoff progression. Identification alone does not
+reset either: when a callback returns `Retry`, its measured lifetime must reach
+`ReconnectPolicy.resetAfter` (default **30 seconds**) to reset both before
+scheduling the next retry. A shorter callback preserves the accumulated retries;
+with `maxRetries = 3`, repeated immediate failures permit four attempts with
+three delays, not unlimited reconnect churn.
+
+The stability criterion is callback lifetime, not proof of successful request or
+event delivery. Acquisition/handshake time, notice callbacks, scope teardown,
+and backoff sleep do not count. `ReconnectTiming.monotonicNanos` is an injectable
+monotonic nanosecond clock (default `System.nanoTime`); deterministic tests must
+advance that clock inside the generation callback. Configure a nonnegative
+`resetAfter` with `ReconnectPolicy.create(resetAfter = ...)`.
+`resetAfter = Duration.Zero` explicitly opts into the legacy reset-after-every-
+callback behavior and can retry indefinitely during post-handshake churn.
+`Complete`, `Stop`, terminal failures, cancellation, and `maxRetries = 0` still
+terminate without further retries.
 
 Authentication errors, incompatible protocols, malformed known messages, and
 OBS application close codes are terminal. In particular, `SessionInvalidated`

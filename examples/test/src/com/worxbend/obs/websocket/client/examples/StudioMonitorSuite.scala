@@ -176,7 +176,25 @@ class StudioMonitorSuite extends FunSuite:
       lines,
     )
 
-  test("a dead connection fails the monitor once the read-idle deadline passes"):
+  test("default transport policy keeps quiet healthy sessions open without application polling"):
+    // Inspect the actual run default rather than a separately maintained policy constant.
+    val defaults = StudioMonitor.getClass.getMethod("run$default$3").invoke(StudioMonitor).asInstanceOf[SttpOptions]
+    assertEquals(defaults.readIdleTimeout, None)
+    val lines                       = mutable.Buffer.empty[String]
+    def serve(socket: Socket): Unit =
+      greet(socket                = socket)
+      streamStatus(socket, result = true, skipped = 0, total = 0)
+      Thread.sleep(300)
+      sendEvent(socket, "ExitStarted", 1, """{}""")
+      // Any timer-based application snapshot would arrive here instead of Close.
+      expectClose(socket)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      StudioMonitor.run(config = ObsConfig(uri = uri), report = lines += _)
+    assertEquals(result, Right(()))
+    assertEquals(lines.size, 2)
+    assertEquals(lines.last, "obs is shutting down")
+
+  test("an explicitly opted-in read-idle deadline also fails a silent healthy connection"):
     val lines                       = mutable.Buffer.empty[String]
     def serve(socket: Socket): Unit =
       greet(socket                = socket)
@@ -316,6 +334,35 @@ class StudioMonitorSuite extends FunSuite:
     assertEquals(
       StudioMonitor.describeStatus(status = status),
       "stream health: skipped 0 of 0 frames (0%), congestion 0, 0 bytes sent",
+    )
+
+  test("recovery source reads stream and recording status in order from the real session"):
+    val result = LocalWebSocketPeer.run(server = socket =>
+      greet(socket, availableRequests = "\"GetVersion\",\"GetStreamStatus\",\"GetRecordStatus\"")
+      streamStatus(socket, result     = true, skipped = 5, total = 100)
+      val request = Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.data
+      assertEquals(request.string(name = "requestType"), Right("GetRecordStatus"))
+      val id = request.string(name = "requestId").toOption.get
+      LocalWebSocketPeer.send(
+        socket,
+        s"""{"op":7,"d":{"requestType":"GetRecordStatus","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"outputActive":false,"outputPaused":false,"outputTimecode":"00:00:00.000","outputDuration":0,"outputBytes":0}}}""",
+      )
+      expectClose(socket)): uri =>
+      SttpObsClient.connect(config = ObsConfig(uri = uri)): session =>
+        StudioMonitor.observationSource(session).snapshot(StudioObservation.SnapshotKind.Recovery)
+    assertEquals(
+      result,
+      Right(Right(Vector(
+        "stream snapshot: active=true (reconnecting=true)",
+        "stream health: skipped 5 of 100 frames (5.00%), congestion 0.25, 123456 bytes sent",
+        "record snapshot: active=false (paused=false)",
+      ))),
+    )
+
+  test("event description identifies OBS exit without an output state"):
+    assertEquals(
+      StudioMonitor.describe(event = com.worxbend.obs.websocket.client.protocol.events.ExitStarted()),
+      Some("obs is shutting down"),
     )
 
   test("event description ignores events outside the watched set"):
