@@ -1,5 +1,5 @@
 {% macro header(package, provenance, with_import=false) -%}
-// Generated from the pinned OBS schema (sha256: {{ provenance.sha256 }}). Do not edit.
+// Generated from the pinned OBS schema (sha256: {{ provenance.sha256 | collapse }}). Do not edit.
 package {{ package }}
 
 {% if with_import %}
@@ -16,13 +16,13 @@ import com.worxbend.obs.websocket.client.protocol.*
 /** {% if doc.summary %}{{ doc.summary | collapse }}{% else %}Generated binding for {{ name }}.{% endif %}
 
   *
-  * Upstream: [[{{ provenance.upstream_docs }}#{{ name | lower }} {{ name }}]]{% if doc.initial_version or doc.rpc_version %} ({% if doc.initial_version %}initial version {{ doc.initial_version }}{% endif %}{% if doc.initial_version and doc.rpc_version %}, {% endif %}{% if doc.rpc_version %}RPC version {{ doc.rpc_version }}{% endif %}){% endif %}.{% if doc.deprecated %} Deprecated upstream.{% endif %}
+  * Upstream: [[{{ provenance.upstream_docs | collapse }}#{{ name | lower }} {{ name }}]]{% if doc.initial_version or doc.rpc_version %} ({% if doc.initial_version %}initial version {{ doc.initial_version | collapse }}{% endif %}{% if doc.initial_version and doc.rpc_version %}, {% endif %}{% if doc.rpc_version %}RPC version {{ doc.rpc_version | collapse }}{% endif %}){% endif %}.{% if doc.deprecated %} Deprecated upstream.{% endif %}
 
 {{ parameters_doc(fields) }}  */
 {% endmacro %}
 {% macro see_doc(summary, name, anchor, provenance, fields=()) -%}
-/** {{ summary }}
+/** {{ summary | collapse }}
   *
-  * Upstream: [[{{ provenance.upstream_docs }}#{{ anchor | lower }} {{ name }}]]
+  * Upstream: [[{{ provenance.upstream_docs | collapse }}#{{ anchor | lower }} {{ name }}]]
 {{ parameters_doc(fields) }}  */
 {% endmacro %}

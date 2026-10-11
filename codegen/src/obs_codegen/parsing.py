@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import cast
 
 from .errors import GenerationError
+from .metadata import validate_documentation, validate_provenance
 from .schema import (
     Documentation,
     Overrides,
@@ -76,12 +77,14 @@ def _parse[T](data: bytes, path: Path, description: str, decode: Callable[[objec
 
 
 def _documentation(value: dict[str, object]) -> Documentation:
-    return Documentation(
+    doc = Documentation(
         _string(value.get("description", "")),
         _string(value.get("initialVersion", "")),
         _string(value.get("rpcVersion", "")),
         _boolean(value.get("deprecated", False)),
     )
+    validate_documentation(doc)
+    return doc
 
 
 def _field(value: object) -> SchemaField:
@@ -150,7 +153,11 @@ def _overrides(value: object) -> Overrides:
 
 def _provenance(value: object) -> Provenance:
     obj = _object(value)
-    return Provenance(_string(obj["repository"]), _string(obj["revision"]), _string(obj["sha256"]))
+    provenance = Provenance(
+        _string(obj["repository"]), _string(obj["revision"]), _string(obj["sha256"])
+    )
+    validate_provenance(provenance)
+    return provenance
 
 
 def parse_schema(data: bytes, path: Path) -> Schema:

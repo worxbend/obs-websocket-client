@@ -1,7 +1,7 @@
 {
   "Catalog.scala": "dcf0a9f6cfe14f9be14826d2317d861676be183172f60ae4b75bc4b6fdd05c15",
   "Event.scala": "e9ee21f61ef100d53f4b3d2df187dd456a734e68980a5c0629d6ddc7acb85dc7",
-  "RequestApi.scala": "2fa50594dbd5f7f4e01c25cbe7043de9ac9f2365d0f56d0a9cbbcc8f22b1a7ab",
+  "RequestApi.scala": "74598ebd170eb4c65f0de6f051b576fea032207712f769711cc8f3ac96d798c8",
   "catalog-inventory.tsv": "9681b71bc22613e2e79f00351f796461857a588b55e9784631bd4283f99190a6",
   "enums/EventSubscription.scala": "2e2e08786664789fb49abe376d0e288ce500e209b2f5af8b27c1900e339b07bc",
   "enums/ObsMediaInputAction.scala": "b0f462d31fbd4dc088ba77c2ab2ec2ff63d419d8a73a9ba44359458359bb0599",

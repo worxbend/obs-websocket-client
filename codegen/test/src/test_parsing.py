@@ -51,9 +51,19 @@ class ParsingTests(unittest.TestCase):
             ("Foo.request.bar",),
         )
         parsed = parse_provenance(
-            b'{"repository":"repo","revision":"rev","sha256":"hash","extra":1}', PATH
+            json.dumps(
+                {
+                    "repository": "https://example.com/repo",
+                    "revision": "rev",
+                    "sha256": "f" * 64,
+                    "extra": 1,
+                }
+            ).encode(),
+            PATH,
         )
-        self.assertEqual(parsed.upstream_docs, "repo/blob/rev/docs/generated/protocol.md")
+        self.assertEqual(
+            parsed.upstream_docs, "https://example.com/repo/blob/rev/docs/generated/protocol.md"
+        )
 
     def test_fields_retain_optional_null_false_empty_values(self) -> None:
         value = {

@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .errors import GenerationError
+from .masks import numeric_expressions
+from .metadata import validate_documentation
 from .model import (
     EnumConstant,
     EnumDefinition,
@@ -20,7 +22,37 @@ from .scala import quote
 from .schema import Overrides, Schema, SchemaEnum, SchemaField
 
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-_RESERVED = frozenset(
+_OBJECT_MEMBERS = frozenset(
+    {
+        "equals",
+        "hashCode",
+        "toString",
+        "getClass",
+        "clone",
+        "finalize",
+        "notify",
+        "notifyAll",
+        "wait",
+        "synchronized",
+        "asInstanceOf",
+        "isInstanceOf",
+        "eq",
+        "ne",
+    }
+)
+_KEYWORDS = frozenset(
+    "abstract case catch class def do else enum export extends false final finally for "
+    "forSome given if implicit import lazy match new null object override package private "
+    "protected return sealed super then this throw trait true try type val var while with "
+    "yield _ as derives end extension infix inline opaque open transparent using".split()
+)
+_TYPE_HELPERS = frozenset(
+    "String Long Int Boolean BigDecimal Unit Any Nothing Option Some None Vector Map "
+    "Either Left Right Request Event Field JsonObject JsonValue ProtocolError ValueCodec "
+    "NestedFields EventSelector RawRequest Catalog RequestApi RequestExecutor".split()
+)
+_COMPANION_MEMBERS = _OBJECT_MEMBERS | {"apply", "unapply", "fromProduct", "tupled", "curried"}
+_RESERVED = _OBJECT_MEMBERS | frozenset(
     {
         "toJson",
         "decodeResponse",
@@ -29,6 +61,9 @@ _RESERVED = frozenset(
         "productArity",
         "productElement",
         "productIterator",
+        "canEqual",
+        "productElementName",
+        "productElementNames",
     }
 )
 _ENVELOPE = frozenset({"requestType", "requestData", "eventType", "eventData"})
@@ -69,9 +104,14 @@ def reject_duplicates(kind: str, names: Iterable[str]) -> None:
 def validate_identifier(owner: str, kind: str, name: str) -> None:
     if not name:
         raise GenerationError(f"Empty field name at {owner}.{kind}")
-    if not all(_IDENTIFIER.fullmatch(segment) for segment in name.split(".")):
+    if name == "_" or not all(_IDENTIFIER.fullmatch(segment) for segment in name.split(".")):
         raise GenerationError(f"Invalid Scala identifier at {owner}.{kind}.{name}")
-    if name in _RESERVED:
+    if (
+        name in _RESERVED
+        or name == (owner + "Response" if kind == "response" else owner)
+        or name in {"data", "ValueCodec", "JsonObject", "NestedFields", "Map", "Right", "Field"}
+        or (kind == "request" and name in {"validate", "executor", "requests"})
+    ):
         raise GenerationError(
             f"Field name at {owner}.{kind}.{name} collides with a generated member"
         )
@@ -79,7 +119,12 @@ def validate_identifier(owner: str, kind: str, name: str) -> None:
 
 def _validate_type_name(kind: str, name: str) -> None:
     # Type names become filenames and unquoted Scala names. Never allow paths/code.
-    if not _IDENTIFIER.fullmatch(name):
+    if (
+        not _IDENTIFIER.fullmatch(name)
+        or name in _KEYWORDS
+        or name in _TYPE_HELPERS
+        or (kind in {"request", "event"} and name in {"data", "decode", "minimal", "selector"})
+    ):
         raise GenerationError(f"Invalid generated {kind} name: {name!r}")
 
 
@@ -127,11 +172,36 @@ def _categories(requests: tuple[RequestDefinition, ...]) -> tuple[RequestCategor
     for request in requests:
         groups.setdefault(request.category, []).append(request)
     reject_duplicates("category", (category_name(category) for category in groups))
+    reject_duplicates(
+        "category class",
+        (
+            category_name(category)[:1].upper() + category_name(category)[1:] + "Api"
+            for category in groups
+        ),
+    )
     result = []
     for category, members in sorted(groups.items()):
         name = category_name(category)
         validate_identifier("RequestApi", "category", name)
-        result.append(RequestCategory(name, name[0].upper() + name[1:] + "Api", tuple(members)))
+        if (
+            "." in name
+            or name in _KEYWORDS
+            or name in {"request", "catalog", "requests", "events", "enums"}
+        ):
+            raise GenerationError(f"Invalid generated category name: {name!r}")
+        class_name = name[0].upper() + name[1:] + "Api"
+        _validate_type_name("category class", class_name)
+        reject_duplicates(f"method in {class_name}", (member.method_name for member in members))
+        for member in members:
+            if (
+                member.method_name in _KEYWORDS
+                or member.method_name in _OBJECT_MEMBERS
+                or member.method_name == "executor"
+            ):
+                raise GenerationError(
+                    f"Invalid generated category method: {class_name}.{member.method_name}"
+                )
+        result.append(RequestCategory(name, class_name, tuple(members)))
     return tuple(result)
 
 
@@ -141,41 +211,32 @@ def _enum(enumeration: SchemaEnum) -> EnumDefinition:
         f"identifier of enum {name}", (entry.identifier for entry in enumeration.entries)
     )
     for entry in enumeration.entries:
-        if not _IDENTIFIER.fullmatch(entry.identifier):
+        if (
+            not _IDENTIFIER.fullmatch(entry.identifier)
+            or entry.identifier == "_"
+            or entry.identifier in _COMPANION_MEMBERS
+            or entry.identifier == name
+        ):
             raise GenerationError(f"Invalid enum identifier at {name}.{entry.identifier}")
     values = tuple(entry.value for entry in enumeration.entries)
     if "" in values:
         raise GenerationError(f"Enum {name} has an empty enum value (JSON null in the schema)")
     textual = tuple(
-        value
-        for value in values
-        if not (
-            re.fullmatch(r"-?[0-9]+", value)
-            or re.fullmatch(r"\([0-9A-Za-z_|<>&\s]+\)", value, re.ASCII)
-        )
+        value for value in values if not (re.fullmatch(r"-?[0-9]+", value) or value.startswith("("))
     )
     if textual and len(textual) != len(values):
         raise GenerationError(
             f"Enum {name} mixes numeric/bitmask and string values: {', '.join(sorted(textual))}"
         )
     scala_type = "String" if textual else "Long"
-    siblings = {entry.identifier for entry in enumeration.entries}
+    numeric = numeric_expressions(enumeration) if scala_type == "Long" else ()
     constants = []
-    for entry in enumeration.entries:
+    for index, entry in enumerate(enumeration.entries):
         raw = entry.value
         if scala_type == "String":
             expression = quote(raw)
-        elif raw.startswith("("):
-            unknown = sorted(set(_IDENTIFIER.findall(raw)) - siblings)
-            if unknown:
-                raise GenerationError(
-                    f"Enum {name} mask {raw} references identifiers that are not declared enum members: {', '.join(unknown)}"
-                )
-            expression = _IDENTIFIER.sub(lambda match: f"`{match[0]}`.value", raw)
         else:
-            if not -(2**63) <= int(raw) < 2**63:
-                raise GenerationError(f"Enum {name} value outside signed Long range: {raw}")
-            expression = raw
+            expression = numeric[index]
         constants.append(EnumConstant(entry.identifier, expression, entry.description))
     return EnumDefinition(name, scala_type, tuple(constants))
 
@@ -190,6 +251,10 @@ def normalize(schema: Schema, overrides: Overrides) -> NormalizedSchema:
         reject_duplicates(kind, names)
         for name in names:
             _validate_type_name(kind, name)
+    for doc in tuple(request.documentation for request in schema.requests) + tuple(
+        event.documentation for event in schema.events
+    ):
+        validate_documentation(doc)
     request_names = {request.name for request in schema.requests}
     collisions = sorted(
         name + "Response" for name in request_names if name + "Response" in request_names

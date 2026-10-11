@@ -22,4 +22,8 @@ def quote(value: str) -> str:
 def collapse(value: str) -> str:
     # java.lang.String.trim and Java's default ASCII \s, not Python's Unicode strip.
     trimmed = value.strip("".join(chr(i) for i in range(33)))
-    return re.sub(r"[ \t\n\x0b\f\r]+", " ", trimmed).replace("*/", "* /")
+    # Scala supports nested block comments and processes Unicode escapes before
+    # tokenization. Neutralize openers and raw escape introducers as well.
+    collapsed = re.sub(r"[ \t\n\x0b\f\r\u2028\u2029]+", " ", trimmed)
+    escaped = re.sub(r"\\(u+[0-9a-fA-F]{4})", r"\\ \1", collapsed)
+    return escaped.replace("/*", "/ *").replace("*/", "* /")

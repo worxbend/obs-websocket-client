@@ -1,14 +1,18 @@
 {% import 'macros/source.j2' as source %}
 {% import 'macros/fields.j2' as fields %}
-{{ source.header(base, provenance) }}/** Discoverable categories for the full pinned catalog. Implementations retain ownership of request policy. */
-trait RequestApi[E]:
+{{ source.header(base, provenance) }}/** Minimal execution seam for category facades; implementations own request policy. */
+trait RequestExecutor[E]:
+  def request[A](request: Request[A]): Either[E, A]
+
+/** Discoverable categories for the full pinned catalog. Implementations retain ownership of request policy. */
+trait RequestApi[E] extends RequestExecutor[E]:
   def request[A](request: Request[A]): Either[E, A]
 {% for category in schema.categories %}
   val {{ category.name }}: {{ category.class_name }}[E] = new {{ category.class_name }}(this)
 {% endfor %}
 
 {% for category in schema.categories %}
-final class {{ category.class_name }}[E] private[protocol] (executor: RequestApi[E]):
+final class {{ category.class_name }}[E] private[protocol] (executor: RequestExecutor[E]):
 {% for request in category.requests %}
   /** Executes [[{{ base }}.requests.{{ request.name }}]] using the owning request executor. */
   def {{ request.method_name }}({{ fields.parameters(request.request_fields) }}): Either[E, requests.{{ request.name }}Response] =

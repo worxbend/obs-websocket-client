@@ -10,5 +10,10 @@ whitespace, including trailing spaces in empty parameter documentation and the
 newline after every file. These fixtures establish behavior preservation, not
 live OBS compatibility.
 
+The reviewed RequestExecutor seam intentionally updates only `RequestApi.scala`:
+`RequestApi` retains its request method and categories while each category depends
+on the smaller executor contract. The full-catalog hash oracle likewise updates
+only that path; all other pinned output bytes remain frozen.
+
 For an intentional output change, review the full diff and generated API before
 updating the expected files. Do not regenerate them merely to silence a failure.

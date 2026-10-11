@@ -4,6 +4,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from .metadata import validate_provenance
 from .model import Field, NormalizedSchema, RenderedFile
 from .scala import BASE_PACKAGE, collapse, quote
 from .schema import Provenance
@@ -31,6 +32,7 @@ class Renderer:
         self.environment.filters.update(quote=quote, collapse=collapse, dotted=_dotted)
 
     def render(self, schema: NormalizedSchema, provenance: Provenance) -> tuple[RenderedFile, ...]:
+        validate_provenance(provenance)
         context = {"schema": schema, "provenance": provenance, "base": BASE_PACKAGE}
         outputs = []
         for request in schema.requests:
