@@ -144,9 +144,8 @@ class EndpointsSuite extends munit.FunSuite:
     import com.worxbend.obs.websocket.client.transport.sttp.LocalWebSocketPeer
     // RFC 6455 close frame: the scoped connection must shut the WebSocket down.
     val closeFrameOpcode = 8
-    // One version() call drives GetVersion twice: the client's internal probe during
-    // connect, then the endpoint's own request.
-    val getVersionRequests                   = 2
+    // The endpoint reuses immutable startup discovery: no second GetVersion.
+    val getVersionRequests                   = 1
     def serve(socket: java.net.Socket): Unit =
       LocalWebSocketPeer.upgrade(socket = socket)
       LocalWebSocketPeer.send(socket = socket, text = """{"op":0,"d":{"obsWebSocketVersion":"5.6.3","rpcVersion":1}}""")
@@ -164,6 +163,71 @@ class EndpointsSuite extends munit.FunSuite:
     val result = LocalWebSocketPeer.run(server = serve): uri =>
       ObsReadService.live(config = ObsConfig(uri = uri)).version()
     assertEquals(result, Right(VersionInformation(obs = "32.0.0", websocket = "5.6.3")))
+
+  test("live version pre-upgrade stall uses the total budget and physically releases TCP"):
+    import com.worxbend.obs.websocket.client.ObsConfig
+    import com.worxbend.obs.websocket.client.transport.sttp.LocalWebSocketPeer
+    import scala.concurrent.duration.*
+    ox.supervised:
+      val released                             = ox.channels.Channel.buffered[Unit](1)
+      def serve(socket: java.net.Socket): Unit =
+        val _ = LocalWebSocketPeer.readHeaders(socket = socket)
+        // Never upgrade. EOF (not merely a returned timeout) proves owned-client cleanup.
+        assertEquals(socket.getInputStream.read(), -1)
+        released.send(())
+      val result = LocalWebSocketPeer.run(server = serve): uri =>
+        val started  = System.nanoTime()
+        val response = ObsReadService.live(
+          config = ObsConfig(
+            uri               = uri,
+            connectionTimeout = 5.seconds,
+            handshakeTimeout  = 5.seconds,
+            requestTimeout    = 800.millis,
+            shutdownTimeout   = 100.millis,
+          )
+        ).version()
+        val elapsed = (System.nanoTime() - started).nanos
+        assert(elapsed < 1800.millis, s"Budget plus cleanup/timing tolerance exceeded: $elapsed")
+        assertEquals(response, Left(ObsError.Timeout(operation = "version")))
+        ox.timeout(1.second)(released.receive())
+        response
+      assertEquals(result, Left(ObsError.Timeout(operation = "version")))
+
+  test("slow upgrade and handshake leave only the current total budget for discovery"):
+    import com.worxbend.obs.websocket.client.ObsConfig
+    import com.worxbend.obs.websocket.client.transport.sttp.LocalWebSocketPeer
+    import scala.concurrent.duration.*
+    def serve(socket: java.net.Socket): Unit =
+      ox.sleep(350.millis)
+      LocalWebSocketPeer.upgrade(socket = socket)
+      LocalWebSocketPeer.send(socket = socket, text = """{"op":0,"d":{"obsWebSocketVersion":"5.6.3","rpcVersion":1}}""")
+      val _ = LocalWebSocketPeer.receive(socket = socket)
+      ox.sleep(350.millis)
+      LocalWebSocketPeer.send(socket = socket, text = """{"op":2,"d":{"negotiatedRpcVersion":1}}""")
+      val _ = LocalWebSocketPeer.receive(socket = socket) // Startup GetVersion; never answer it.
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+      assertEquals(socket.getInputStream.read(), -1)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      val started  = System.nanoTime()
+      val response = ObsReadService.live(
+        config = ObsConfig(
+          uri               = uri,
+          connectionTimeout = 5.seconds,
+          handshakeTimeout  = 5.seconds,
+          requestTimeout    = 1.second,
+          shutdownTimeout   = 100.millis,
+        )
+      ).version()
+      val elapsed = (System.nanoTime() - started).nanos
+      assert(elapsed < 1500.millis, s"Discovery must not receive a fresh total budget: $elapsed")
+      response
+    assertEquals(result, Left(ObsError.Timeout(operation = "version")))
+
+  test("invalid configuration is not masked by a tiny total budget"):
+    import com.worxbend.obs.websocket.client.ObsConfig
+    import scala.concurrent.duration.*
+    val config = ObsConfig(uri = "https://localhost", requestTimeout = 1.nanosecond)
+    assertEquals(ObsReadService.live(config = config).version(), Left(config.validate.swap.toOption.get))
 
   test("live version read is bounded by one overall timeout"):
     import com.worxbend.obs.websocket.client.ObsConfig

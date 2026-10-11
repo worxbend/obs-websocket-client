@@ -2,7 +2,7 @@
 
 The client is a Scala 3 library that owns an OBS WebSocket connection for the lifetime of an application callback. Generated protocol bindings describe messages; an Ox actor coordinates requests and events; a pluggable backend adapter handles the socket. The HTTP server is a separate consumer of that library.
 
-This page reflects the implementation as of 2026-10-06. It does not claim a published release or broader OBS compatibility; tested versions and operations are listed in the [compatibility matrix](compatibility.md).
+This page reflects the current implementation. It does not claim a published release or broader OBS compatibility; tested versions and operations are listed in the [compatibility matrix](compatibility.md).
 
 ## Module boundaries
 
@@ -63,7 +63,7 @@ flowchart TB
     Selector --> Consumer["Scoped event consumer"]
 ```
 
-Per-call budgets cover registration and response waiting. A transport write deadline physically aborts a stalled connection before worker cleanup. Optional readiness retry handles explicit NotReady responses for reviewed read requests, including startup discovery when configured; it does not replay uncertain writes. See [ADR-004](decisions/004-additive-peer-features.md) and the [feature comparison](feature-expansion.md).
+The session facade delegates immutable request preparation, total registration/response deadlines and owner-checked cleanup to `PreparedRequest` and `RequestExchange`; pure batch sequencing lives in `BatchWire`. One coordination actor remains the sole owner of connection state and routing. Per-call budgets cover registration and response waiting. A transport write deadline physically aborts a stalled connection before worker cleanup. Optional readiness retry handles explicit NotReady responses for reviewed read requests, including startup discovery when configured; it does not replay uncertain writes. See [ADR-004](decisions/004-additive-peer-features.md) and the [feature comparison](feature-expansion.md).
 
 ## Connection establishment
 
@@ -100,7 +100,7 @@ Expected failures use `Either[ObsError, A]`. A callback returning an operation's
 
 ## Requests and event dispatch
 
-Each connection has one reader, one serialized writer, and one `SessionLogic` actor. The actor owns pending-request and subscriber maps. Application code waits on its own reply or subscription channel:
+Each connection has one reader, one serialized writer, and one `SessionLogic` actor. The ordered reader decodes text/envelopes before actor invocation; user request getters and response decoders never execute inside actor admission. The actor owns pending-request and subscriber maps. Application code waits on its own reply or subscription channel:
 
 ```mermaid
 %% asset: dispatch.svg
@@ -162,7 +162,7 @@ The application chooses when to return `Retry`. The wrapper does not monitor and
 
 ## HTTP sample boundary
 
-`Main` owns one Netty server binding inside an Ox scope and stops it during shutdown. `GET /health` reports HTTP liveness without contacting OBS. `GET /obs/version` calls `ObsReadService.version`, opens a fresh scoped OBS connection for that HTTP request, and returns the OBS and WebSocket versions. The internal capability query runs before the service's typed version query, so this route makes two `GetVersion` requests per connection.
+`Main` owns one Netty server binding inside an Ox scope and stops it during shutdown. `GET /health` reports HTTP liveness without contacting OBS. `GET /obs/version` calls `ObsReadService.version`, opens a fresh scoped OBS connection for that HTTP request, and returns the OBS and WebSocket versions. The route reads the immutable generation-scoped startup discovery, so it needs only the initial `GetVersion` query. Its operation budget clips native acquisition to the remaining time; required resource cleanup is separate grace, not a hard wall-clock guarantee.
 
 OBS failures map to HTTP 503 with the generic `ApiFailure` response. Swagger and OpenAPI use the same endpoint collection. The current sample has no shared application-wide OBS session, scenes HTTP route, persistence, or AI integration. Those must not be inferred from the broader plan. See [HTTP sample](server.md).
 
@@ -183,6 +183,6 @@ The following source-to-behavior map makes the diagrams auditable:
 | `SessionLogic.event`, `ObsSubscription` | Subscribers have independent queues and caller-owned consumers | Reader → actor → matching queues → caller |
 | `SttpObsClient`, `SttpTransport.close` | Physical teardown has explicit backend ownership | Callback exit → logical close → socket close → worker join |
 | `Reconnect.run`, `ReconnectingObsClient.run` | Retry owns a new connection scope | Old scope ends → backoff → new generation |
-| `ObsReadService.version` | The sample uses request-scoped connections | HTTP request → scoped client → typed query → close |
+| `ObsReadService.version` | The sample uses request-scoped connections | HTTP request → budgeted scoped client → startup discovery → close |
 
 Design rationale is recorded in [architecture decisions](decisions.md). To exercise the public boundary, follow [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md).
