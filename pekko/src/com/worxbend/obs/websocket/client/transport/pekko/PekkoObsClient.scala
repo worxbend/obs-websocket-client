@@ -2,13 +2,13 @@ package com.worxbend.obs.websocket.client.transport.pekko
 
 import com.worxbend.obs.websocket.client.{ObsClient, ObsConfig, ObsError, ObsSession}
 import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.http.scaladsl.Http
+
 import ox.either.catching
 import ox.{resourceScope, timeoutOption, uninterruptible, useInScope, ResourceScope}
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 import sttp.capabilities.pekko.PekkoStreams
-import sttp.client4.pekkohttp.PekkoHttpBackend
+
 import sttp.client4.ws.async.asWebSocketUnsafe
 import sttp.client4.{basicRequest, SttpClientException, WebSocketStreamBackend}
 import sttp.model.{Header, Uri}
@@ -25,9 +25,9 @@ import sttp.model.{Header, Uri}
   * the connection itself failed and maps to "WebSocket connection failed".
   */
 object PekkoObsClient:
-  /** Create and terminate a private actor system and Pekko backend together with the OBS connection. Abortion shuts
-    * down the owned system's connection pools, which promptly and idempotently force-closes this connection and
-    * unblocks pending reads and writes; repeated invocation is harmless. Scope exit terminates the system and waits
+  /** Create and terminate a private actor system and Pekko backend together with the OBS connection. Abortion fails
+    * this connection's byte transport, promptly unblocking reads/writes without relying on connection pools or a
+    * peer Close reply. The finite acquisition deadline does not become live TCP idle policy. Scope exit waits
     * for `whenTerminated`, bounded at 5 seconds, before returning; after expiry termination continues in the
     * background.
     */
@@ -39,18 +39,37 @@ object PekkoObsClient:
       options.validate.flatMap: validOptions =>
         resourceScope:
           val system = useInScope(ActorSystem(name = newSystemName()))(shutdownSystem(_))
-          withBackend(
-            backend = PekkoHttpBackend.usingActorSystem(actorSystem = system),
-            config  = valid,
-            () => shutdownConnectionPools(system = system),
-            options = validOptions,
-          )(
-            use = use
-          )
+          withNativeSystem(system = system, config = valid, options = validOptions)(use = use)
+
+  /** Native factory seam also works with a caller-owned system: only the per-connection transport is aborted. */
+  private[pekko] def withNativeSystem[A](system: ActorSystem, config: ObsConfig, options: PekkoOptions)(
+    use: ObsSession => A
+  ): Either[ObsError, A] =
+    resourceScope:
+      for
+        valid            <- config.validate
+        transportOptions <- options.validate
+        uri              <- websocketUri(config = valid)
+        connection        = useInScope(PekkoConnectionFactory.create(system, valid.connectionTimeout))(_.abort())
+        transport        <- open(
+                       backend         = connection.backend,
+                       uri             = uri,
+                       config          = valid,
+                       abortConnection = connection.abort,
+                       options         = transportOptions,
+                       ownership       = AcquisitionOwnership.NativeConnection,
+                       awaitClosed     = connection.awaitClosed,
+                     )
+        result <- ObsClient.withTransport(transport = transport, config = valid)(use = use)
+      yield result
 
   /** The caller retains ownership of the injected backend and its actor system, including on failure; the library
-    * never terminates them. The backend must enforce its own finite connection/upgrade timeout. Acquisition is
-    * shielded so a late pool response cannot escape registration. `abortConnection` must promptly and idempotently
+    * never terminates them. Requests use an infinite read timeout so acquisition does not impose live TCP idle policy.
+    * The backend must independently enforce a finite connection AND upgrade deadline: sttp's Pekko backend alone
+    * cannot enforce a finite upgrade deadline without imposing idle policy. Use a custom native client/factory to
+    * supply that guarantee. This entrypoint shields acquisition until that backend deadline, so cancellation may
+    * exceed `connectionTimeout`; late sockets are registered before cancellation is unmasked.
+    * `abortConnection` must promptly and idempotently
     * force-close this connection, without closing a shared backend, and unblock any pending read/write. It runs on
     * write timeout/interruption and after the bounded Close attempt, including late acquisition and callback failure.
     * Repeated invocations must be harmless.
@@ -74,6 +93,7 @@ object PekkoObsClient:
                        config          = valid,
                        abortConnection = abortConnection,
                        options         = transportOptions,
+                       ownership       = AcquisitionOwnership.CallerBackend,
                      )
         result <- ObsClient.withTransport(transport = transport, config = valid)(use = use)
       yield result
@@ -90,18 +110,18 @@ object PekkoObsClient:
     config:          ObsConfig,
     abortConnection: () => Unit,
     options:         PekkoOptions,
+    ownership:       AcquisitionOwnership,
+    awaitClosed:     () => Unit = () => (),
   )(using ResourceScope): Either[ObsError, PekkoTransport] =
     timeoutOption(config.connectionTimeout):
-      // The connection pool underneath the Pekko backend does not abandon an in-flight upgrade when a waiter is
-      // interrupted. Shield acquisition until the backend deadline, and register cleanup before unmasking.
-      uninterruptible:
+      def acquire(): Either[ObsError, PekkoTransport] =
         PekkoRunner
           .await(future =
             basicRequest
               .get(uri)
               .headers(options.headers.entries.map((name, value) => Header(name, value))*)
               .followRedirects(false)
-              .readTimeout(config.connectionTimeout)
+              .readTimeout(Duration.Inf)
               .response(asWebSocketUnsafe)
               .send(backend)
               .map(_.body)(using scala.concurrent.ExecutionContext.parasitic)
@@ -123,14 +143,24 @@ object PekkoObsClient:
                 abortConnection = abortConnection,
                 writeTimeout    = options.writeTimeout,
                 readIdleTimeout = options.readIdleTimeout,
+                awaitClosed     = awaitClosed,
               )
             )(
               _.close()
             )
+      ownership match
+        case AcquisitionOwnership.CallerBackend    => uninterruptible(acquire())
+        case AcquisitionOwnership.NativeConnection =>
+          try acquire()
+          catch
+            case interrupted: InterruptedException =>
+              // Destroy before timeoutOption joins its worker. The switch also kills any late materialization.
+              abortConnection()
+              throw interrupted
     .getOrElse(Left(ObsError.Timeout(operation = "connection")))
 
-  private def shutdownConnectionPools(system: ActorSystem): Unit =
-    val _ = Http(system).shutdownAllConnectionPools()
+  private enum AcquisitionOwnership:
+    case NativeConnection, CallerBackend
 
   /** Termination normally completes in milliseconds; the bounded await exists so a wedged actor system cannot pin the
     * closing scope forever. After expiry the scope proceeds and termination continues in the background.

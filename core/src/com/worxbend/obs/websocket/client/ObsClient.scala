@@ -51,6 +51,7 @@ object ObsClient:
     password:     Option[String],
     dependencies: SessionDependencies,
   )(use: ObsSession => A)(using Ox): Either[ObsError, A] =
+    val ids              = new CorrelationIds
     val outgoing         = Channel.buffered[WireMessage](config.outgoingCapacity)
     val identified       = Channel.buffered[Either[ObsError, ConnectionMetadata]](1)
     given BufferCapacity = mailboxCapacity
@@ -96,13 +97,10 @@ object ObsClient:
               running = false
             case Right(text) =>
               // One actor round-trip per frame: byte accounting rides along with the decode outcome.
-              running = logic.ask(
-                _.received(
-                  bytes   = Utf8.encodedLength(text = text).toInt,
-                  decoded =
-                    Protocol.decode(text = text, maxBytes = config.maxMessageBytes).left.map(SessionWire.malformed),
-                )
-              )
+              val decoded =
+                Protocol.decode(text = text, maxBytes = config.maxMessageBytes).left.map(SessionWire.malformed)
+              val bytes = Utf8.encodedLength(text = text).toInt
+              running = logic.ask(_.received(bytes = bytes, decoded = decoded))
       catch
         case NonFatal(cause) =>
           logic.ask(
@@ -115,7 +113,7 @@ object ObsClient:
         .getOrElse(Left(ObsError.Timeout(operation = "handshake")))
         .flatMap: initial =>
           val provisional =
-            new ObsSession(metadata = initial, config = config, dependencies = dependencies, logic = logic)
+            new ObsSession(metadata = initial, config = config, dependencies = dependencies, logic = logic, ids = ids)
           provisional.discoverVersion
             .flatMap: version =>
               version
@@ -134,6 +132,8 @@ object ObsClient:
                       config       = config,
                       dependencies = dependencies,
                       logic        = logic,
+                      ids          = ids,
+                      discovery    = Some(version),
                     )
                   )
     finally uninterruptible(logic.ask(_.close()).catching[ChannelClosedException].discard)

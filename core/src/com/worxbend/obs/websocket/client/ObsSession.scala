@@ -16,7 +16,11 @@ final class ObsSession private[client] (
   config:       ObsConfig,
   dependencies: SessionDependencies,
   logic:        ActorRef[SessionLogic],
+  ids:          CorrelationIds = new CorrelationIds,
+  /** Immutable raw GetVersion discovery for this generation; unavailable only to the internal provisional facade. */
+  val discovery: Option[JsonObject] = None,
 ) extends RequestApi[ObsError]:
+  private val exchanges = new RequestExchange(config = config, dependencies = dependencies, logic = logic, ids = ids)
   private def ask[A](f: SessionLogic => Either[ObsError, A]): Either[ObsError, A] =
     logic.ask(f).catching[ChannelClosedException].left.map(_ => ObsError.Closed).flatten
 
@@ -57,13 +61,16 @@ final class ObsSession private[client] (
     request: Request[A],
     options: RequestOptions = RequestOptions(),
   ): Either[ObsError, ResponseEnvelope[A]] =
-    if !capable(request = request) then Left(ObsError.UnsupportedRequest(requestType = request.requestType))
-    else
-      request.validate.left
-        .map(SessionWire.invalid)
-        .flatMap: _ =>
-          rawRequest(requestType = request.requestType, data = request.requestData, options = options).map: raw =>
-            ResponseEnvelope(raw = raw, decoded = request.decodeResponse(data = raw).left.map(SessionWire.malformed))
+    PreparedRequest.from(request = request, available = metadata.availableRequests)
+      .flatMap(prepared => executePrepared(request = request, prepared = prepared, options = options))
+
+  private def executePrepared[A](
+    request:  Request[A],
+    prepared: PreparedRequest,
+    options:  RequestOptions,
+  ): Either[ObsError, ResponseEnvelope[A]] =
+    rawRequest(requestType = prepared.requestType, data = prepared.data, options = options).map: raw =>
+      ResponseEnvelope(raw = raw, decoded = request.decodeResponse(data = raw).left.map(SessionWire.malformed))
 
   /** Retry only explicit NotReady (207), only for the reviewed read catalog, within one total budget. */
   def requestWhenReady[A](
@@ -74,16 +81,25 @@ final class ObsSession private[client] (
     request match
       case _: RawRequest =>
         Left(ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request"))
-      case _ if !ReadinessPolicy.supportedRequests.contains(request.requestType) =>
-        Left(ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request"))
       case _ =>
         for
+          prepared <- PreparedRequest.from(request = request, available = metadata.availableRequests)
+          _        <-
+            if ReadinessPolicy.supportedRequests.contains(prepared.requestType) then Right(())
+            else
+              Left(ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request"))
           _      <- policy.validate
           budget <- options.deadline(default = config.requestTimeout)
           result <- timeoutOption(budget)(
-                      retryReady(policy = policy)(run = this.request(request = request, options = options))
+                      retryReady(policy = policy)(run =
+                        executePrepared(
+                          request  = request,
+                          prepared = prepared,
+                          options  = options,
+                        ).flatMap(_.decoded)
+                      )
                     )
-                      .getOrElse(Left(ObsError.Timeout(operation = request.requestType)))
+                      .getOrElse(Left(ObsError.Timeout(operation = prepared.requestType)))
         yield result
 
   private[client] def discoverVersion: Either[ObsError, JsonObject] = config.readiness match
@@ -105,10 +121,6 @@ final class ObsSession private[client] (
       attempts += 1
     result
 
-  private def capable(request: Request[?]): Boolean = request match
-    case _: RawRequest => true
-    case _             => metadata.availableRequests.contains(request.requestType)
-
   /** Escape hatch for vendor extensions and requests newer than the pinned catalog. A returned [[ObsError.Timeout]]
     * after the request reached the wire is ambiguous: the server may already have executed a mutation.
     */
@@ -117,7 +129,7 @@ final class ObsSession private[client] (
     data:        JsonObject = JsonObject.empty,
     options:     RequestOptions = RequestOptions(),
   ): Either[ObsError, JsonObject] =
-    exchange(requestType = requestType, responseOpcode = SessionWire.Op.RequestResponse, options = options): id =>
+    exchanges.run(requestType = requestType, responseOpcode = SessionWire.Op.RequestResponse, options = options): id =>
       WireMessage(
         op   = SessionWire.Op.Request,
         data = JsonObject(
@@ -128,71 +140,6 @@ final class ObsSession private[client] (
           )
         ),
       )
-
-  private def exchange(requestType: String, responseOpcode: Int, options: RequestOptions)(
-    message: String => WireMessage
-  ): Either[ObsError, JsonObject] = exchange(
-    requestType      = requestType,
-    responseOpcode   = responseOpcode,
-    options          = options,
-    postRegistration = identity,
-  )(message = message)
-
-  /** `postRegistration` wraps only failures arising after the message was registered and queued: before that point
-    * nothing reached the writer, so the error is returned unwrapped.
-    */
-  private def exchange(
-    requestType:      String,
-    responseOpcode:   Int,
-    options:          RequestOptions,
-    postRegistration: ObsError => ObsError,
-  )(
-    message: String => WireMessage
-  ): Either[ObsError, JsonObject] =
-    options
-      .deadline(default = config.requestTimeout)
-      .flatMap: budget =>
-        val id                         = dependencies.nextRequestId()
-        val reply                      = Channel.buffered[Either[ObsError, JsonObject]](1)
-        val started                    = dependencies.nanoTime()
-        var outcome: DiagnosticOutcome = DiagnosticOutcome.Cancelled
-        val registered                 =
-          try
-            ask(f =
-              _.register(
-                id          = id,
-                requestType = requestType,
-                opcode      = responseOpcode,
-                message     = message(id),
-                reply       = reply,
-              )
-            )
-          catch
-            case interrupted: InterruptedException =>
-              // The register invocation may already be queued on the actor and execute after the caller is
-              // gone; cancel unconditionally (a no-op if it never landed) so interruption cannot orphan a
-              // pending entry whose request would be sent with no one awaiting it.
-              uninterruptible(tellSafely(f = _.cancel(id = id, owner = reply)))
-              throw interrupted
-        try
-          registered.flatMap: _ =>
-            val completed = timeoutOption(budget)(reply.receive()).getOrElse:
-              // A response landing between timeout expiry and this final check is delivered, not reported as a timeout.
-              reply.tryReceive().getOrElse(Left(ObsError.Timeout(operation = requestType)))
-            outcome = DiagnosticOutcome.from(result = completed)
-            completed.left.map:
-              case error @ (ObsError.Transport(_, _) | ObsError.Timeout(_) | ObsError.Closed) =>
-                postRegistration(error)
-              case error => error
-        finally
-          // Only a registered request accounts a finished one: a rejection at registration never
-          // reached the writer and must not move the completed/failed counters.
-          if registered.isRight then
-            uninterruptible:
-              val elapsed = dependencies.nanoTime() - started
-              tellSafely: state =>
-                state.cancel(id                   = id, owner       = reply)
-                state.requestFinished(requestType = requestType, id = id, elapsedNanos = elapsed, outcome = outcome)
 
   /** Queue a server subscription change. Success means queued; the uncorrelated Identified acknowledgement is validated
     * asynchronously while the session remains ready.
@@ -274,16 +221,16 @@ final class ObsSession private[client] (
         )
       )
     else
-      val validated = requests.foldLeft[Either[ObsError, Unit]](Right(()))((acc, request) =>
-        acc.flatMap: _ =>
-          if !capable(request = request) then Left(ObsError.UnsupportedRequest(requestType = request.requestType))
-          else request.validate.left.map(SessionWire.invalid)
+      val prepared = requests.foldLeft[Either[ObsError, Vector[PreparedRequest]]](Right(Vector.empty))((acc, request) =>
+        acc.flatMap(values =>
+          PreparedRequest.from(request = request, available = metadata.availableRequests).map(values :+ _)
+        )
       )
-      validated.flatMap: _ =>
-        // Only failures after successful registration wrap as ambiguous: before registration nothing was queued,
-        // so the batch definitely never executed.
+      prepared.flatMap: snapshots =>
+        // Known admission rejection is unambiguous. Canceled admission acknowledgements can race queued work,
+        // so the exchange conservatively wraps failures whenever admission may already have happened.
         val response =
-          exchange(
+          exchanges.run(
             requestType      = "RequestBatch",
             responseOpcode   = SessionWire.Op.RequestBatchResponse,
             options          = options,
@@ -298,19 +245,12 @@ final class ObsSession private[client] (
                     "haltOnFailure" -> JsonValue.Bool(value = failurePolicy == BatchFailurePolicy.Halt),
                     "executionType" -> JsonValue.Num(value = BigDecimal(execution.wireValue)),
                     "requests"      -> JsonValue.Arr(
-                      value = requests.map(request =>
-                        JsonObject(
-                          fields = Map(
-                            "requestType" -> JsonValue.Str(value = request.requestType),
-                            "requestData" -> request.requestData,
-                          )
-                        )
-                      )
+                      value = snapshots.map(_.batchEntry)
                     ),
                   )
               ),
             )
-        response.flatMap(decodeBatch(_, requests = requests, policy = failurePolicy))
+        response.flatMap(BatchWire.decode(_, requests = snapshots, policy = failurePolicy))
 
   /** Example: typedBatch((BatchCall(GetVersion()), BatchCall(GetSceneList()))). */
   def typedBatch[Calls <: Tuple](
@@ -325,59 +265,6 @@ final class ObsSession private[client] (
       failurePolicy = failurePolicy,
       options       = options,
     ).map(codec.decode(calls = calls, _))
-
-  private def decodeBatch(
-    data:     JsonObject,
-    requests: Vector[Request[?]],
-    policy:   BatchFailurePolicy,
-  ): Either[ObsError, Vector[BatchResult]] =
-    data
-      .array(name = "results")
-      .left
-      .map(SessionWire.malformed)
-      .flatMap: results =>
-        if results.size > requests.size || (policy == BatchFailurePolicy.Continue && results.size != requests.size) then
-          Left(
-            ObsError
-              .MalformedPayload(path = "results", message = "Batch result count does not match submitted requests")
-          )
-        else
-          val decoded = requests.zipWithIndex.foldLeft[Either[ObsError, Vector[BatchResult]]](Right(Vector.empty)):
-            case (acc, (request, index)) =>
-              acc.flatMap: values =>
-                results.lift(index) match
-                  case None => Right(values :+ BatchResult.NotExecuted(requestType = request.requestType))
-                  case Some(result: JsonObject) =>
-                    SessionWire.responseData(
-                      data         = result,
-                      expectedType = request.requestType,
-                      id           = s"batch:$index",
-                    ) match
-                      case Left(error: ObsError.MalformedPayload) => Left(error)
-                      case response                               =>
-                        Right(values :+ BatchResult.Completed(requestType = request.requestType, result = response))
-                  case _ => Left(ObsError.MalformedPayload(path = s"results[$index]", message = "Expected object"))
-          decoded.flatMap: values =>
-            val firstFailure = values.indexWhere:
-              case BatchResult.Completed(_, Left(_)) => true
-              case _                                 => false
-            if policy == BatchFailurePolicy.Halt && !haltSequenceValid(
-                firstFailure = firstFailure,
-                resultCount  = results.size,
-                requestCount = requests.size,
-              )
-            then
-              Left(
-                ObsError
-                  .MalformedPayload(path = "results", message = "Halted batch must end immediately after a failure")
-              )
-            else Right(values)
-
-  /** A halted batch is coherent only when every request executed without a failure, or the first failure is the last
-    * returned result and nothing follows it.
-    */
-  private def haltSequenceValid(firstFailure: Int, resultCount: Int, requestCount: Int): Boolean =
-    (firstFailure >= 0 && firstFailure == resultCount - 1) || (firstFailure < 0 && resultCount == requestCount)
 
   /** Session lifetime counters include identification and capability discovery; bytes are logical UTF-8 JSON. */
   def statistics: Either[ObsError, SessionStats] = ask(s => Right(s.statistics))

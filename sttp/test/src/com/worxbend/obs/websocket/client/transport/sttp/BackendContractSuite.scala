@@ -43,13 +43,16 @@ abstract class BackendContractSuite extends FunSuite:
     */
   protected def expectedCleanCloseCode: Option[Int]
 
-  /** Pekko's aggressive pool shutdown can end teardown in an RST instead of a FIN. */
+  /** Pekko's per-connection physical abort can end teardown in an RST instead of a FIN. */
   protected def tolerateResetTeardown: Boolean = false
 
   private val hello      = """{"op":0,"d":{"obsWebSocketVersion":"5.6.3","rpcVersion":1}}"""
   private val identified = """{"op":2,"d":{"negotiatedRpcVersion":1}}"""
 
   private def assertTcpReleased(socket: java.net.Socket): Unit =
+    // This peer withholds its Close reply. Observe beyond the default three-second graceful-close budget,
+    // rather than racing the adapter's required physical abort at exactly that deadline.
+    socket.setSoTimeout(4.seconds.toMillis.toInt)
     try assertEquals(socket.getInputStream.read(), -1)
     catch
       case _: java.net.SocketException =>

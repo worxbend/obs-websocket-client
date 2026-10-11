@@ -47,6 +47,9 @@ object Main:
   def main(args: Array[String]): Unit =
     assert(Runtime.version.feature == 25)
     assert(GetVersion().requestType == "GetVersion")
+    assert(summon[com.worxbend.obs.websocket.client.BatchCodec[EmptyTuple]] != null)
+    // Tuple evidence is public; unchecked internal projection is deliberately not consumer-callable.
+    assert(!scala.compiletime.testing.typeChecks("""summon[com.worxbend.obs.websocket.client.BatchCodec[EmptyTuple]].decode(EmptyTuple, Vector.empty)"""))
     val api = new RequestApi[String]:
       def request[A](value: Request[A]): Either[String, A] = Left(value.requestType)
     assert(api.general.getVersion() == Left("GetVersion"))

@@ -25,7 +25,7 @@ class PekkoContractSuite extends BackendContractSuite:
   override protected def connectWithDefaults[A](config: ObsConfig)(use: ObsSession => A): Either[ObsError, A] =
     PekkoObsClient.connect(config = config)(use = use)
 
-  /** The owned system's pool shutdown can end teardown in an RST instead of a FIN. */
+  /** Per-connection byte-transport abort can end teardown in an RST instead of a FIN. */
   override protected def tolerateResetTeardown: Boolean = true
 
   override protected def reconnect[A](config: ObsConfig, policy: ReconnectPolicy, onNotice: ReconnectNotice => Unit)(

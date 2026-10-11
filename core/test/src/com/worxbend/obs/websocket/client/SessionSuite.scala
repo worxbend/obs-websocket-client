@@ -1184,13 +1184,11 @@ class SessionSuite extends FunSuite:
       assertEquals(timeoutOption(500.millis)(session.rawRequest(requestType = "Probe")), None)
       release.send(())
       stalled.join()
-      // The queued register ran and the unconditional cancel removed the pending entry again: the
-      // request id is unknown to the writer guard, nothing was accounted, yet the message did queue —
-      // proving the enqueue-then-interrupt path (not a registration that never landed) was exercised.
-      val orphaned = WireMessage(
-        op   = 6,
-        data = JsonObject(fields = Map("requestId" -> JsonValue.Str(value = interruptedRegistrationId))),
-      )
+      // The queued registration was admitted before its own long budget expired; unconditional FIFO cleanup
+      // removed that exact owner and records its cancellation even though the original ask was interrupted.
+      val orphaned = outgoing.receive()
+      assertEquals(orphaned.data.string(name = "requestId"), Right(s"$interruptedRegistrationId:1"))
       assertEquals(logic.ask(_.canSend(message = orphaned)), false)
-      assertEquals(logic.ask(_.statistics), SessionStats())
-      assert(outgoing.tryReceive().exists(_.data.string(name = "requestId").contains(interruptedRegistrationId)))
+      val stats = logic.ask(_.statistics)
+      assertEquals((stats.completedRequests, stats.failedRequests), (1L, 1L))
+      assert(stats.requestElapsedNanos > 0L)

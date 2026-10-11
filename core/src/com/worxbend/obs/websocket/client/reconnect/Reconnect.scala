@@ -3,12 +3,13 @@ package com.worxbend.obs.websocket.client.reconnect
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
 import com.worxbend.obs.websocket.client.util.Defect
 import scala.annotation.tailrec
+import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
 /** The backend-agnostic reconnect loop. Each successful attempt invokes a fresh, explicitly identified callback.
   * Requests from old generations are never retained or resubmitted. Applications must recreate their local event
-  * subscriptions inside every generation callback. The retry budget and backoff restart whenever a generation's
-  * callback completes; only attempts that fail before reaching the callback consume the cumulative budget.
+  * subscriptions inside every generation callback. The retry budget and backoff restart only when a generation's
+  * callback lasts at least `policy.resetAfter`. Handshake completion alone is not stable recovery.
   */
 object Reconnect:
   def run[A](
@@ -31,20 +32,21 @@ object Reconnect:
                   onNotice = onNotice,
                   notice   = ReconnectNotice.Reconnected(generation = generation, previous = previous),
                 )
-            use(generation, session)
+            // Exclude acquisition, notice delivery, and scope teardown: none demonstrate a stable callback lifetime.
+            val started  = timing.monotonicNanos()
+            val decision = use(generation, session)
+            (decision, (timing.monotonicNanos() - started).nanos)
           val step = attempt match
             case Left(error) =>
               retry(error = error, state = state, policy = policy, timing = timing, onNotice = onNotice, gap = None)
-            case Right(ReconnectDecision.Complete(value))       => Step.Done(result = Right(value))
-            case Right(ReconnectDecision.Stop(error))           => Step.Done(result = Left(error))
-            case Right(ReconnectDecision.Retry(error, desired)) =>
-              // The use callback completed, so the connection was healthy: restart both the retry budget and the
-              // delay progression. Only attempts that never reached the callback consume the cumulative budget.
+            case Right((ReconnectDecision.Complete(value), _))             => Step.Done(result = Right(value))
+            case Right((ReconnectDecision.Stop(error), _))                 => Step.Done(result = Left(error))
+            case Right((ReconnectDecision.Retry(error, desired), elapsed)) =>
               retry(
                 error = error,
                 state = state.copy(
                   config   = state.config.copy(eventSubscriptions = desired),
-                  retries  = 0,
+                  retries  = if elapsed >= policy.resetAfter then 0 else state.retries,
                   previous = Some(generation),
                 ),
                 policy   = policy,

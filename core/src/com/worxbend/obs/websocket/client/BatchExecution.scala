@@ -8,7 +8,7 @@ enum BatchExecution(val wireValue: Int):
   case SerialRealtime extends BatchExecution(wireValue = 0)
 
   /** Entries execute in order on frame ticks: one entry per rendered frame. */
-  case SerialFrame    extends BatchExecution(wireValue = 1)
+  case SerialFrame extends BatchExecution(wireValue = 1)
 
   /** Retained as a wire value; nonempty parallel batches are rejected because OBS cannot reliably correlate results.
     * Not constructible outside the client: the runtime rejection in `batch` is a defensive fallback.

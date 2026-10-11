@@ -13,7 +13,12 @@ final private[client] class SessionLogic(
   outgoing:               Channel[WireMessage],
   identified:             Channel[Either[ObsError, ConnectionMetadata]],
 ):
-  private case class Pending(requestType: String, opcode: Int, reply: Channel[Either[ObsError, JsonObject]])
+  private case class Pending(
+    requestType: String,
+    opcode:      Int,
+    message:     WireMessage,
+    reply:       Channel[Either[ObsError, JsonObject]],
+  )
   private case class Subscriber(
     channel:        Channel[Event],
     types:          Set[String],
@@ -175,7 +180,7 @@ final private[client] class SessionLogic(
     else if state.pending.size >= config.maxInFlight then Left(ObsError.Overflow(resource = "in-flight requests"))
     else
       state = state.copy(pending =
-        state.pending.updated(id, Pending(requestType = requestType, opcode = opcode, reply = reply))
+        state.pending.updated(id, Pending(requestType = requestType, opcode = opcode, message = message, reply = reply))
       )
       queue(message = message) match
         case left @ Left(_) =>
@@ -190,7 +195,7 @@ final private[client] class SessionLogic(
   def canSend(message: WireMessage): Boolean =
     if state.failure.nonEmpty then false
     else if message.op == SessionWire.Op.Request || message.op == SessionWire.Op.RequestBatch then
-      message.data.string(name = "requestId").exists(state.pending.contains)
+      message.data.string(name = "requestId").exists(id => state.pending.get(id).exists(_.message eq message))
     else true
 
   /** A deterministic local send rejection completes only the affected request; the session stays alive. Messages
@@ -205,6 +210,7 @@ final private[client] class SessionLogic(
       case Some(id) =>
         state.pending
           .get(id)
+          .filter(_.message eq message)
           .foreach: pending =>
             state = state.copy(pending = state.pending - id)
             pending.reply.trySend(Left(error)).discard

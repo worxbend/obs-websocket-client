@@ -39,32 +39,32 @@ object EventSubscriptions:
   */
 final case class ObsConfig(
   /** WebSocket endpoint: `ws`/`wss` only, with a host and no userinfo, query or fragment. */
-  uri:                  String = "ws://localhost:4455",
+  uri: String = "ws://localhost:4455",
   /** Credentials resolved at connection time; see [[PasswordProvider]]. */
-  passwordProvider:     PasswordProvider = PasswordProvider.none,
+  passwordProvider: PasswordProvider = PasswordProvider.none,
   /** Bounds the TCP/WebSocket upgrade. */
-  connectionTimeout:    FiniteDuration = 10.seconds,
+  connectionTimeout: FiniteDuration = 10.seconds,
   /** Bounds the Hello/Identify handshake after the socket is open. */
-  handshakeTimeout:     FiniteDuration = 10.seconds,
+  handshakeTimeout: FiniteDuration = 10.seconds,
   /** Default per-request budget when `RequestOptions` does not override it. */
-  requestTimeout:       FiniteDuration = 10.seconds,
+  requestTimeout: FiniteDuration = 10.seconds,
   /** Bounds the graceful WebSocket Close handshake on shutdown before the connection is force-aborted. */
-  shutdownTimeout:      FiniteDuration = 3.seconds,
+  shutdownTimeout: FiniteDuration = 3.seconds,
   /** Maximum requests sent but not yet answered; excess submissions fail with `ObsError.Overflow`. */
-  maxInFlight:          Int = 256,
+  maxInFlight: Int = 256,
   /** Wire messages queued for the writer; unlike [[maxInFlight]] this bounds backlog, not concurrency. */
-  outgoingCapacity:     Int = 256,
+  outgoingCapacity: Int = 256,
   /** Per-subscription event queue bound; a full queue triggers the subscription's `OverflowPolicy`. */
   subscriptionCapacity: Int = 128,
   /** Frame byte limit enforced on both directions: the transport rejects oversized outgoing sends with
     * [[ObsError.MessageTooLarge]], and oversized inbound frames fail the session and abort the connection
     * immediately, so a violating peer cannot keep it open.
     */
-  maxMessageBytes:    Int = Protocol.defaultMaxBytes,
+  maxMessageBytes: Int = Protocol.defaultMaxBytes,
   /** Initial event category mask sent in Identify. */
   eventSubscriptions: EventSubscriptions = EventSubscriptions.normal,
   /** Opt-in bounded retry of server NotReady (207) rejections during capability discovery at connect time. */
-  readiness:          Option[ReadinessPolicy] = None,
+  readiness: Option[ReadinessPolicy] = None,
 ):
   /** Rejects non-`ws`/`wss` schemes, missing hosts, userinfo/query/fragment components, explicit ports outside
     * 1-65535, non-positive deadlines and limits, and an invalid [[ReadinessPolicy]]. On success returns this config.
@@ -122,11 +122,11 @@ final case class ObsConfig(
       .getOrElse("<invalid>")
     s"ObsConfig(uri=$safeUri, passwordProvider=<redacted>, maxInFlight=$maxInFlight, outgoingCapacity=$outgoingCapacity)"
 
-private[client] object ObsConfig:
+object ObsConfig:
   /** Loopback spellings recognized without DNS resolution: `localhost`, the 127.0.0.0/8 IPv4 range, and `::1` (URI
     * hosts retain their brackets). Every other host is treated as remote.
     */
-  def isLoopbackHost(host: String): Boolean =
+  private[client] def isLoopbackHost(host: String): Boolean =
     val bare = host.stripPrefix("[").stripSuffix("]")
     bare.equalsIgnoreCase("localhost") || bare == "::1" || isIpv4Loopback(host = bare)
 

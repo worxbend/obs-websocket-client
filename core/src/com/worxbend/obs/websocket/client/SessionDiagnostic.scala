@@ -5,6 +5,7 @@ package com.worxbend.obs.websocket.client
   */
 enum DiagnosticOutcome:
   case Succeeded, Failed, Cancelled
+
   /** The server rejected the request; `code` is the peer's status code. */
   case Rejected(code: Int)
 

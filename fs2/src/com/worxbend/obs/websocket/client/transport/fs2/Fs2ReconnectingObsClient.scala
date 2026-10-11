@@ -9,6 +9,7 @@ import com.worxbend.obs.websocket.client.reconnect.{
   ReconnectPolicy,
   ReconnectTiming,
 }
+import com.worxbend.obs.websocket.client.transport.JdkClientOptions
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
 
 /** Opt-in reconnect over the fs2 backend. Each successful attempt invokes a fresh, explicitly identified callback.
@@ -18,6 +19,7 @@ import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
   * backend-agnostic loop lives in [[com.worxbend.obs.websocket.client.reconnect.Reconnect]].
   */
 object Fs2ReconnectingObsClient:
+  /** Compatibility entrypoint retaining the original signature and defaults. */
   def run[A](
     config:   ObsConfig,
     policy:   ReconnectPolicy,
@@ -25,10 +27,49 @@ object Fs2ReconnectingObsClient:
     onNotice: ReconnectNotice => Unit = _ => (),
     options:  Fs2Options = Fs2Options(),
   )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
+    run(config, policy, timing, onNotice, options, JdkClientOptions())(use)
+
+  /** Use owned-client proxy/TLS settings with the default reconnect timing and backend options. */
+  def run[A](
+    config:        ObsConfig,
+    policy:        ReconnectPolicy,
+    clientOptions: JdkClientOptions,
+  )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
+    run(config, policy, ReconnectTiming.live, _ => (), Fs2Options(), clientOptions)(use)
+
+  /** Reuse these owned-client settings for every newly acquired connection generation. */
+  def run[A](
+    config:        ObsConfig,
+    policy:        ReconnectPolicy,
+    timing:        ReconnectTiming,
+    onNotice:      ReconnectNotice => Unit,
+    options:       Fs2Options,
+    clientOptions: JdkClientOptions,
+  )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
     options.validate.flatMap: validOptions =>
-      val connector = new ReconnectConnector:
-        def connect[B](attemptConfig: ObsConfig)(consume: ObsSession => B): Either[ObsError, B] =
-          Fs2ObsClient.connect(config = attemptConfig, options = validOptions)(use = consume)
-      Reconnect.run(connector = connector, config = config, policy = policy, timing = timing, onNotice = onNotice)(use =
-        use
-      )
+      Reconnect.run(
+        connector = connector(options = validOptions, clientOptions = clientOptions),
+        config    = config,
+        policy    = policy,
+        timing    = timing,
+        onNotice  = onNotice,
+      )(use = use)
+
+  private[fs2] trait ClientConnector:
+    def connect[A](config: ObsConfig, options: Fs2Options, clientOptions: JdkClientOptions)(
+      use: ObsSession => A
+    ): Either[ObsError, A]
+
+  private val live: ClientConnector = new ClientConnector:
+    def connect[A](config: ObsConfig, options: Fs2Options, clientOptions: JdkClientOptions)(
+      use: ObsSession => A
+    ): Either[ObsError, A] =
+      Fs2ObsClient.connect(config = config, options = options, clientOptions = clientOptions)(use = use)
+
+  private[fs2] def connector(
+    options:       Fs2Options,
+    clientOptions: JdkClientOptions,
+    factory:       ClientConnector = live,
+  ): ReconnectConnector = new ReconnectConnector:
+    def connect[A](attemptConfig: ObsConfig)(consume: ObsSession => A): Either[ObsError, A] =
+      factory.connect(config = attemptConfig, options = options, clientOptions = clientOptions)(use = consume)

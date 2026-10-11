@@ -59,7 +59,7 @@ abstract private[client] class AbstractObsTransport(
 
   override def receive(): Either[ObsError, String] =
     readIdleTimeout match
-      case None           => readMessage(assembler = new MessageAssembler(maxMessageBytes = maxMessageBytes))
+      case None => guarded(operation = readMessage(assembler = new MessageAssembler(maxMessageBytes = maxMessageBytes)))
       case Some(deadline) => boundedRead(deadline = deadline)
 
   override def send(text: String): Either[ObsError, Unit] =

@@ -5,6 +5,7 @@ import scala.concurrent.duration.*
 
 /** A bounded retry budget for the explicitly selected reconnect entrypoint. Exponential backoff: `initialDelay`
   * doubles per retry, capped at `maxDelay`, with symmetric jitter of ±`jitterFraction` applied to each delay.
+  * The budget and delay progression reset only after a generation callback lasts at least `resetAfter`.
   * Construction is only through [[ReconnectPolicy.create]]; the constructor is private.
   */
 final class ReconnectPolicy private (
@@ -12,6 +13,7 @@ final class ReconnectPolicy private (
   val initialDelay:   FiniteDuration,
   val maxDelay:       FiniteDuration,
   val jitterFraction: Double,
+  val resetAfter:     FiniteDuration,
 ):
   private[client] def delay(retry: Int, sample: Double): Either[ObsError, FiniteDuration] =
     if !sample.isFinite || sample < 0.0 || sample > 1.0 then
@@ -24,13 +26,16 @@ final class ReconnectPolicy private (
 
 object ReconnectPolicy:
   /** The only way in. Validates: nonnegative `maxRetries`, positive `initialDelay` with `maxDelay` covering it, and a
-    * finite `jitterFraction` between zero and one. Defaults: 5 retries, 250 ms initial delay, 10 s cap, 0.2 jitter.
+    * finite `jitterFraction` between zero and one, and nonnegative `resetAfter`. Defaults: 5 retries, 250 ms initial
+    * delay, 10 s cap, 0.2 jitter, and 30 s of callback lifetime before resetting the budget/backoff. `resetAfter =
+    * Duration.Zero` explicitly opts into the legacy reset-on-every-callback behavior.
     */
   def create(
     maxRetries:     Int = 5,
     initialDelay:   FiniteDuration = 250.millis,
     maxDelay:       FiniteDuration = 10.seconds,
     jitterFraction: Double = 0.2,
+    resetAfter:     FiniteDuration = 30.seconds,
   ): Either[ObsError, ReconnectPolicy] =
     if maxRetries < 0 then Left(ObsError.InvalidConfiguration(message = "Reconnect retry count must be nonnegative"))
     else if initialDelay <= Duration.Zero || maxDelay < initialDelay then
@@ -41,6 +46,8 @@ object ReconnectPolicy:
       )
     else if !jitterFraction.isFinite || jitterFraction < 0.0 || jitterFraction > 1.0 then
       Left(ObsError.InvalidConfiguration(message = "Reconnect jitter fraction must be finite and between zero and one"))
+    else if resetAfter < Duration.Zero then
+      Left(ObsError.InvalidConfiguration(message = "Reconnect stability duration must be nonnegative"))
     else
       Right(
         new ReconnectPolicy(
@@ -48,6 +55,7 @@ object ReconnectPolicy:
           initialDelay   = initialDelay,
           maxDelay       = maxDelay,
           jitterFraction = jitterFraction,
+          resetAfter     = resetAfter,
         )
       )
 

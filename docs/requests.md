@@ -61,7 +61,7 @@ Retry classification for the opt-in reconnect entrypoint: transport failures wit
 
 ## Deadlines and backpressure
 
-Connection, identification, request, and shutdown deadlines are configured separately: the `ObsConfig` fields `connectionTimeout`, `handshakeTimeout`, and `requestTimeout` each default to `10.seconds`, and `shutdownTimeout` defaults to `3.seconds`. Pending requests, the outgoing queue, message size, and each subscriber buffer are bounded. Saturation returns a typed overflow error. Concurrent responses correlate by request ID, independent of arrival order. Late or duplicate responses cannot revive completed requests.
+Connection, identification, request, and shutdown deadlines are configured separately: the `ObsConfig` fields `connectionTimeout`, `handshakeTimeout`, and `requestTimeout` each default to `10.seconds`, and `shutdownTimeout` defaults to `3.seconds`. Pending requests, the outgoing queue, message size, and each subscriber buffer are bounded. Saturation returns a typed overflow error. Concurrent responses correlate by request ID, independent of arrival order. Late or duplicate responses cannot revive completed requests. Injected request IDs are seeds: a shared connection-local ordinal makes wire IDs unique for the entire connection, including startup discovery, without retaining an unbounded history. Outgoing admission also checks the exact queued message owner.
 
 `RequestOptions` overrides the session default for a complete exchange, including actor registration and response waiting. It applies to `request`, `rawRequest`, `batch`, and `typedBatch`. Use `withOptions` to apply it through category methods:
 
@@ -72,11 +72,11 @@ import scala.concurrent.duration.*
 val result = session.withOptions(RequestOptions(timeout = Some(2.seconds))).general.getVersion()
 ```
 
-Budgets bound registration and response waiting. Local validation, typed decoding, and required cancellation cleanup are additional work, so this is not a hard end-to-end wall-clock return guarantee.
+One monotonic budget bounds registration and response waiting together; an actor invocation that starts after expiry cannot admit the request. Local validation snapshots each extensible type/payload getter once before actor admission, and sends exactly the validated snapshot. Typed decoding and required cancellation cleanup are additional work, so this is not a hard end-to-end wall-clock return guarantee. Interruption always queues owner-checked cleanup, even when a registration acknowledgement was interrupted; known late admissions are counted as canceled in diagnostics. Injected clocks must be monotonic, side-effect-free and prompt.
 
 Each backend adapter separately enforces its options' write deadline for data and Pong writes (for example `SttpOptions.writeTimeout`); `ObsConfig.shutdownTimeout` bounds the Close attempt. A write timeout aborts that connection; it never replays the operation. Caller-owned backends must provide an abort hook that promptly unblocks both reads and writes. See [choosing a WebSocket backend](guides/backends.md) for the available adapters.
 
-`SttpOptions.readIdleTimeout` (default `None`) is opt-in liveness detection. When set, any receive that waits longer than the deadline for wire traffic — including a stall between the fragments of one message — fails with a retryable `ObsError.Timeout` and destroys the connection. This detects half-open connections (a lost FIN, a NAT timeout) that would otherwise stall reads forever, so the reconnect entrypoint can classify and replace them. The tradeoff is that a genuinely quiet connection whose normal traffic gap exceeds the chosen deadline also fails.
+`SttpOptions.readIdleTimeout` (default `None`) is an opt-in completed-message deadline, not a heartbeat or frame-inactivity detector. A receive that does not assemble a complete JSON text message before expiry fails with retryable `ObsError.Timeout` and destroys the connection. Ping/Pong control frames do not reset it, and some backends consume those frames internally. A healthy quiet connection can therefore fail this policy. Enable it only when the application can require a bounded JSON message gap; leave it unset for event-driven observation of unchanged state. Backend-supported heartbeat health is a separate policy.
 
 For an owned connection on the default backend, `SttpObsClient.connect(config, options, clientOptions)` accepts `SttpOptions` and `JdkClientOptions`. The okhttp adapter accepts the same transport options under the `transport.okhttp.OkHttpOptions` alias plus `OkHttpClientOptions`, and the JDK-backed zio and fs2 adapters accept `JdkClientOptions` as well; pekko's entrypoint takes `PekkoOptions` only. Construct custom handshake headers with `HandshakeHeaders.create`; reserved WebSocket/HTTP framing headers and invalid values are rejected, and rendering is redacted. `JdkClientOptions` accepts optional `ProxySelector` and `SSLContext` values. `withBackend` takes transport options but leaves TLS/proxy ownership with its supplied backend. Reconnect uses the same transport settings on each fresh generation.
 
@@ -92,14 +92,20 @@ val result = session.requestEnvelope(GetVersion()).map(envelope => (envelope.raw
 
 ## Explicit readiness recovery
 
-`requestWhenReady` retries only an explicit OBS NotReady rejection (207), only for names in `ReadinessPolicy.supportedRequests`. Raw requests, batches, and mutations are excluded. `maxAttempts` includes the first attempt, and the entire operation shares the configured request budget, including delays. `ObsConfig.readiness = Some(policy)` enables the same bounded recovery for startup capability discovery. Both behaviors are opt-in; authentication failures, timeouts, and uncertain writes are never readiness retries.
+`requestWhenReady` retries only an explicit OBS NotReady rejection (207), only for names in `ReadinessPolicy.supportedRequests`. Raw requests, batches, and mutations are excluded. The read whitelist and every retry use one immutable type/payload snapshot, so an extensible getter cannot change a whitelisted read into a mutation between attempts. `maxAttempts` includes the first attempt, and the entire operation shares the configured request budget, including delays. `ObsConfig.readiness = Some(policy)` enables the same bounded recovery for startup capability discovery. Both behaviors are opt-in; authentication failures, timeouts, and uncertain writes are never readiness retries.
 
 ## Raw extensions
 
 `session.rawRequest("VendorOperation", data)` and `RawRequest("VendorOperation", data)` are the escape hatches for vendor extensions and requests added by peers newer than the pinned catalog. Both bypass the capability check and reach the server, which decides whether to execute them. A `RawRequest` naming a catalog request still validates its fields against the catalog shape. Both forms keep the same correlation, timeout, size, and connection ownership rules. Unknown event types are delivered as `UnknownEvent`; see [Events and ownership](events.md).
 
+## Startup discovery
+
+`session.discovery` retains the immutable raw `GetVersion` response used to discover this generation's capabilities. Live application callbacks receive `Some`; the internal provisional session has no discovery yet. Use its validated JSON accessors or the catalog decoder when those facts are needed, rather than sending another version read. Discovery is not a cache of mutable OBS state and is not shared across reconnect generations.
+
 ## Batches
 
 `session.typedBatch((BatchCall(GetVersion()), BatchCall(GetSceneList())))` retains each response type in its result tuple. `session.batch` exposes raw individual results. Choose serial realtime or serial frame execution and an explicit halt/continue policy. Nonempty parallel batches are rejected locally: supported OBS implementations cannot reliably associate their results with submitted requests. Typed batch entries are capability-checked like single typed requests; `RawRequest` entries bypass that check.
+
+`BatchCodec` remains public typeclass evidence for `typedBatch`; its unchecked tuple-projection method is now package-private. This intentionally narrows the pre-stable API rather than exposing an operation that can throw for mismatched result vectors. Use `batch` or `typedBatch` for validated count/identity/halt sequencing. No stable source/binary compatibility baseline is promised yet.
 
 A batch has no rollback and is not a transaction. A timeout or disconnect after submission is ambiguous. A batch rejected locally before anything reached the socket — invalid fields or an oversized payload — is not ambiguous and returns that precise error. Outstanding operations are never replayed automatically. Treat not-executed results separately from rejected requests.

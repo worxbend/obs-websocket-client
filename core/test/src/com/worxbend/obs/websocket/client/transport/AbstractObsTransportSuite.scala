@@ -268,28 +268,29 @@ class AbstractObsTransportSuite extends FunSuite:
     assert(sent != null, "The send must produce a result instead of dying with the foreign exception")
     assertEquals(sent, Left(ObsError.Transport(message = closedWebSocketMessage, closeCode = None)))
 
-  test("post-abort read failures are mapped instead of flipping the result into a defect"):
-    val started   = new java.util.concurrent.Semaphore(0)
-    val released  = new java.util.concurrent.Semaphore(0)
-    val result    = new java.util.concurrent.LinkedBlockingQueue[Either[ObsError, String]]()
-    val transport = new ScriptedTransport(
-      shutdownTimeout = 1.second,
-      readIdleTimeout = Some(10.seconds),
-      onAbort         = () => released.release(10),
-    ):
-      override protected def receiveFrame(): Either[ObsError, TransportFrame] =
-        started.release()
-        released.acquireUninterruptibly()
-        throw new CancellationException("stream cancelled after abort")
-    val receiving = new Thread(() => result.put(transport.receive()))
-    receiving.start()
-    started.acquire()
-    transport.close()
-    receiving.join(5000)
-    assert(!receiving.isAlive, "The guarded receive must finish promptly")
-    val received = result.poll(5, java.util.concurrent.TimeUnit.SECONDS)
-    assert(received != null, "The receive must produce a result instead of dying with the foreign exception")
-    assertEquals(received, Left(ObsError.Transport(message = closedWebSocketMessage, closeCode = None)))
+  for idle <- Vector(None, Some(10.seconds)) do
+    test(s"post-abort read failures are mapped with readIdleTimeout=$idle"):
+      val started   = new java.util.concurrent.Semaphore(0)
+      val released  = new java.util.concurrent.Semaphore(0)
+      val result    = new java.util.concurrent.LinkedBlockingQueue[Either[ObsError, String]]()
+      val transport = new ScriptedTransport(
+        shutdownTimeout = 1.second,
+        readIdleTimeout = idle,
+        onAbort         = () => released.release(10),
+      ):
+        override protected def receiveFrame(): Either[ObsError, TransportFrame] =
+          started.release()
+          released.acquireUninterruptibly()
+          throw new CancellationException("stream cancelled after abort")
+      val receiving = new Thread(() => result.put(transport.receive()))
+      receiving.start()
+      started.acquire()
+      transport.close()
+      receiving.join(5000)
+      assert(!receiving.isAlive, "The guarded receive must finish promptly")
+      val received = result.poll(5, java.util.concurrent.TimeUnit.SECONDS)
+      assert(received != null, "The receive must produce a result instead of dying with the foreign exception")
+      assertEquals(received, Left(ObsError.Transport(message = closedWebSocketMessage, closeCode = None)))
 
   test("unmapped failures before any abort still propagate as defects"):
     val transport = scripted()

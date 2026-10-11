@@ -58,6 +58,120 @@ class SttpClientSuite extends FunSuite:
   test("invalid configuration is rejected before connection"):
     assert(SttpObsClient.connect(config = ObsConfig(uri = "https://localhost"))(_ => ()).isLeft)
 
+  test("total budget entrypoint validates config and transport options before budgeting"):
+    val config = ObsConfig(uri = "https://localhost")
+    assertEquals(
+      SttpObsClient.connectWithin(config = config, budget = 1.nanosecond)(_ => fail(noConnectionMessage)),
+      Left(config.validate.swap.toOption.get),
+    )
+    val options = SttpOptions(writeTimeout = Duration.Zero)
+    assertEquals(
+      SttpObsClient.connectWithin(config = ObsConfig(), budget = 1.nanosecond, options = options)(_ =>
+        fail(noConnectionMessage)
+      ),
+      Left(options.validate.swap.toOption.get),
+    )
+
+  test("total budget entrypoint rejects nonpositive budget before runtime allocation"):
+    assertEquals(
+      SttpObsClient.connectWithin(config = ObsConfig(), budget = Duration.Zero)(_ => fail(noConnectionMessage)),
+      Left(ObsError.InvalidConfiguration(message = "Operation budget must be positive")),
+    )
+
+  test("exhausted total budget never starts acquisition or invokes the callback"):
+    assertEquals(
+      SttpObsClient.connectWithin(config = ObsConfig(uri = "ws://127.0.0.1:1"), budget = 1.nanosecond)(_ =>
+        fail(noConnectionMessage)
+      ),
+      Left(ObsError.Timeout(operation = "operation")),
+    )
+
+  private def discover(socket: java.net.Socket): Unit =
+    LocalWebSocketPeer.upgrade(socket = socket)
+    LocalWebSocketPeer.send(socket    = socket, text = hello)
+    assertEquals(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.op, 1)
+    LocalWebSocketPeer.send(socket = socket, text = identified)
+    val request = Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get
+    assertEquals(request.data.string(name = "requestType"), Right("GetVersion"))
+    val id = request.data.string(name = "requestId").toOption.get
+    LocalWebSocketPeer.send(
+      socket = socket,
+      text   =
+        s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"availableRequests":["GetVersion"]}}}""",
+    )
+
+  test("total budget entrypoint completes real discovery and releases the owned connection"):
+    def serve(socket: java.net.Socket): Unit =
+      discover(socket = socket)
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+      assertEquals(socket.getInputStream.read(), -1)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      SttpObsClient.connectWithin(config = ObsConfig(uri = uri, shutdownTimeout = 50.millis), budget = 3.seconds)(
+        use = _.metadata.availableRequests
+      )
+    assertEquals(result, Right(Set("GetVersion")))
+
+  test("total budget clips a stalled native upgrade and releases TCP"):
+    def serve(socket: java.net.Socket): Unit =
+      val _ = LocalWebSocketPeer.readHeaders(socket = socket)
+      assertEquals(socket.getInputStream.read(), -1, "Upgrade timeout must physically release the connection")
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      val started  = System.nanoTime()
+      val response = SttpObsClient.connectWithin(
+        config = ObsConfig(uri = uri, connectionTimeout = 5.seconds, shutdownTimeout = 50.millis),
+        budget = 500.millis,
+      )(_ => fail(noConnectionMessage))
+      assert((System.nanoTime() - started).nanos < 2.seconds, "Native upgrade must not use the 5-second timeout")
+      response
+    assertEquals(result, Left(ObsError.Timeout(operation = "operation")))
+
+  test("total budget interrupts callback work after discovery and closes the connection"):
+    def serve(socket: java.net.Socket): Unit =
+      discover(socket = socket)
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+      assertEquals(socket.getInputStream.read(), -1)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      SttpObsClient.connectWithin(config = ObsConfig(uri = uri, shutdownTimeout = 50.millis), budget = 800.millis):
+        session =>
+          assertEquals(session.metadata.availableRequests, Set("GetVersion"))
+          ox.sleep(5.seconds)
+          fail("Callback must be interrupted before its independent work completes")
+    assertEquals(result, Left(ObsError.Timeout(operation = "operation")))
+
+  test("remaining operation budget rejects an already expired deadline"):
+    assertEquals(
+      SttpObsClient.remaining(deadline = Deadline.now - 1.second),
+      Left(ObsError.Timeout(operation = "operation")),
+    )
+
+  test("remaining operation budget retains a future deadline without renewing it"):
+    val remaining = SttpObsClient.remaining(deadline = Deadline.now + 1.minute).toOption.get
+    assert(remaining > Duration.Zero)
+    assert(remaining <= 1.minute)
+
+  test("native acquisition uses the clipped timeout of an already constructed JDK client"):
+    ox.resourceScope:
+      val client = ox.useInScope(
+        java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build()
+      )(_.shutdownNow())
+      val backend = _root_.sttp.client4.httpclient.HttpClientSyncBackend.usingClient(
+        new AcquisitionHttpClient(delegate = client, acquisitionTimeout = 200.millis)
+      )
+      def serve(socket: java.net.Socket): Unit =
+        val _ = LocalWebSocketPeer.readHeaders(socket = socket)
+        assertEquals(socket.getInputStream.read(), -1, "Native acquisition expiry must release stalled TCP")
+      val result = LocalWebSocketPeer.run(server = serve): uri =>
+        val started  = System.nanoTime()
+        val response = SttpObsClient.withBackend(
+          backend         = backend,
+          config          = ObsConfig(uri = uri, connectionTimeout = 100.millis),
+          abortConnection = () => client.shutdownNow(),
+        )(_ => fail(noConnectionMessage))
+        val elapsed = (System.nanoTime() - started).nanos
+        assert(elapsed < 1.second, s"Shielded acquisition used the original client's 5-second timeout: $elapsed")
+        response
+      assertEquals(result, Left(ObsError.Timeout(operation = "connection")))
+
   test("injected backend entrypoint rejects malformed URI as configuration"):
     val result = SttpObsClient.withBackend(
       backend = WebSocketSyncBackendStub,

@@ -32,6 +32,7 @@ final private[pekko] class PekkoTransport(
   abortConnection: () => Unit,
   writeTimeout:    FiniteDuration = PekkoOptions.DefaultWriteTimeout,
   readIdleTimeout: Option[FiniteDuration] = None,
+  awaitClosed:     () => Unit = () => (),
 ) extends AbstractObsTransport(
       maxMessageBytes = maxMessageBytes,
       shutdownTimeout = shutdownTimeout,
@@ -50,7 +51,11 @@ final private[pekko] class PekkoTransport(
     socketBoundary(operation = PekkoRunner.await(future = socket.send(WebSocketFrame.Pong(payload))))
 
   override protected def sendCloseFrame(): Either[ObsError, Unit] =
-    socketBoundary(operation = PekkoRunner.await(future = socket.close()))
+    socketBoundary:
+      PekkoRunner.await(future = socket.close())
+      // sttp close only enqueues the Close frame. Wait for native transport termination inside the shared bounded
+      // shutdown attempt, or an immediate abort could discard that queued frame before it reaches the peer.
+      awaitClosed()
 
   private def toFrame(frame: WebSocketFrame): TransportFrame = frame match
     case WebSocketFrame.Text(payload, finalFragment, _) => TransportFrame.Text(payload, finalFragment)

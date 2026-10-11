@@ -7,7 +7,7 @@ import scala.util.{Failure, Success, Try}
 /** Blocks on backend futures while presenting the blocking `ObsTransport` seam. The calling (virtual) thread parks on
   * a one-shot queue fed by the completion callback, so a blocked wait is fully interruptible and the
   * `InterruptedException` propagates with no status loss. Pekko futures carry no cancel handle: an abandoned wait is
-  * resolved when `abortConnection` tears down the connection pool, which every timeout/interruption path in
+  * resolved when `abortConnection` fails the per-connection byte transport, which every timeout/interruption path in
   * [[PekkoTransport]] performs before joining. `scala.concurrent.Promise` boxes fatal throwables — including
   * `InterruptedException` — into `ExecutionException`, so completions are unboxed to keep interruption semantics
   * intact.

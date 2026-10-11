@@ -38,7 +38,11 @@ class SessionLogicSuite extends FunSuite:
       outgoing.receive().discard
       logic.incoming(message = WireMessage(op = 2, data = obj("negotiatedRpcVersion" -> number(value = 1)))).discard
       identified.receive().discard
-    def request(id: String): WireMessage = WireMessage(op = 6, data = obj("requestId" -> JsonValue.Str(value = id)))
+    private val messages                 = scala.collection.mutable.Map.empty[String, WireMessage]
+    def request(id: String): WireMessage = messages.getOrElseUpdate(
+      id,
+      WireMessage(op = 6, data = obj("requestId" -> JsonValue.Str(value = id))),
+    )
     def reply(): Channel[Either[ObsError, JsonObject]] = Channel.buffered(1)
     def register(id: String, channel: Channel[Either[ObsError, JsonObject]]): Either[ObsError, Unit] =
       logic.register(id = id, requestType = "Echo", opcode = 7, message = request(id = id), reply = channel)
@@ -313,20 +317,31 @@ class SessionLogicSuite extends FunSuite:
     val requestReply = h.reply()
     val batchReply   = h.reply()
     assertEquals(h.register(id = "request", channel = requestReply), Right(()))
-    assertEquals(h.register(id = "batch", channel = batchReply), Right(()))
+    val batchMessage = WireMessage(op = 8, data = obj("requestId" -> JsonValue.Str(value = "batch")))
+    assertEquals(
+      h.logic.register(
+        id          = "batch",
+        requestType = "RequestBatch",
+        opcode      = 9,
+        message     = batchMessage,
+        reply       = batchReply,
+      ),
+      Right(()),
+    )
+    assert(h.logic.canSend(message = batchMessage))
     h.logic.sendRejected(
-      message = WireMessage(op = 6, data = obj("requestId" -> JsonValue.Str(value = "request"))),
+      message = h.request(id = "request"),
       error   = error,
     )
     assertEquals(requestReply.receive(), Left(error))
     h.logic.sendRejected(
-      message = WireMessage(op = 8, data = obj("requestId" -> JsonValue.Str(value = "batch"))),
+      message = batchMessage,
       error   = error,
     )
     assertEquals(batchReply.receive(), Left(error))
     assertEquals(h.logic.phase, ConnectionState.Ready)
     h.logic.sendRejected(
-      message = WireMessage(op = 6, data = obj("requestId" -> JsonValue.Str(value = "request"))),
+      message = h.request(id = "request"),
       error   = error,
     )
     h.logic.sendRejected(message = WireMessage(op = 6, data = empty), error = error)
