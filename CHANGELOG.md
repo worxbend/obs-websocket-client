@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-10-11
+
+Source release tag only; Maven artifacts have not been published. The isolated
+published-artifact consumer now passes for all seven libraries on Java 25.
+Windows/macOS verification and live OBS verification of this revision remain pending.
+
+### Boundary and architecture hardening
+
+- Restore external `ObsConfig(...)` construction while keeping host-validation helpers private.
+- Enforce one registration/response budget, snapshot extensible request getters outside the actor, and extract internal request exchange and pure batch sequencing.
+- Make request wire IDs connection-lifetime unique even for repeated injected seeds; reject stale queued sends and send rejections by exact owner. Count known canceled late admissions in diagnostics.
+- Guard default unbounded receives after abort and complete independently canceled cats-effect bridge calls.
+- Separate Pekko upgrade deadlines from established TCP idleness; abort the actual per-connection byte transport, preserving caller-owned systems and bounded graceful Close delivery.
+- Preserve fs2/ZIO reconnect entrypoints and add proxy/TLS client-options forwarding for every generation.
+- Reset reconnect backoff/retry budgets only after 30 seconds of callback stability by default; `resetAfter = Duration.Zero` opts into legacy immediate reset.
+- Remove the monitor's false quiet-session health deadline; bound/coalesce event-driven snapshot/report work and recover local observation overflow without reconnecting healthy transport or replaying mutations.
+- Retain immutable generation-scoped startup discovery; the HTTP version sample reuses it and clips native acquisition to the remaining operation budget, with separate cleanup grace.
+- Parse/check generator masks with Long-safe semantics and dependency validation; reject generated namespace collisions and validate/escape metadata comments.
+- Add the minimal generated `RequestExecutor` contract beneath `RequestApi` and its category facades. Other catalog output remains unchanged.
+- Pre-stable compatibility changes: unchecked `BatchCodec.decode` is now package-private; reconnect policy/timing additions change binary signatures and the `ReconnectTiming` extractor arity. Recompile consumers. No stable source/binary compatibility baseline is promised yet.
+
 ## 0.1.0 — 2026-10-07
 
 Source release tag only; Maven artifacts have not been published.
