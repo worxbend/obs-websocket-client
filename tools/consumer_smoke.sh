@@ -1,12 +1,28 @@
 #!/usr/bin/env sh
-# Build a separate consumer against isolated, locally published Maven artifacts.
+# Build a separate consumer against the seven published artifacts.
+#   consumer_smoke.sh                     publish to isolated temp Maven repo, resolve from it
+#   consumer_smoke.sh VERSION REPOSITORY  resolve VERSION from REPOSITORY with a fresh Coursier
+#                                         cache, no local fallback (release jobs; GitHub Packages
+#                                         also needs COURSIER_CREDENTIALS)
 set -eu
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 smoke_dir=$(mktemp -d "${TMPDIR:-/tmp}/obs-consumer.XXXXXXXX")
 trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
+central=https://repo.maven.apache.org/maven2
 cd "$project_root"
-./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishM2Local' --m2RepoPath "$smoke_dir/maven"
-./mill --no-server show protocol.publishVersion > "$smoke_dir/version.json"
+if [ "$#" -eq 2 ]; then
+  printf '"%s"\n' "$1" > "$smoke_dir/version.json"
+  repositories="$2"
+  [ "$2" = "$central" ] || repositories="$2|$central"
+  export COURSIER_CACHE="$smoke_dir/coursier"
+elif [ "$#" -eq 0 ]; then
+  ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishM2Local' --m2RepoPath "$smoke_dir/maven"
+  ./mill --no-server show protocol.publishVersion > "$smoke_dir/version.json"
+  repositories="file://$smoke_dir/maven|$central"
+else
+  echo "usage: $0 [VERSION REPOSITORY]" >&2
+  exit 2
+fi
 mkdir -p "$smoke_dir/consumer/src"
 cat > "$smoke_dir/consumer/build.mill" <<'BUILD'
 //| mill-version: 1.1.10
@@ -17,11 +33,11 @@ import mill.*, scalalib.*
 object `package` extends ScalaModule:
   def scalaVersion = "3.9.0"
   def mvnDeps = Seq(
-    mvn"com.worxbend.obs.websocket.client::obs-websocket-client-sttp:CONSUMER_VERSION",
-    mvn"com.worxbend.obs.websocket.client::obs-websocket-client-okhttp:CONSUMER_VERSION",
-    mvn"com.worxbend.obs.websocket.client::obs-websocket-client-zio:CONSUMER_VERSION",
-    mvn"com.worxbend.obs.websocket.client::obs-websocket-client-fs2:CONSUMER_VERSION",
-    mvn"com.worxbend.obs.websocket.client::obs-websocket-client-pekko:CONSUMER_VERSION",
+    mvn"com.worxbend::obs-websocket-client-sttp:CONSUMER_VERSION",
+    mvn"com.worxbend::obs-websocket-client-okhttp:CONSUMER_VERSION",
+    mvn"com.worxbend::obs-websocket-client-zio:CONSUMER_VERSION",
+    mvn"com.worxbend::obs-websocket-client-fs2:CONSUMER_VERSION",
+    mvn"com.worxbend::obs-websocket-client-pekko:CONSUMER_VERSION",
   )
 BUILD
 python3 - "$smoke_dir/version.json" "$smoke_dir/consumer/build.mill" <<'PYTHON'
@@ -80,5 +96,4 @@ object Main:
     println("Isolated published consumer compiled and ran all seven artifacts on Java 25")
 SCALA
 cd "$smoke_dir/consumer"
-COURSIER_REPOSITORIES="file://$smoke_dir/maven|https://repo.maven.apache.org/maven2" \
-  "$project_root/mill" --no-server run
+COURSIER_REPOSITORIES="$repositories" "$project_root/mill" --no-server run

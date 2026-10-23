@@ -67,12 +67,13 @@ trait LibraryModule extends ProjectModule with PublishModule:
     Versions.release(environment = Task.env)
   def pomSettings = PomSettings(
     description    = "A scoped direct-style Scala 3 client for OBS WebSocket 5.x",
-    organization   = "com.worxbend.obs.websocket.client",
+    organization   = "com.worxbend",
     url            = "https://github.com/worxbend/obs-websocket-client",
     licenses       = Seq(License.MIT),
     versionControl = VersionControl.github("worxbend", "obs-websocket-client"),
     developers     = Seq(Developer("worxbend", "worxbend", "https://github.com/worxbend")),
   )
+  def versionScheme = Task(Some(VersionScheme.EarlySemVer))
 
 /** Native Python toolchain. Provision the exact .python-version interpreter externally; optionally set
   * OBS_CODEGEN_PYTHON to its command or absolute path. Never installs into the host environment.
