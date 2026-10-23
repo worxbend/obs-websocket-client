@@ -1,6 +1,6 @@
 package com.worxbend.obs.websocket.client.transport.sttp
 
-import com.worxbend.obs.websocket.client.protocol.Protocol
+import com.worxbend.obs.websocket.client.protocol.{JsonObject, JsonValue, Protocol}
 import com.worxbend.obs.websocket.client.reconnect.{
   ConnectionGeneration,
   ReconnectDecision,
@@ -9,6 +9,8 @@ import com.worxbend.obs.websocket.client.reconnect.{
 }
 import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
 import munit.FunSuite
+import ox.{fork, forkCancellable, supervised}
+import java.util.concurrent.{CountDownLatch, TimeUnit}
 import scala.concurrent.duration.*
 
 /** Cross-backend wire contract: every published backend adapter must pass these cases against a scripted local peer.
@@ -274,4 +276,64 @@ abstract class BackendContractSuite extends FunSuite:
         case _                                                 => false
       ,
       s"missing Reconnected(2 <- 1) in $notices",
+    )
+
+  test(s"$backendName: interrupting a caller blocked on a withheld response returns promptly and releases TCP"):
+    val inFlight                             = new CountDownLatch(1)
+    def serve(socket: java.net.Socket): Unit =
+      LocalWebSocketPeer.upgrade(socket = socket)
+      LocalWebSocketPeer.send(socket    = socket, text = hello)
+      respondIdentify(socket            = socket)
+      respondDiscovery(socket           = socket)
+      assertEquals(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.op, 6)
+      inFlight.countDown()
+      // Response withheld. Scope exit must still send Close and free the socket.
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+      assertTcpReleased(socket = socket)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      connect(config = ObsConfig(uri = uri), options = defaultOptions): session =>
+        supervised:
+          val pending = forkCancellable(session.rawRequest(requestType = "Withheld"))
+          assert(inFlight.await(3, TimeUnit.SECONDS), "request never reached the peer")
+          val started  = System.nanoTime()
+          val outcome  = pending.cancel()
+          val elapsed  = (System.nanoTime() - started).nanos
+          val surfaced = outcome match
+            case Left(_: InterruptedException) => true
+            case Right(Left(_: ObsError))      => true
+            case _                             => false
+          assert(surfaced, s"cancel must surface interruption or a typed error, got $outcome")
+          assert(elapsed < 1.second, s"cancel took $elapsed")
+    assertEquals(result, Right(()))
+
+  test(s"$backendName: concurrent requests answered in reverse order each get their own response"):
+    val count                                = 4
+    def serve(socket: java.net.Socket): Unit =
+      LocalWebSocketPeer.upgrade(socket = socket)
+      LocalWebSocketPeer.send(socket    = socket, text = hello)
+      respondIdentify(socket            = socket)
+      respondDiscovery(socket           = socket)
+      val requests =
+        Vector.fill(count)(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get)
+      requests.reverse.foreach: request =>
+        val id          = request.data.string(name = "requestId").toOption.get
+        val requestType = request.data.string(name = "requestType").toOption.get
+        LocalWebSocketPeer.send(
+          socket = socket,
+          text   =
+            s"""{"op":7,"d":{"requestType":"$requestType","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"tag":"$requestType"}}}""",
+        )
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+    val result = LocalWebSocketPeer.run(server = serve): uri =>
+      connect(config = ObsConfig(uri = uri), options = defaultOptions): session =>
+        supervised:
+          (1 to count)
+            .map(index => fork(session.rawRequest(requestType = s"Echo$index")))
+            .map(_.join())
+            .toVector
+    assertEquals(
+      result,
+      Right((1 to count).toVector.map(index =>
+        Right(JsonObject(fields = Map("tag" -> JsonValue.Str(value = s"Echo$index"))))
+      )),
     )
