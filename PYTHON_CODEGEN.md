@@ -8,11 +8,11 @@ Status: production migration implemented. The research and task checklist below 
 - The Scala generator and its Scala tests have been removed. Scala files under the golden fixture directory are expected output, not a second implementation.
 - Python 3.12.12 is pinned in `.python-version`. Set `OBS_CODEGEN_PYTHON` to that interpreter when the host `python3` differs; runtime and developer requirements use exact versions and hashes.
 - The new generator preserves all 218 baseline paths and bytes, including the unchanged miniature fixtures. A durable full-catalog SHA-256 fixture guards parity.
-- The production Python suite contains 41 tests; Ruff, strict mypy, generation checks, downstream Scala tests, documentation snippets/site, package reports, and runtime dependency checks have passed locally.
+- Gates: `./mill --no-server codegen.test` plus Ruff, strict mypy, `tools/check_generation.py`, downstream Scala tests, doc snippets/site, package and dependency reports. Live counts and commands: [docs/code-generation.md](docs/code-generation.md). No frozen test count here; it went stale.
 - CI uses the new generator on Linux/macOS/Windows; only Linux has been executed locally. Platform path support is implemented, not evidence of a remote CI pass.
 - Exact Python coverage replaces retired Scala-generator Scoverage; the combined gate still measures nine Scala modules plus codegen. The combined gate passed with 11,958/11,958 statements and 917/917 branches. No production coverage exemption was introduced.
 - Final independent review identified a same-path interpreter replacement cache risk. The venv task now directly tracks the executable fingerprint; an isolated real executable replacement rebuilt the environment, while unchanged runs stayed cached.
-- Consumer smoke was rerun and still fails on the pre-existing private `ObsConfig` companion. This is not a generator regression; it remains a separate release blocker.
+- Consumer smoke passes for all seven artifacts since 0.2.0: external `ObsConfig(...)` construction restored (see [CHANGELOG](CHANGELOG.md)). Was a pre-existing blocker, not a generator regression.
 - Current commands, package boundaries, output ownership, and troubleshooting are in [docs/code-generation.md](docs/code-generation.md).
 
 The old baseline and isolated proof-of-concept described below explain the migration. They are not used by the repository build. Performance comparisons and broader runtime-review findings remain separate work; the migration does not claim a measured speedup or fix unrelated pre-existing runtime defects.
@@ -94,9 +94,9 @@ Executed against the reviewed baseline:
 - `./mill --no-server -j 1 '{codegen,protocol,core,sttp,okhttp,zio,fs2,pekko,examples,server}.test'`: 2,969 tests across 45 suites; zero failed or ignored.
 - `python3 -m unittest discover -s tools -p 'test_*.py'`: 33 tests passed.
 - `python3 tools/check_generation.py`: `Pinned schema verified; 218 generated files match byte-for-byte`.
-- `tools/consumer_smoke.sh`: failed. External consumer compilation reports `Expected a term, but found a type: ObsConfig`.
+- `tools/consumer_smoke.sh`: failed at that baseline. External consumer compilation reports `Expected a term, but found a type: ObsConfig`. Fixed in 0.2.0; smoke passes now.
 
-The last failure is pre-existing: `core/src/com/worxbend/obs/websocket/client/ObsConfig.scala:125` makes the case-class companion `private[client]`. In-package tests do not expose the external construction problem. Fix it independently; do not weaken or skip consumer smoke during migration.
+The last failure was pre-existing: `core/src/com/worxbend/obs/websocket/client/ObsConfig.scala:125` makes the case-class companion `private[client]`. In-package tests do not expose the external construction problem. Fix it independently; do not weaken or skip consumer smoke during migration.
 
 These results are not a fresh full-coverage result. Coverage, all release gates, and cross-platform execution were not established by this review.
 
@@ -691,9 +691,11 @@ The Python migration should remain build-time only. Preserve the useful protocol
 
 Confirmed issues from the concurrent review, recorded here so a green generator test suite is not mistaken for a release-ready library:
 
-1. **High priority: external configuration construction fails.** `ObsConfig.scala:125` restricts the companion; consumer smoke fails at normal `ObsConfig(...)` construction. Make the public construction surface accessible while keeping helper members internal. Test from a neutral external package.
-2. **High priority: request budget excludes registration wait.** `ObsSession.scala:159–179` awaits actor registration before starting `timeoutOption(budget)`, despite the registration-plus-response budget contract. Use one deadline spanning both stages, preserving owner-checked cancellation and cleanup. Test an actor stalled before registration; the existing externally imposed timeout test does not establish the per-request contract.
-3. **Medium priority: public unchecked batch decoder.** `BatchCall.scala:22–41` exposes `BatchCodec.decode`, whose tuple recursion uses `results.head`/`tail` without validating arbitrary caller input. Normal `typedBatch` validates its input path; do not claim ordinary calls are broken. Prefer internal decoder operations while preserving public typeclass evidence, or explicitly define a validated public decoder contract.
+Status: items 1-3 fixed in 0.2.0 (see [CHANGELOG](CHANGELOG.md)); kept as design record.
+
+1. **High priority (fixed in 0.2.0): external configuration construction fails.** `ObsConfig.scala:125` restricts the companion; consumer smoke fails at normal `ObsConfig(...)` construction. Make the public construction surface accessible while keeping helper members internal. Test from a neutral external package.
+2. **High priority (fixed in 0.2.0): request budget excludes registration wait.** `ObsSession.scala:159–179` awaits actor registration before starting `timeoutOption(budget)`, despite the registration-plus-response budget contract. Use one deadline spanning both stages, preserving owner-checked cancellation and cleanup. Test an actor stalled before registration; the existing externally imposed timeout test does not establish the per-request contract.
+3. **Medium priority (fixed in 0.2.0, decoder package-private): public unchecked batch decoder.** `BatchCall.scala:22–41` exposes `BatchCodec.decode`, whose tuple recursion uses `results.head`/`tail` without validating arbitrary caller input. Normal `typedBatch` validates its input path; do not claim ordinary calls are broken. Prefer internal decoder operations while preserving public typeclass evidence, or explicitly define a validated public decoder contract.
 4. **Architecture opportunity, not measured regression:** envelope parsing and event dispatch work share the session actor. Consider decoding envelopes on the existing reader worker while preserving order, error accounting, and actor ownership of mutable state. Benchmark event-heavy traffic before adding parallel dispatch or extra queues.
 
 For larger architecture cleanup, split responsibilities around actual invariants: pending-request lifecycle, subscription registry, and wire decoding. Keep a coordinating actor rather than replacing it with many independently synchronized objects. Use transport adapters and factory methods where they already represent real variation. Do not add inheritance, builders, or generic repositories merely to increase the pattern count.
