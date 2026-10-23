@@ -30,6 +30,13 @@ their hashes and cached POM license declarations. Missing declarations are
 explicitly marked for review; this is not a license compatibility audit or a
 vulnerability scan. The server's dependencies are listed separately.
 
+Vulnerability scan (`.github/workflows/vulnerability-scan.yml`, weekly + manual):
+OSV-Scanner checks `codegen/requirements*.lock`. Dependabot covers GitHub Actions
+only; it cannot regenerate the uv `--require-hashes` locks. Gap: JVM coordinates
+are not scanned. `release.dependencyReport` emits its own JSON, which OSV-Scanner
+cannot read; closing the gap needs an SBOM or lockfile export. Until then review
+JVM advisories by hand before a release.
+
 `tools/consumer_smoke.sh` publishes to a temporary local Maven repository and
 compiles and runs a separate consumer declaring every backend artifact.
 It checks transitive dependency resolution and Java 25 execution for each adapter, then removes
