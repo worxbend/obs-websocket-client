@@ -23,6 +23,28 @@ private[client] object SessionWire:
   /** Local pre-send catalog validation is not a wire failure. */
   def invalid(error: ProtocolError): ObsError = ObsError.InvalidRequest(path = error.path, message = error.message)
 
+  /** Event (op 5) envelope rest after eventType: eventIntent must be a nonnegative whole mask; eventData, absent =
+    * empty, else must be an object. Returns eventData. No wrapper allocated: hot path.
+    */
+  def eventData(event: JsonObject): Either[ObsError, JsonObject] =
+    event
+      .required(name = "eventIntent", codec = ValueCodec.number)
+      .left
+      .map(malformed)
+      .flatMap: intent =>
+        if !intent.isWhole || intent < 0 then
+          Left(
+            ObsError.MalformedPayload(
+              path    = "eventIntent",
+              message = "Expected a nonnegative integer subscription mask",
+            )
+          )
+        else
+          event.fields.get("eventData") match
+            case None                    => Right(JsonObject.empty)
+            case Some(value: JsonObject) => Right(value)
+            case _ => Left(ObsError.MalformedPayload(path = "eventData", message = "Expected object"))
+
   def responseData(data: JsonObject, expectedType: String, id: String): Either[ObsError, JsonObject] =
     for
       actualType <- data.string(name = "requestType").left.map(malformed)
