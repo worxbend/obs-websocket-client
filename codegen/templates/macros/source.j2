@@ -1,3 +1,11 @@
+{# File header + Scaladoc blocks. Block macros end with newline. #}
+
+{#
+  // Generated from the pinned OBS schema (sha256: ...). Do not edit.
+  package <package>
+
+  import com.worxbend.obs.websocket.client.protocol.*   (only with_import)
+#}
 {% macro header(package, provenance, with_import=false) -%}
 // Generated from the pinned OBS schema (sha256: {{ provenance.sha256 | collapse }}). Do not edit.
 package {{ package }}
@@ -7,19 +15,39 @@ import com.worxbend.obs.websocket.client.protocol.*
 
 {% endif %}
 {% endmacro %}
+
+{# One `  * @param` line per field. #}
 {% macro parameters_doc(fields) %}
 {% for field in fields %}
   * @param `{{ field.identifier }}` {{ field.description | collapse }}
 {% endfor %}
 {% endmacro %}
+
+{# " (initial version 5.0.0, RPC version 1)", either half alone, or nothing. #}
+{% macro versions(doc) -%}
+  {%- set since = [
+        "initial version " ~ (doc.initial_version | collapse) if doc.initial_version else "",
+        "RPC version " ~ (doc.rpc_version | collapse) if doc.rpc_version else "",
+      ] | select | join(", ") -%}
+  {%- if since %} ({{ since }}){% endif -%}
+{%- endmacro %}
+
+{#
+  Main type Scaladoc:
+    /** <summary or "Generated binding for X.">
+      *
+      * Upstream: [[url#x X]] (initial version ..., RPC version ...). Deprecated upstream.
+      * @param `a` ...
+      */
+#}
 {% macro documentation(doc, name, provenance, fields) -%}
-/** {% if doc.summary %}{{ doc.summary | collapse }}{% else %}Generated binding for {{ name }}.{% endif %}
-
+/** {{ doc.summary | collapse if doc.summary else "Generated binding for " ~ name ~ "." }}
   *
-  * Upstream: [[{{ provenance.upstream_docs | collapse }}#{{ name | lower }} {{ name }}]]{% if doc.initial_version or doc.rpc_version %} ({% if doc.initial_version %}initial version {{ doc.initial_version | collapse }}{% endif %}{% if doc.initial_version and doc.rpc_version %}, {% endif %}{% if doc.rpc_version %}RPC version {{ doc.rpc_version | collapse }}{% endif %}){% endif %}.{% if doc.deprecated %} Deprecated upstream.{% endif %}
-
+  * Upstream: [[{{ provenance.upstream_docs | collapse }}#{{ name | lower }} {{ name }}]]{{ versions(doc) }}.{{ " Deprecated upstream." if doc.deprecated else "" }}
 {{ parameters_doc(fields) }}  */
 {% endmacro %}
+
+{# Companion / response / enum Scaladoc: summary + upstream link (+ params). #}
 {% macro see_doc(summary, name, anchor, provenance, fields=()) -%}
 /** {{ summary | collapse }}
   *

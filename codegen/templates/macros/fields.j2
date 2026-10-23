@@ -1,28 +1,111 @@
-{% macro parameters(fields) -%}
-{% for field in fields -%}
-`{{ field.identifier }}`: {% if field.optional %}Field[{{ field.scala_type }}] = Field.Missing{% elif field.nullable %}Option[{{ field.scala_type }}]{% else %}{{ field.scala_type }}{% endif %}{{ ", " if not loop.last else "" }}
-{%- endfor %}
+{#
+  Field snippets. All inline: no newline out unless macro says so.
+
+  Field shapes (normalize.py decides which):
+    required            `a`: T                         data.required("a", codec)
+    nullable            `a`: Option[T]                 data.required("a", ValueCodec.nullable(codec))
+    optional (omit ok)  `a`: Field[T] = Field.Missing  data.field("a", codec, nullable)
+  Dotted wire name ("parent.child") -> NestedFields.* walks nested objects.
+#}
+
+{# Type after `a`: in constructor and facade params. #}
+{% macro declared_type(field) -%}
+  {%- if field.optional -%}
+    Field[{{ field.scala_type }}] = Field.Missing
+  {%- elif field.nullable -%}
+    Option[{{ field.scala_type }}]
+  {%- else -%}
+    {{ field.scala_type }}
+  {%- endif -%}
 {%- endmacro %}
+
+{# Codec expr. Optional fields keep null inside Field, so only required-nullable wraps. #}
 {% macro codec(field) -%}
-{% if field.nullable and not field.optional %}ValueCodec.nullable({{ field.codec }}){% else %}{{ field.codec }}{% endif %}
+  {%- if field.nullable and not field.optional -%}
+    ValueCodec.nullable({{ field.codec }})
+  {%- else -%}
+    {{ field.codec }}
+  {%- endif -%}
 {%- endmacro %}
+
+{# `a`: A, `b`: Field[B] = Field.Missing #}
+{% macro parameters(fields) -%}
+  {%- for field in fields -%}
+    `{{ field.identifier }}`: {{ declared_type(field) }}{{ ", " if not loop.last else "" }}
+  {%- endfor -%}
+{%- endmacro %}
+
+{# `a`, `b` #}
 {% macro arguments(fields) -%}
-{% for field in fields %}`{{ field.identifier }}`{{ ", " if not loop.last else "" }}{% endfor %}
+  {%- for field in fields -%}
+    `{{ field.identifier }}`{{ ", " if not loop.last else "" }}
+  {%- endfor -%}
 {%- endmacro %}
+
+{# `a` = "", `c` = None   (optional fields skipped -> constructor default) #}
 {% macro minimal_arguments(fields) -%}
-{% for field in fields if not field.optional %}`{{ field.identifier }}` = {{ field.placeholder }}{{ ", " if not loop.last else "" }}{% endfor %}
+  {%- for field in fields if not field.optional -%}
+    `{{ field.identifier }}` = {{ field.placeholder }}{{ ", " if not loop.last else "" }}
+  {%- endfor -%}
 {%- endmacro %}
+
+{# One encode term. Optional -> ValueCodec.put, drops Field.Missing. #}
+{% macro encode_entry(field) -%}
+  {%- if field.optional -%}
+    ValueCodec.put({{ field.name | quote }}, `{{ field.identifier }}`, {{ field.codec }})
+  {%- else -%}
+    Map({{ field.name | quote }} -> {{ codec(field) }}.encode(`{{ field.identifier }}`))
+  {%- endif -%}
+{%- endmacro %}
+
+{#
+  requestData / eventData / toJson body:
+    no fields     JsonObject.empty
+    flat names    JsonObject(Map("a" -> ...) ++ ValueCodec.put("b", ...))
+    any dotted    NestedFields.encode(...same terms...)
+#}
 {% macro encode(fields) -%}
-{% if not fields %}JsonObject.empty{% else %}{{ "NestedFields.encode" if fields | dotted else "JsonObject" }}({% for field in fields %}{% if field.optional %}ValueCodec.put({{ field.name | quote }}, `{{ field.identifier }}`, {{ field.codec }}){% else %}Map({{ field.name | quote }} -> {{ codec(field) }}.encode(`{{ field.identifier }}`)){% endif %}{{ " ++ " if not loop.last else "" }}{% endfor %}){% endif %}
+  {%- if not fields -%}
+    JsonObject.empty
+  {%- else -%}
+    {{ "NestedFields.encode" if fields | dotted else "JsonObject" }}(
+    {%- for field in fields -%}
+      {{ encode_entry(field) }}{{ " ++ " if not loop.last else "" }}
+    {%- endfor -%}
+    )
+  {%- endif -%}
 {%- endmacro %}
+
+{# One decode step, right side of `a` <- ... in the for-comprehension. #}
 {% macro read(field) -%}
-{% if field.optional %}{% if "." in field.name %}NestedFields.field(data, {% else %}data.field({% endif %}{{ field.name | quote }}, {{ field.codec }}, {{ "true" if field.nullable else "false" }}){% else %}{% if "." in field.name %}NestedFields.required(data, {% else %}data.required({% endif %}{{ field.name | quote }}, {{ codec(field) }}){% endif %}
+  {%- set nested = "." in field.name -%}
+  {%- if field.optional -%}
+    {{ "NestedFields.field(data, " if nested else "data.field(" -}}
+    {{ field.name | quote }}, {{ field.codec }}, {{ "true" if field.nullable else "false" }})
+  {%- else -%}
+    {{ "NestedFields.required(data, " if nested else "data.required(" -}}
+    {{ field.name | quote }}, {{ codec(field) }})
+  {%- endif -%}
 {%- endmacro %}
+
+{#
+  decode body. Multi-line; starts with newline so caller writes `def decode(...) = {{ decode }}`.
+    no fields:  val _ = data ...
+                Right(Name())
+    fields:     for
+                  `a` <- data.required("a", ...)
+                yield Name(`a`)
+#}
 {% macro decode(name, fields) -%}
-{{ "\n" }}{% if not fields %}    val _ = data // Empty payloads deliberately accept unknown future fields.
-    Right({{ name }}()){% else %}    for
+{{ "\n" -}}
+{% if not fields %}
+    val _ = data // Empty payloads deliberately accept unknown future fields.
+    Right({{ name }}())
+{%- else %}
+    for
 {% for field in fields %}
       `{{ field.identifier }}` <- {{ read(field) }}
 {% endfor %}
-    yield {{ name }}({{ arguments(fields) }}){% endif %}
+    yield {{ name }}({{ arguments(fields) }})
+{%- endif %}
 {%- endmacro %}
