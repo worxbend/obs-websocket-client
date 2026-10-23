@@ -76,6 +76,19 @@ class PekkoObsClientSuite extends FunSuite:
     assertEquals(result, Left(ObsError.InvalidConfiguration(message = "Write deadline must be positive")))
     assertEquals(threads, 0, "Validation must precede actor system allocation")
 
+  test("reconnect with invalid config builds no actor system"):
+    val before = PekkoObsClient.newSystemName()
+    val result = PekkoReconnectingObsClient.run(
+      config = ObsConfig(uri = "ws://localhost:invalid"),
+      policy = ReconnectPolicy.create(maxRetries = 0).toOption.get,
+    )((_, _) => ReconnectDecision.Complete(value = ()))
+    assert(result.left.exists(_.isInstanceOf[ObsError.InvalidConfiguration]), s"$result")
+    val after = PekkoObsClient.newSystemName()
+    assertEquals(
+      after.stripPrefix("obs-websocket-client-pekko-").toLong,
+      before.stripPrefix("obs-websocket-client-pekko-").toLong + 1,
+    )
+
   test("owned actor system names are unique"):
     val first  = PekkoObsClient.newSystemName()
     val second = PekkoObsClient.newSystemName()
@@ -118,6 +131,46 @@ class PekkoObsClientSuite extends FunSuite:
     val deadline = 2.seconds.fromNow
     while threads > 0 && deadline.hasTimeLeft() do Thread.sleep(5)
     assertEquals(threads, 0, "The owned actor system must terminate and release its threads")
+
+  test("reconnect generations share one owned actor system, terminated after run returns"):
+    val SystemName           = "obs-websocket-client-pekko-(\\d+)".r
+    def systems: Set[String] = Thread.getAllStackTraces.keySet.toArray.toSet
+      .flatMap(thread => SystemName.findFirstIn(thread.asInstanceOf[Thread].getName))
+    def serve(socket: java.net.Socket): Unit =
+      LocalWebSocketPeer.upgrade(socket = socket)
+      LocalWebSocketPeer.send(socket    = socket, text = hello)
+      assertEquals(Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get.op, 1)
+      LocalWebSocketPeer.send(socket = socket, text = identified)
+      val discovery = Protocol.decode(text = LocalWebSocketPeer.receive(socket = socket)._2).toOption.get
+      val id        = discovery.data.string(name = "requestId").toOption.get
+      LocalWebSocketPeer.send(
+        socket = socket,
+        text   =
+          s"""{"op":7,"d":{"requestType":"GetVersion","requestId":"$id","requestStatus":{"result":true,"code":100},"responseData":{"availableRequests":[]}}}""",
+      )
+      assertEquals(LocalWebSocketPeer.receive(socket = socket)._1, 8)
+    val policy = ReconnectPolicy
+      .create(maxRetries = 3, initialDelay = 1.millis, maxDelay = 4.millis, jitterFraction = 0.0)
+      .toOption
+      .get
+    var seen   = Vector.empty[Set[String]]
+    val result = LocalWebSocketPeer.runAll(scripts = List(serve, serve)): uri =>
+      val config = ObsConfig(uri = uri)
+      PekkoReconnectingObsClient.run(config = config, policy = policy): (generation, _) =>
+        seen = seen :+ systems
+        if generation.value == 1 then
+          ReconnectDecision.Retry(
+            cause                = ObsError.Transport(message = "drop"),
+            desiredSubscriptions = config.eventSubscriptions,
+          )
+        else ReconnectDecision.Complete(value = generation.value)
+    assertEquals(result, Right(2L))
+    assertEquals(seen.size, 2)
+    assertEquals(seen.map(_.size), Vector(1, 1), s"one live owned system per generation: $seen")
+    assertEquals(seen(0), seen(1), "generations must share one actor system")
+    val deadline = 2.seconds.fromNow
+    while systems.nonEmpty && deadline.hasTimeLeft() do Thread.sleep(5)
+    assertEquals(systems, Set.empty[String], "owned actor system must terminate after run returns")
 
   test("a peer normal close completes with the synthetic code 1000"):
     def serve(socket: java.net.Socket): Unit =
