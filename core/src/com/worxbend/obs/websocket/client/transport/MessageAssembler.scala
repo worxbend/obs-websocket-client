@@ -19,6 +19,8 @@ final private[client] class MessageAssembler(maxMessageBytes: Int):
     val total = bytes + Utf8.encodedLength(text = payload)
     if total > maxMessageBytes then
       Left(ObsError.MessageTooLarge(message = "Incoming message exceeds configured byte limit"))
+    // Lone final fragment: hand payload back as-is. Skips builder copy-in plus toString copy-out.
+    else if bytes == 0 && finalFragment then Right(Some(payload))
     else
       bytes = total
       val _ = text.append(payload)

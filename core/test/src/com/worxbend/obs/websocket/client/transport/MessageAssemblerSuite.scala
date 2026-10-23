@@ -10,6 +10,18 @@ class MessageAssemblerSuite extends FunSuite:
     val assembler = new MessageAssembler(maxMessageBytes = 16)
     assertEquals(assembler.appendFragment(payload = "{}", finalFragment = true), Right(Some("{}")))
 
+  test("a single final fragment is returned as-is, not copied"):
+    val payload   = new String("{\"op\":5}")
+    val assembled = new MessageAssembler(maxMessageBytes = 16).appendFragment(payload = payload, finalFragment = true)
+    assert(assembled.exists(_.exists(_ eq payload)))
+
+  test("a single final fragment over the byte limit fails"):
+    val assembler = new MessageAssembler(maxMessageBytes = 1)
+    assertEquals(
+      assembler.appendFragment(payload = "é", finalFragment = true),
+      Left(ObsError.MessageTooLarge(message = incomingSizeLimitMessage)),
+    )
+
   test("fragments accumulate until the final fragment"):
     val assembler = new MessageAssembler(maxMessageBytes = 16)
     assertEquals(assembler.appendFragment(payload = "{", finalFragment = false), Right(None))
