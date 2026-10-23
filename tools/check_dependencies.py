@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 def summarize_drift(baseline_modules, current_modules):
-    lines = []
+    lines: list[str] = []
     for module in sorted(set(baseline_modules) | set(current_modules)):
         before = {row["coordinate"]: row for row in baseline_modules.get(module, [])}
         after = {row["coordinate"]: row for row in current_modules.get(module, [])}

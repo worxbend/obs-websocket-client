@@ -323,7 +323,7 @@ def local_link_error(path, link, uses_site_base):
 
 
 def check_links():
-    errors = []
+    errors: list[str] = []
     for path in OUT.rglob("*.html"):
         parser = Links()
         source = path.read_text()

@@ -92,7 +92,7 @@ def source_digest(root):
         ".in",
     }
     names = {".python-version", ".mill-version", ".scalafmt.conf", "mill", "mill.bat"}
-    files = []
+    files: list[Path] = []
     for directory, dirs, entries in os.walk(root):
         dirs[:] = [
             name
@@ -374,8 +374,8 @@ def main():
         print(f"Coverage verification failed: {error}", file=sys.stderr)
         return 1
     print("\n".join(rows))
-    for error in errors:
-        print(error, file=sys.stderr)
+    for problem in errors:
+        print(problem, file=sys.stderr)
     return int(bool(errors))
 
 

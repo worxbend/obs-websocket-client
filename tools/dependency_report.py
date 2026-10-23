@@ -36,7 +36,7 @@ def declared_licenses(
     group = parent.findtext("m:groupId", namespaces=NS)
     artifact = parent.findtext("m:artifactId", namespaces=NS)
     version = parent.findtext("m:version", namespaces=NS)
-    if not all((group, artifact, version)):
+    if not (group and artifact and version):
         return []
     parent_pom = (
         repository / group.replace(".", "/") / artifact / version / f"{artifact}-{version}.pom"

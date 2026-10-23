@@ -20,6 +20,7 @@ class ImportSafetyTests(unittest.TestCase):
             with self.subTest(module=name):
                 path = Path(__file__).with_name(name + ".py")
                 spec = importlib.util.spec_from_file_location(name, path)
+                assert spec is not None and spec.loader is not None
                 module = importlib.util.module_from_spec(spec)
                 with (
                     patch("subprocess.run", side_effect=AssertionError("subprocess on import")),

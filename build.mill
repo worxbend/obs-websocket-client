@@ -161,6 +161,18 @@ object codegen extends PinnedPython:
         "--cache-dir",
         (Task.dest / "mypycache").toString,
       ) ++ toolSources().map(_.path.toString))
+      // Gate scripts: looser pass, own config (no strict). Bodies type-checked; annotations not required.
+      val toolsConfig = Task.dest / "tools-mypy.ini"
+      os.write.over(toolsConfig, "[mypy]\npython_version = 3.12\ncheck_untyped_defs = True\nshow_error_codes = True\n")
+      runner().run(Seq(
+        "-m",
+        "mypy",
+        "--config-file",
+        toolsConfig.toString,
+        "--cache-dir",
+        (Task.dest / "mypycache-tools").toString,
+        gateScripts().path.toString,
+      ))
     // A command, never a cached target: coverage.sh requires fresh measurements after its manifest.
     def coverage() = Task.Command:
       runner().run(

@@ -215,6 +215,7 @@ class CoverageGateTests(unittest.TestCase):
                 tree = ET.parse(reports["core"])
                 report = tree.getroot()
                 entry = report.find("statement")
+                assert entry is not None
                 if mutation == "missing":
                     report.remove(entry)
                 elif mutation == "duplicate":
