@@ -338,7 +338,7 @@ object integration extends ProjectModule:
     def snippetGenerator = Task.Source(mill.api.BuildCtx.workspaceRoot / "tools" / "doc_snippets.py")
     def generatedSources = Task:
       val _ = documentation()
-      os.proc("python3", snippetGenerator().path.toString, Task.dest.toString)
+      os.proc(codegen.hostPythonCommand(), snippetGenerator().path.toString, Task.dest.toString)
         .call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
       Seq(PathRef(Task.dest))
 
@@ -358,7 +358,7 @@ object site extends Module:
       "pekko"    -> pekko.docJar(),
     )
     os.proc(
-      Seq("python3", (mill.api.BuildCtx.workspaceRoot / "tools" / "build_site.py").toString) ++
+      Seq(codegen.hostPythonCommand(), (mill.api.BuildCtx.workspaceRoot / "tools" / "build_site.py").toString) ++
         docs.map((module, jar) => s"$module=${jar.path}")
     ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
     ()
@@ -438,7 +438,7 @@ object release extends Module:
     val input = Task.dest / "resolved.json"
     os.write(input, upickle.default.write(resolved))
     os.proc(
-      "python3",
+      codegen.hostPythonCommand(),
       (mill.api.BuildCtx.workspaceRoot / "tools" / "dependency_report.py").toString,
       input.toString,
       (Task.dest / "dependencies.json").toString,
