@@ -7,6 +7,7 @@
 - Event and diagnostic scopes take keys from `CorrelationIds`. Repeated `nextRequestId` seed no longer fails nested scopes with `InternalError`.
 - `close()` after failure keeps `state` at `Failed`. Was overwritten to `Closed`, hiding failure.
 - `droppedDiagnostics` keeps its count after scope exit or session close. Was 0 once the registry entry or actor was gone.
+- sttp sync: failed JDK send (`ExecutionException(IOException)`) maps to `"WebSocket I/O failed"`, same as zio/fs2. Was `"WebSocket operation failed"`. `ExecutionException(WebSocketClosed)` keeps close code. Other causes unchanged.
 
 ## 0.2.0 — 2026-10-11
 

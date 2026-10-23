@@ -6,7 +6,6 @@ import _root_.sttp.client4.ws.SyncWebSocket
 import _root_.sttp.ws.{WebSocketClosed, WebSocketFrame}
 import java.io.IOException
 import java.util.concurrent.ExecutionException
-import ox.either.catching
 import scala.concurrent.duration.*
 
 /** JDK sync adapter over the shared transport loop; keeps only the sttp frame mapping and the sync error boundary.
@@ -54,16 +53,17 @@ final private[sttp] class SttpTransport(
     case _: WebSocketFrame.Pong                         => TransportFrame.Pong
     case close: WebSocketFrame.Close                    => TransportFrame.Close(close.statusCode)
 
+  // sttp sync backend blocks via cf.get(): JDK send failure arrives as ExecutionException(cause). Unwrap so it maps
+  // like the async adapters; other causes stay "WebSocket operation failed".
   private def socketBoundary[A](operation: => A): Either[ObsError, A] =
-    operation
-      .catching[WebSocketClosed]
-      .left
-      .map(error => ObsError.Transport(message = "WebSocket closed", closeCode = error.frame.map(_.statusCode)))
-      .catching[IOException]
-      .left
-      .map(_ => ObsError.Transport(message = "WebSocket I/O failed"))
-      .flatten
-      .catching[ExecutionException]
-      .left
-      .map(_ => ObsError.Transport(message = "WebSocket operation failed"))
-      .flatten
+    try Right(operation)
+    catch
+      case failure: ExecutionException => Left(transportError(failure = Option(failure.getCause).getOrElse(failure)))
+      case failure: WebSocketClosed    => Left(transportError(failure = failure))
+      case failure: IOException        => Left(transportError(failure = failure))
+
+  private def transportError(failure: Throwable): ObsError = failure match
+    case closed: WebSocketClosed =>
+      ObsError.Transport(message = "WebSocket closed", closeCode = closed.frame.map(_.statusCode))
+    case _: IOException => ObsError.Transport(message = "WebSocket I/O failed")
+    case _              => ObsError.Transport(message = "WebSocket operation failed")

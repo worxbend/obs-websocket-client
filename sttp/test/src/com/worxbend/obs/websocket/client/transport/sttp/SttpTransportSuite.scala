@@ -101,9 +101,23 @@ class SttpTransportSuite extends FunSuite:
       Left(ObsError.Transport(message = "WebSocket I/O failed")),
     )
 
-  test("failed future diagnostics are redacted"):
+  test("failed future I/O cause maps like a direct I/O failure, redacted"):
     assertEquals(
       transport(peer = new Peer(frames = Nil, failure = Some(new ExecutionException(new IOException("secret")))))
+        .receive(),
+      Left(ObsError.Transport(message = "WebSocket I/O failed")),
+    )
+
+  test("failed future close cause keeps the close code"):
+    val closed = WebSocketClosed(frame = Some(WebSocketFrame.Close(statusCode = 4009, reasonText = "secret")))
+    assertEquals(
+      transport(peer = new Peer(frames = Nil, failure = Some(new ExecutionException(closed)))).receive(),
+      Left(ObsError.Transport(message = "WebSocket closed", closeCode = Some(4009))),
+    )
+
+  test("failed future with non-I/O cause stays a redacted operation failure"):
+    assertEquals(
+      transport(peer = new Peer(frames = Nil, failure = Some(new ExecutionException(new IllegalStateException("secret")))))
         .receive(),
       Left(ObsError.Transport(message = "WebSocket operation failed")),
     )
