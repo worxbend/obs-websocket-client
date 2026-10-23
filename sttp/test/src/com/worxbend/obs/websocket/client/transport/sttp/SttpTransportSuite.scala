@@ -117,7 +117,9 @@ class SttpTransportSuite extends FunSuite:
 
   test("failed future with non-I/O cause stays a redacted operation failure"):
     assertEquals(
-      transport(peer = new Peer(frames = Nil, failure = Some(new ExecutionException(new IllegalStateException("secret")))))
+      transport(peer =
+        new Peer(frames = Nil, failure = Some(new ExecutionException(new IllegalStateException("secret"))))
+      )
         .receive(),
       Left(ObsError.Transport(message = "WebSocket operation failed")),
     )
