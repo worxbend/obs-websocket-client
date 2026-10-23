@@ -42,6 +42,24 @@ class ObservationSuite extends FunSuite:
     assertEquals(subscription.flow.runToList(), List(Right(diagnostic)))
     assertEquals(subscription.droppedDiagnostics, 3L)
 
+  test("diagnostic next is tri-state: item, then ended, failed or closed-as-ended"):
+    val diagnostic = SessionDiagnostic.StateChanged(state = ConnectionState.Ready)
+    val clean      = Channel.buffered[SessionDiagnostic](1)
+    clean.send(diagnostic)
+    clean.done()
+    val subscription = new ObsDiagnosticsSubscription(channel = clean, () => 0L)
+    assertEquals(subscription.next(), Next.Item(value = diagnostic))
+    assertEquals(subscription.next(), Next.Ended)
+    val failed = Channel.buffered[SessionDiagnostic](1)
+    failed.error(new SessionTerminated(error = ObsError.Overflow(resource = "diagnostics")))
+    assertEquals(
+      new ObsDiagnosticsSubscription(channel = failed, () => 0L).next(),
+      Next.Failed(error = ObsError.Overflow(resource = "diagnostics")),
+    )
+    val closed = Channel.buffered[SessionDiagnostic](1)
+    closed.error(new SessionTerminated(error = ObsError.Closed))
+    assertEquals(new ObsDiagnosticsSubscription(channel = closed, () => 0L).next(), Next.Ended)
+
   test("typed selectors filter on caller and terminal error terminates flow"):
     val channel = Channel.buffered[Event](2)
     channel.send(event(index = 1))

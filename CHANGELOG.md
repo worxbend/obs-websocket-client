@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking
+
+- `ObsDiagnosticsSubscription.next()` returns `Next[SessionDiagnostic]`. Was `Either[ObsError, SessionDiagnostic]`. Migrate: `Right(d)` → `Next.Item(d)`, `Left(ObsError.Closed)` → `Next.Ended`, `Left(e)` → `Next.Failed(e)`. `flow` unchanged. See [ADR-006](docs/decisions/006-pre-stable-api-alignment.md).
+
 ### Fixed
 
 - Event and diagnostic scopes take keys from `CorrelationIds`. Repeated `nextRequestId` seed no longer fails nested scopes with `InternalError`.

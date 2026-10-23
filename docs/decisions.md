@@ -9,5 +9,6 @@ These records document the library's major design decisions and their trade-offs
 | [ADR-003](decisions/003-pinned-protocol-generation.md) | Generate bindings offline from pinned inputs and distinguish catalog coverage from server compatibility | Accepted, recorded retrospectively |
 | [ADR-004](decisions/004-additive-peer-features.md) | Add peer-inspired APIs and observability while preserving scoped ownership and raw compatibility | Accepted design |
 | [ADR-005](decisions/005-backend-modules.md) | Publish one artifact per WebSocket backend, confining effect runtimes to opt-in adapters | Accepted design |
+| [ADR-006](decisions/006-pre-stable-api-alignment.md) | Align pre-stable read and reconnect APIs in place, no deprecation window | Accepted |
 
 Read the [current architecture](architecture.md) for module, handshake, dispatch, and reconnect diagrams. Existing API behavior is documented in [requests](requests.md) and [events](events.md).

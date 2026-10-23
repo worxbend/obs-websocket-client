@@ -7,19 +7,15 @@ import ox.flow.Flow
   * surfaces as its concrete `ObsError`; a clean close or unsubscribe completes the stream silently.
   */
 final class ObsDiagnosticsSubscription private[client] (channel: Channel[SessionDiagnostic], losses: () => Long):
-  /** `Left(ObsError.Closed)` means clean end-of-stream; a concrete session failure is returned with its `ObsError`. */
-  def next(): Either[ObsError, SessionDiagnostic] = channel.receiveOrClosed() match
-    case diagnostic: SessionDiagnostic                 => Right(diagnostic)
-    case ChannelClosed.Error(error: SessionTerminated) => Left(error.error)
-    case _                                             => Left(ObsError.Closed)
-
-  private def read(): Next[SessionDiagnostic] = next() match
-    case Right(diagnostic)     => Next.Item(value = diagnostic)
-    case Left(ObsError.Closed) => Next.Ended
-    case Left(error)           => Next.Failed(error = error)
+  /** `Next.Ended` on clean close or unsubscribe; `Next.Failed` carries the concrete session failure. */
+  def next(): Next[SessionDiagnostic] = channel.receiveOrClosed() match
+    case diagnostic: SessionDiagnostic => Next.Item(value = diagnostic)
+    case ChannelClosed.Error(failure: SessionTerminated) if failure.error != ObsError.Closed =>
+      Next.Failed(error = failure.error)
+    case _: ChannelClosed => Next.Ended
 
   /** Clean closure completes silently; a concrete failure is emitted once before completion. */
-  def flow: Flow[Either[ObsError, SessionDiagnostic]] = Next.drain(() => read())
+  def flow: Flow[Either[ObsError, SessionDiagnostic]] = Next.drain(() => next())
 
   /** Total records dropped because the consumer fell behind; session counters remain complete. */
   def droppedDiagnostics: Long = losses()

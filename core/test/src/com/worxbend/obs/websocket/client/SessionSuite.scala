@@ -906,9 +906,9 @@ class SessionSuite extends FunSuite:
         // traffic, request completion — so draining all three makes every counter deterministic.
         val drained = session.withDiagnostics(capacity = 16): echo =>
           assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
-          assert(echo.next().isRight)
-          assert(echo.next().isRight)
-          assert(echo.next().isRight)
+          assert(echo.next().isInstanceOf[Next.Item[?]])
+          assert(echo.next().isInstanceOf[Next.Item[?]])
+          assert(echo.next().isInstanceOf[Next.Item[?]])
         assert(drained.isRight)
         val stats = session.statistics.toOption.get
         assertEquals(stats.completedRequests, 2L)
@@ -916,7 +916,7 @@ class SessionSuite extends FunSuite:
         assert(stats.sentMessages >= 3L)
         assert(stats.receivedMessages >= 4L)
         assert(stats.sentBytes > 0L && stats.receivedBytes > 0L)
-        assert(diagnostics.next().isRight)
+        assert(diagnostics.next().isInstanceOf[Next.Item[?]])
         assert(diagnostics.droppedDiagnostics > 0L)
       assert(observed.isRight)
       session.close()
@@ -1119,7 +1119,7 @@ class SessionSuite extends FunSuite:
           // trailing accounting, so every counter is settled below this line. Each read carries a
           // short deadline so a lost record fails fast instead of hanging the suite.
           def drainedRecord(): Unit =
-            assert(ox.timeout(2.seconds)(settled.next()).isRight)
+            assert(ox.timeout(2.seconds)(settled.next()).isInstanceOf[Next.Item[?]])
           drainedRecord()
           drainedRecord()
           drainedRecord()
