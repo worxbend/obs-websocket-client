@@ -201,7 +201,7 @@ class SessionLogicSuite extends FunSuite:
     h.logic.fail(error = ObsError.Transport(message = "second failure"))
     h.logic.close()
     assertEquals(h.logic.incoming(message = WireMessage(op = 0, data = empty)), false)
-    assertEquals(h.logic.phase, ConnectionState.Closed)
+    assertEquals(h.logic.phase, ConnectionState.Failed)
 
   test("incompatible negotiated RPC and malformed events fail session"):
     val h = new Harness
@@ -523,6 +523,13 @@ class SessionLogicSuite extends FunSuite:
     closed.logic.subscribeDiagnostics(id = "observer", channel = channel).toOption.get
     closed.logic.close()
     assertEquals(channel.receive(), SessionDiagnostic.StateChanged(state = ConnectionState.Closed))
+
+  test("close after a failure keeps the Failed phase"):
+    val h = new Harness
+    h.ready()
+    h.logic.fail(error = ObsError.Transport(message = "Peer closed", closeCode = Some(1006)))
+    h.logic.close()
+    assertEquals(h.logic.phase, ConnectionState.Failed)
 
   test("repeated unsubscribe preserves owned counters without retaining registry history"):
     val h = new Harness

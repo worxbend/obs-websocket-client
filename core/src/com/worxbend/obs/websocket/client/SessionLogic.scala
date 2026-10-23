@@ -69,9 +69,8 @@ final private[client] class SessionLogic(
       )
 
   def close(): Unit =
-    if state.phase != ConnectionState.Closed then
-      fail(error = ObsError.Closed)
-      state = state.copy(phase = ConnectionState.Closed)
+    // fail sets the terminal phase; a prior failure keeps Failed visible.
+    if state.phase != ConnectionState.Closed then fail(error = ObsError.Closed)
 
   def statistics: SessionStats = state.stats
 

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Event and diagnostic scopes take keys from `CorrelationIds`. Repeated `nextRequestId` seed no longer fails nested scopes with `InternalError`.
+- `close()` after failure keeps `state` at `Failed`. Was overwritten to `Closed`, hiding failure.
+
 ## 0.2.0 — 2026-10-11
 
 Source release tag only; Maven artifacts have not been published. The isolated
