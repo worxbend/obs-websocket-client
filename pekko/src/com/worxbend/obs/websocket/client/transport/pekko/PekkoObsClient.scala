@@ -72,7 +72,9 @@ object PekkoObsClient:
     * `abortConnection` must promptly and idempotently
     * force-close this connection, without closing a shared backend, and unblock any pending read/write. It runs on
     * write timeout/interruption and after the bounded Close attempt, including late acquisition and callback failure.
-    * Repeated invocations must be harmless.
+    * Repeated invocations must be harmless. Library does not wait for native stream termination on a caller backend:
+    * `abortConnection` runs right after the Close frame is enqueued, so it must not discard queued outbound frames
+    * (or must delay until the stream completes).
     */
   def withBackend[A](
     backend:         WebSocketStreamBackend[Future, PekkoStreams],
