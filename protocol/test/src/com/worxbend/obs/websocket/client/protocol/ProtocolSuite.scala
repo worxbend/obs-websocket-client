@@ -164,3 +164,14 @@ class ProtocolSuite extends FunSuite:
   test("excessive numeric mantissas and scales fail without allocating unbounded decimals"):
     assert(JsonValue.parse(text = "9" * 309).isLeft)
     assert(JsonValue.parse(text = "1e6179").isLeft)
+
+  test("array decode keeps order and reports the first failing element"):
+    val codec = ValueCodec.array(element = ValueCodec.string)
+    val good  = JsonValue.Arr(value = Vector(JsonValue.Str(value = "a"), JsonValue.Str(value = "b")))
+    assertEquals(codec.decode(value = good, path = "xs"), Right(Vector("a", "b")))
+    val bad = JsonValue.Arr(value = Vector(JsonValue.Str(value = "a"), JsonValue.Null, JsonValue.Bool(value = true)))
+    assertEquals(
+      codec.decode(value = bad, path = "xs"),
+      Left(ProtocolError(path = "xs[1]", message = "Expected string")),
+    )
+    assertEquals(codec.decode(value = JsonValue.Arr(value = Vector.empty), path = "xs"), Right(Vector.empty))

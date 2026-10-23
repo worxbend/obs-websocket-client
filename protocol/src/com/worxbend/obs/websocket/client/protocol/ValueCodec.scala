@@ -31,12 +31,18 @@ object ValueCodec:
   def array[A](element: ValueCodec[A]): ValueCodec[Vector[A]] = new ValueCodec[Vector[A]]:
     def decode(value: JsonValue, path: String): Either[ProtocolError, Vector[A]] = value match
       case JsonValue.Arr(values) =>
-        values.zipWithIndex.foldLeft[Either[ProtocolError, Vector[A]]](Right(Vector.empty)):
-          case (acc, (entry, index)) =>
-            for
-              result  <- acc
-              decoded <- element.decode(value = entry, path = s"$path[$index]")
-            yield result :+ decoded
+        // Hot path (meters, scene lists): one builder, stop at first error. No zipWithIndex tuples, no accumulator
+        // Either per element.
+        val decoded = Vector.newBuilder[A]
+        decoded.sizeHint(values.length)
+        var failure: ProtocolError = null
+        var index                  = 0
+        while failure == null && index < values.length do
+          element.decode(value = values(index), path = s"$path[$index]") match
+            case Right(entry) => val _ = decoded += entry
+            case Left(error)  => failure = error
+          index += 1
+        if failure == null then Right(decoded.result()) else Left(failure)
       case _ => Left(ProtocolError(path = path, message = "Expected array"))
     def encode(value: Vector[A]): JsonValue = JsonValue.Arr(value = value.map(element.encode))
 
