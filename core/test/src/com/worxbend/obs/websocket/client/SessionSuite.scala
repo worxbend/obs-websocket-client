@@ -1047,6 +1047,18 @@ class SessionSuite extends FunSuite:
     }.toOption.get.toOption.get
     assertEquals(escaped.droppedEvents, 1L)
 
+  test("diagnostic drop counts remain readable after callback and session scopes end"):
+    val escaped = connected() { peer =>
+      peer.respond(request = peer.sent.receive())
+    } { (session, _) =>
+      session.withDiagnostics(capacity = 1): diagnostics =>
+        assertEquals(session.rawRequest(requestType = "Echo"), Right(empty))
+        // Request completion is the last record and follows the reply; once counted, overflow already happened.
+        while session.statistics.toOption.get.completedRequests < 2L do Thread.onSpinWait()
+        diagnostics
+    }.toOption.get.toOption.get
+    assert(escaped.droppedDiagnostics > 0L)
+
   test("repeated ID seeds still give nested event and diagnostic scopes distinct IDs"):
     val result = connected(deps = SessionDependencies(nextRequestId = () => "x"))(_ => ()) { (session, _) =>
       val events      = session.withEvents()(_ => session.withEvents()(_ => ()))

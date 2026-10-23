@@ -74,8 +74,7 @@ final private[client] class SessionLogic(
 
   def statistics: SessionStats = state.stats
 
-  private def publish(event: SessionDiagnostic): Unit =
-    state = state.copy(diagnostics = state.diagnostics.publish(event = event))
+  private def publish(event: SessionDiagnostic): Unit = state.diagnostics.publish(event = event)
 
   def traffic(direction: TrafficDirection, bytes: Int): Unit =
     val stats = direction match
@@ -135,13 +134,19 @@ final private[client] class SessionLogic(
       )
     )
 
-  def subscribeDiagnostics(id: String, channel: Channel[SessionDiagnostic]): Either[ObsError, Unit] =
+  def subscribeDiagnostics(
+    id:      String,
+    channel: Channel[SessionDiagnostic],
+    dropped: AtomicLong = new AtomicLong(0L),
+  ): Either[ObsError, Unit] =
     if state.phase != ConnectionState.Ready then Left(state.failure.getOrElse(ObsError.Closed))
     else if state.diagnostics.entries.contains(id) then
       Left(ObsError.InternalError(message = "Duplicate diagnostic subscription ID"))
     else
       state =
-        state.copy(diagnostics = state.diagnostics.copy(entries = state.diagnostics.entries.updated(id, channel -> 0L)))
+        state.copy(diagnostics =
+          state.diagnostics.copy(entries = state.diagnostics.entries.updated(id, channel -> dropped))
+        )
       greetPlaintextCredentials(channel = channel)
       Right(())
 
@@ -153,7 +158,7 @@ final private[client] class SessionLogic(
     if config.plaintextCredentialsExposed(password = authenticationPassword) then
       channel.trySendOrClosed(SessionDiagnostic.PlaintextCredentials).discard
 
-  def diagnosticLosses(id: String): Long = state.diagnostics.entries.get(id).map(_._2).getOrElse(0L)
+  def diagnosticLosses(id: String): Long = state.diagnostics.entries.get(id).map(_._2.get).getOrElse(0L)
 
   def unsubscribeDiagnostics(id: String, owner: Channel[SessionDiagnostic]): Unit =
     if state.diagnostics.entries.get(id).exists(_._1 eq owner) then

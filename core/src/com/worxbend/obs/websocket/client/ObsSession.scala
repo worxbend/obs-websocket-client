@@ -278,14 +278,10 @@ final class ObsSession private[client] (
     else
       ids.next(seed = dependencies.nextRequestId()).flatMap: id =>
         val channel = Channel.buffered[SessionDiagnostic](capacity)
+        val dropped = new AtomicLong(0L)
         try
-          ask(f = _.subscribeDiagnostics(id = id, channel = channel)).map: _ =>
-            use(
-              new ObsDiagnosticsSubscription(
-                channel = channel,
-                () => logic.ask(_.diagnosticLosses(id = id)).catching[ChannelClosedException].getOrElse(0L),
-              )
-            )
+          ask(f = _.subscribeDiagnostics(id = id, channel = channel, dropped = dropped)).map: _ =>
+            use(new ObsDiagnosticsSubscription(channel = channel, () => dropped.get()))
         finally uninterruptible(tellSafely(f = _.unsubscribeDiagnostics(id = id, owner = channel)))
 
   /** The current connection phase, for observing lifecycle transitions without subscribing to diagnostics. */

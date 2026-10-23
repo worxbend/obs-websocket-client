@@ -23,12 +23,15 @@ class ObservationSuite extends FunSuite:
   test("diagnostic registry drops newest on overflow and retains terminal loss counts"):
     val channel    = Channel.buffered[SessionDiagnostic](1)
     val diagnostic = SessionDiagnostic.StateChanged(state = ConnectionState.Ready)
-    val registry   = DiagnosticRegistry(entries = Map("id" -> (channel -> 0L)))
-    val updated    = registry.publish(event = diagnostic).publish(event = diagnostic)
-    assertEquals(updated.entries("id")._2, 1L)
+    val dropped    = new java.util.concurrent.atomic.AtomicLong(0L)
+    val registry   = DiagnosticRegistry(entries = Map("id" -> (channel -> dropped)))
+    registry.publish(event = diagnostic)
+    registry.publish(event = diagnostic)
+    assertEquals(dropped.get(), 1L)
     channel.done()
-    assertEquals(updated.publish(event = diagnostic).entries("id")._2, 1L)
-    updated.close()
+    registry.publish(event = diagnostic)
+    assertEquals(dropped.get(), 1L)
+    registry.close()
 
   test("diagnostic next and flow expose terminal completion"):
     val channel    = Channel.buffered[SessionDiagnostic](1)
