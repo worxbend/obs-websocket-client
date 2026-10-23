@@ -39,18 +39,10 @@ jobs:
           path: |
             ~/.cache/coursier
             ~\AppData\Local\Coursier\cache
+            ~/Library/Caches/Coursier
           key: ${{ runner.os }}-coursier-${{ hashFiles('build.mill', '.mill-version') }}
           restore-keys: |
             ${{ runner.os }}-coursier-
-      - name: Save Coursier artifacts
-        # Only trusted main builds may write the shared cache; other triggers restore read-only.
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.cache-coursier.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cache/coursier
-            ~\AppData\Local\Coursier\cache
-          key: ${{ runner.os }}-coursier-${{ hashFiles('build.mill', '.mill-version') }}
       - name: Unix Python codegen tests and tools
         if: runner.os != 'Windows'
         run: |
@@ -80,3 +72,13 @@ jobs:
           name: desktop-${{ matrix.os }}
           path: out/*/test/testForked.dest/
           if-no-files-found: error
+      - name: Save Coursier artifacts
+        # Last step: cache holds resolved artifacts. Only green trusted main builds write; others restore read-only.
+        if: success() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.cache-coursier.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cache/coursier
+            ~\AppData\Local\Coursier\cache
+            ~/Library/Caches/Coursier
+          key: ${{ runner.os }}-coursier-${{ hashFiles('build.mill', '.mill-version') }}
