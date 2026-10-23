@@ -17,7 +17,10 @@ enum ObsError:
   /** OBS rejected the authentication handshake (bad or missing credentials); the session never becomes ready. */
   case Authentication(message: String, closeCode: Option[Int] = None)
 
-  /** The server speaks an obs-websocket RPC version this client does not support. */
+  /** The server speaks an obs-websocket RPC version this client does not support. `version` is the server-reported RPC
+    * version when known (Hello/Identified). On close code 4010 the server rejected the client's request, so `version`
+    * is the client-requested version 1.
+    */
   case IncompatibleProtocol(version: Int)
 
   /** A wire frame failed local decoding or schema validation; always produced by the client decoder, never reported
@@ -50,7 +53,8 @@ enum ObsError:
 
   /** The server rejected a request; `code` and `comment` come from the peer. Code 207 (NotReady) is special: it
     * signals the server is still starting and is the only rejection the readiness retry (`requestWhenReady`,
-    * `ReadinessPolicy`) will retry.
+    * `ReadinessPolicy`) will retry. For a `RequestBatch` entry, `requestId` is the positional `batch:<index>`, not a
+    * wire correlation ID.
     */
   case RequestRejected(requestType: String, requestId: String, code: Int, comment: Option[String])
 
