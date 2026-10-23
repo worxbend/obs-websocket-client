@@ -1,10 +1,9 @@
 package com.worxbend.obs.websocket.client
 
 import com.worxbend.obs.websocket.client.protocol.*
-import ox.channels.{ActorRef, Channel, ChannelClosedException}
+import com.worxbend.obs.websocket.client.SessionActor.{askOrClosed, tellSafely}
+import ox.channels.{ActorRef, Channel}
 import ox.{discard, timeoutOption, uninterruptible}
-import ox.either.catching
-import scala.util.control.NonFatal
 import scala.concurrent.duration.*
 
 /** Owns one request's total registration/wait budget and unconditional owner-checked cancellation.
@@ -38,7 +37,7 @@ final private[client] class RequestExchange(
                              timeoutOption(remaining):
                                val prepared = message(id)
                                submitted = true
-                               logic.ask: state =>
+                               logic.askOrClosed: state =>
                                  val registered =
                                    if dependencies.nanoTime() - started >= budget.toNanos then
                                      Left(ObsError.Timeout(operation = requestType))
@@ -52,9 +51,7 @@ final private[client] class RequestExchange(
                                      )
                                  admission.trySendOrClosed(registered.isRight).discard
                                  registered
-                               .catching[ChannelClosedException].left.map(_ => ObsError.Closed).flatten.flatMap(_ =>
-                                 reply.receive()
-                               )
+                               .flatMap(_ => reply.receive())
           ).getOrElse(reply.tryReceive().getOrElse(Left(ObsError.Timeout(operation = requestType))))
           outcome = DiagnosticOutcome.from(result = completed)
           val admitted = admission.tryReceive()
@@ -71,7 +68,7 @@ final private[client] class RequestExchange(
           // late admissions before subsequent actor work. Cleanup enqueue/scope joining are not operation budget.
           val elapsed = dependencies.nanoTime() - started
           uninterruptible:
-            tellSafely: state =>
+            logic.tellSafely: state =>
               state.cancel(id = id, owner = reply)
               // Cancellation may leave admission queued; FIFO cleanup observes it after the registration invocation.
               if registered || admission.tryReceive().contains(true) then
@@ -81,9 +78,3 @@ final private[client] class RequestExchange(
                   elapsedNanos = elapsed,
                   outcome      = outcome,
                 )
-
-  private def tellSafely(f: SessionLogic => Unit): Unit =
-    logic.tell(state =>
-      try f(state)
-      catch case NonFatal(_) => ()
-    ).catching[ChannelClosedException].discard

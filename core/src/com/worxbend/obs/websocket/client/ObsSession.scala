@@ -1,10 +1,10 @@
 package com.worxbend.obs.websocket.client
 
 import com.worxbend.obs.websocket.client.protocol.*
+import com.worxbend.obs.websocket.client.SessionActor.askOrClosed
 import ox.channels.{ActorRef, Channel, ChannelClosedException}
 import ox.{discard, sleep, timeoutOption, uninterruptible}
 import ox.either.catching
-import scala.util.control.NonFatal
 import java.util.concurrent.atomic.AtomicLong
 
 /** A live, identified connection to one OBS server. The session belongs to the `ObsClient.withTransport` callback and
@@ -21,20 +21,10 @@ final class ObsSession private[client] (
   val discovery: Option[JsonObject] = None,
 ) extends RequestApi[ObsError]:
   private val exchanges = new RequestExchange(config = config, dependencies = dependencies, logic = logic, ids = ids)
-  private def ask[A](f: SessionLogic => Either[ObsError, A]): Either[ObsError, A] =
-    logic.ask(f).catching[ChannelClosedException].left.map(_ => ObsError.Closed).flatten
+  private def ask[A](f: SessionLogic => Either[ObsError, A]): Either[ObsError, A] = logic.askOrClosed(f)
 
-  /** Bookkeeping tells are best-effort: a defect in cleanup accounting must not kill the actor and take the whole
-    * session scope down with a raw escape.
-    */
-  private[client] def tellSafely(f: SessionLogic => Unit): Unit =
-    logic
-      .tell(state =>
-        try f(state)
-        catch case NonFatal(_) => ()
-      )
-      .catching[ChannelClosedException]
-      .discard
+  /** Best-effort bookkeeping tell; see [[SessionActor.tellSafely]]. */
+  private[client] def tellSafely(f: SessionLogic => Unit): Unit = SessionActor.tellSafely(logic)(f)
 
   /** Typed catalog request. A request type absent from the discovered capability set is rejected locally with
     * [[ObsError.UnsupportedRequest]]; an empty capability set therefore rejects every typed request. `RawRequest`
@@ -79,15 +69,13 @@ final class ObsSession private[client] (
     options: RequestOptions = RequestOptions(),
   ): Either[ObsError, A] =
     request match
-      case _: RawRequest =>
-        Left(ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request"))
-      case _ =>
+      case _: RawRequest => Left(ReadinessPolicy.unsupportedRequest)
+      case _             =>
         for
           prepared <- PreparedRequest.from(request = request, available = metadata.availableRequests)
           _        <-
             if ReadinessPolicy.supportedRequests.contains(prepared.requestType) then Right(())
-            else
-              Left(ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request"))
+            else Left(ReadinessPolicy.unsupportedRequest)
           _      <- policy.validate
           budget <- options.deadline(default = config.requestTimeout)
           result <- timeoutOption(budget)(

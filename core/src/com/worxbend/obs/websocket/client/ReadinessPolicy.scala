@@ -10,6 +10,10 @@ final case class ReadinessPolicy(maxAttempts: Int = 3, delay: FiniteDuration = 1
     else Right(())
 
 object ReadinessPolicy:
+  /** One rejection for raw and unreviewed requests asking for readiness retries. */
+  private[client] val unsupportedRequest: ObsError =
+    ObsError.InvalidConfiguration(message = "Readiness retries require a reviewed typed read request")
+
   /** Reviewed read operations only; raw extension requests and mutations cannot opt in. */
   val supportedRequests: Set[String] = Set(
     "GetVersion",
