@@ -34,9 +34,10 @@ final private[client] class SessionLogic(
     pending:        Map[String, Pending] = Map.empty,
     subscribers:    Map[String, Subscriber] = Map.empty,
     diagnostics:    DiagnosticRegistry = DiagnosticRegistry(),
-    stats:          SessionStats = SessionStats(),
   )
   private var state = State()
+  // Own var, off State: per-frame counters must not copy State.
+  private var stats = SessionStats()
 
   def phase: ConnectionState = state.phase
 
@@ -72,20 +73,16 @@ final private[client] class SessionLogic(
     // fail sets the terminal phase; a prior failure keeps Failed visible.
     if state.phase != ConnectionState.Closed then fail(error = ObsError.Closed)
 
-  def statistics: SessionStats = state.stats
+  def statistics: SessionStats = stats
 
   private def publish(event: SessionDiagnostic): Unit = state.diagnostics.publish(event = event)
 
   def traffic(direction: TrafficDirection, bytes: Int): Unit =
-    val stats = direction match
+    stats = direction match
       case TrafficDirection.Sent =>
-        state.stats.copy(sentMessages = state.stats.sentMessages + 1, sentBytes = state.stats.sentBytes + bytes)
+        stats.copy(sentMessages = stats.sentMessages + 1, sentBytes = stats.sentBytes + bytes)
       case TrafficDirection.Received =>
-        state.stats.copy(
-          receivedMessages = state.stats.receivedMessages + 1,
-          receivedBytes    = state.stats.receivedBytes + bytes,
-        )
-    state = state.copy(stats = stats)
+        stats.copy(receivedMessages = stats.receivedMessages + 1, receivedBytes = stats.receivedBytes + bytes)
     publish(event = SessionDiagnostic.Traffic(direction = direction, bytes = bytes))
 
   /** A transport-level receive failure carries no frame bytes: classify the close code, then fail the session. */
@@ -105,12 +102,10 @@ final private[client] class SessionLogic(
 
   def requestFinished(requestType: String, id: String, elapsedNanos: Long, outcome: DiagnosticOutcome): Unit =
     val failed = if outcome == DiagnosticOutcome.Succeeded then 0L else 1L
-    state = state.copy(stats =
-      state.stats.copy(
-        completedRequests   = state.stats.completedRequests + 1,
-        failedRequests      = state.stats.failedRequests + failed,
-        requestElapsedNanos = state.stats.requestElapsedNanos + elapsedNanos,
-      )
+    stats = stats.copy(
+      completedRequests   = stats.completedRequests + 1,
+      failedRequests      = stats.failedRequests + failed,
+      requestElapsedNanos = stats.requestElapsedNanos + elapsedNanos,
     )
     publish(event =
       SessionDiagnostic.RequestFinished(
@@ -322,7 +317,7 @@ final private[client] class SessionLogic(
       eventData <- SessionWire.eventData(event = data)
       decoded   <- Event.decode(eventType = eventType, data = eventData).left.map(malformed)
     yield
-      state = state.copy(stats = state.stats.copy(receivedEvents = state.stats.receivedEvents + 1))
+      stats = stats.copy(receivedEvents = stats.receivedEvents + 1)
       deliverEvent(eventType = eventType, eventData = eventData, decoded = decoded)
 
   private def deliverEvent(eventType: String, eventData: JsonObject, decoded: Event): Unit = state.subscribers.foreach:
