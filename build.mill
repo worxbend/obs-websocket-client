@@ -342,21 +342,23 @@ object integration extends ProjectModule:
         .call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit)
       Seq(PathRef(Task.dest))
 
+/** One copy of the module lists the aggregate tasks below share. */
+object Modules:
+  /** Published artifacts, in dependency order. */
+  val libraries: Seq[LibraryModule] = Seq(protocol, core, sttp, okhttp, zio, fs2, pekko)
+
+  /** Handwritten production modules: libraries plus unpublished samples. */
+  val production: Seq[ProjectModule] = libraries ++ Seq(examples, server)
+
+  def name(module: Module): String = module.moduleSegments.render
+
 object scoverage extends ScoverageReport:
   def scalaVersion     = Versions.scala
   def scoverageVersion = Versions.scoverage
 
 object site extends Module:
   def build() = Task.Command:
-    val docs = Seq(
-      "protocol" -> protocol.docJar(),
-      "core"     -> core.docJar(),
-      "sttp"     -> sttp.docJar(),
-      "okhttp"   -> okhttp.docJar(),
-      "zio"      -> zio.docJar(),
-      "fs2"      -> fs2.docJar(),
-      "pekko"    -> pekko.docJar(),
-    )
+    val docs = Modules.libraries.map(Modules.name).zip(Task.sequence(Modules.libraries.map(_.docJar))())
     os.proc(
       Seq(codegen.hostPythonCommand(), (mill.api.BuildCtx.workspaceRoot / "tools" / "build_site.py").toString) ++
         docs.map((module, jar) => s"$module=${jar.path}")
@@ -365,16 +367,7 @@ object site extends Module:
 
 /** Runs built-in Scalafix rules on handwritten sources, preserving generated output and the frozen benchmark. */
 object sourceStyle extends Module:
-  val modules: Seq[ScalaModule] = Seq(
-    protocol,
-    core,
-    sttp,
-    okhttp,
-    zio,
-    fs2,
-    pekko,
-    examples,
-    server,
+  val modules: Seq[ScalaModule] = Modules.production ++ Seq(
     protocol.test,
     core.test,
     sttp.test,
@@ -411,7 +404,7 @@ object coverage extends Module:
   /** Modules measured by the exact gate in tools/check_coverage.py. Integration coverage is collected separately
     * per PLAN §23, so `integration` is deliberately absent here.
     */
-  val measured: Seq[ProjectModule] = Seq(protocol, core, sttp, okhttp, zio, fs2, pekko, examples, server)
+  val measured: Seq[ProjectModule] = Modules.production
 
   /** Start a measurement run only after instrumentation is up to date. */
   def reset() = Task.Command:
@@ -425,17 +418,10 @@ object coverage extends Module:
 
 object release extends Module:
   def dependencyReport() = Task.Command:
-    val resolved = Map(
-      "protocol"      -> protocol.resolvedRunMvnDeps().map(_.path.toString),
-      "core"          -> core.resolvedRunMvnDeps().map(_.path.toString),
-      "sttp"          -> sttp.resolvedRunMvnDeps().map(_.path.toString),
-      "okhttp"        -> okhttp.resolvedRunMvnDeps().map(_.path.toString),
-      "zio"           -> zio.resolvedRunMvnDeps().map(_.path.toString),
-      "fs2"           -> fs2.resolvedRunMvnDeps().map(_.path.toString),
-      "pekko"         -> pekko.resolvedRunMvnDeps().map(_.path.toString),
-      "server-sample" -> server.resolvedRunMvnDeps().map(_.path.toString),
-    )
-    val input = Task.dest / "resolved.json"
+    val reported = Modules.libraries.map(Modules.name) :+ "server-sample"
+    val jars     = Task.sequence((Modules.libraries :+ server).map(_.resolvedRunMvnDeps))()
+    val resolved = reported.zip(jars.map(_.map(_.path.toString))).toMap
+    val input    = Task.dest / "resolved.json"
     os.write(input, upickle.default.write(resolved))
     os.proc(
       codegen.hostPythonCommand(),
@@ -446,29 +432,8 @@ object release extends Module:
     PathRef(Task.dest / "dependencies.json")
 
   def packageReport() = Task.Command:
-    val artifacts = Seq(
-      protocol.jar(),
-      protocol.sourceJar(),
-      protocol.docJar(),
-      core.jar(),
-      core.sourceJar(),
-      core.docJar(),
-      sttp.jar(),
-      sttp.sourceJar(),
-      sttp.docJar(),
-      okhttp.jar(),
-      okhttp.sourceJar(),
-      okhttp.docJar(),
-      zio.jar(),
-      zio.sourceJar(),
-      zio.docJar(),
-      fs2.jar(),
-      fs2.sourceJar(),
-      fs2.docJar(),
-      pekko.jar(),
-      pekko.sourceJar(),
-      pekko.docJar(),
-    )
+    val artifacts =
+      Task.sequence(Modules.libraries.flatMap(module => Seq(module.jar, module.sourceJar, module.docJar)))()
     val manifest = artifacts.map: artifact =>
       val digest = java.security.MessageDigest.getInstance("SHA-256").digest(os.read.bytes(artifact.path))
       artifact.path.toString -> digest.map(byte => f"${byte & 0xff}%02x").mkString
