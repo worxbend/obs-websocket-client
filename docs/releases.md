@@ -46,12 +46,12 @@ Packages run is independent; check it before claiming availability there.
 
 ## One-time setup
 
-**Repository secrets** (Settings → Secrets and variables → Actions), same names as scalacv:
+**Repository secrets** (Settings → Secrets and variables → Actions), named as Mill reads them:
 
 | Secret | Purpose |
 |---|---|
-| `SONATYPE_USERNAME` | Central Portal user-token username → `MILL_SONATYPE_USERNAME` |
-| `SONATYPE_PASSWORD` | Central Portal user-token password → `MILL_SONATYPE_PASSWORD` |
+| `MILL_SONATYPE_USERNAME` | Central Portal user-token username |
+| `MILL_SONATYPE_PASSWORD` | Central Portal user-token password |
 | `MILL_PGP_SECRET_BASE64` | base64 of ASCII-armored signing secret key |
 | `MILL_PGP_PASSPHRASE` | key passphrase (empty for unprotected key) |
 
@@ -60,8 +60,8 @@ with publish rights on verified namespace `com.worxbend`. Public key must be
 on a [Sonatype-supported keyserver](https://central.sonatype.org/publish/requirements/gpg/).
 
 ```sh
-gh secret set SONATYPE_USERNAME --repo worxbend/obs-websocket-client
-gh secret set SONATYPE_PASSWORD --repo worxbend/obs-websocket-client
+gh secret set MILL_SONATYPE_USERNAME --repo worxbend/obs-websocket-client
+gh secret set MILL_SONATYPE_PASSWORD --repo worxbend/obs-websocket-client
 gpg --armor --export-secret-keys FINGERPRINT | base64 -w0 | \
   gh secret set MILL_PGP_SECRET_BASE64 --repo worxbend/obs-websocket-client
 gh secret set MILL_PGP_PASSPHRASE --repo worxbend/obs-websocket-client

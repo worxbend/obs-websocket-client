@@ -1,5 +1,5 @@
 # Tag vX.Y.Z -> full Validate on that commit -> signed Maven Central publish -> verify -> GitHub Release.
-# Secrets: SONATYPE_USERNAME, SONATYPE_PASSWORD (Central Portal token), MILL_PGP_SECRET_BASE64,
+# Secrets: MILL_SONATYPE_USERNAME, MILL_SONATYPE_PASSWORD (Central Portal token), MILL_PGP_SECRET_BASE64,
 # MILL_PGP_PASSPHRASE. Variable: SCHEMA_LICENSE_REVIEWED. See docs/releases.md.
 name: Release to Maven Central
 on:
@@ -52,8 +52,8 @@ jobs:
           printf 'OBS_RELEASE_VERSION=%s\n' "${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
       - name: Publishing credentials and license review are present
         env:
-          MILL_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          MILL_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          MILL_SONATYPE_USERNAME: ${{ secrets.MILL_SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.MILL_SONATYPE_PASSWORD }}
           MILL_PGP_SECRET_BASE64: ${{ secrets.MILL_PGP_SECRET_BASE64 }}
           SCHEMA_LICENSE_REVIEWED: ${{ vars.SCHEMA_LICENSE_REVIEWED }}
         run: |
@@ -86,8 +86,8 @@ jobs:
       - name: Publish signed libraries to Maven Central
         timeout-minutes: 30
         env:
-          MILL_SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-          MILL_SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          MILL_SONATYPE_USERNAME: ${{ secrets.MILL_SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.MILL_SONATYPE_PASSWORD }}
           MILL_PGP_SECRET_BASE64: ${{ secrets.MILL_PGP_SECRET_BASE64 }}
           MILL_PGP_PASSPHRASE: ${{ secrets.MILL_PGP_PASSPHRASE }}
         run: >-
