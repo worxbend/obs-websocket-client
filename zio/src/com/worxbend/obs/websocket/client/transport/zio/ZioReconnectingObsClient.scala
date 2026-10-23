@@ -19,32 +19,14 @@ import com.worxbend.obs.websocket.client.{ObsConfig, ObsError, ObsSession}
   * backend-agnostic loop lives in [[com.worxbend.obs.websocket.client.reconnect.Reconnect]].
   */
 object ZioReconnectingObsClient:
-  /** Compatibility entrypoint retaining the original signature and defaults. */
-  def run[A](
-    config:   ObsConfig,
-    policy:   ReconnectPolicy,
-    timing:   ReconnectTiming = ReconnectTiming.live,
-    onNotice: ReconnectNotice => Unit = _ => (),
-    options:  ZioOptions = ZioOptions(),
-  )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
-    run(config, policy, timing, onNotice, options, JdkClientOptions())(use)
-
-  /** Use owned-client proxy/TLS settings with the default reconnect timing and backend options. */
+  /** Owned-client settings (`clientOptions`, proxy/TLS) reused for every new connection generation. */
   def run[A](
     config:        ObsConfig,
     policy:        ReconnectPolicy,
-    clientOptions: JdkClientOptions,
-  )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
-    run(config, policy, ReconnectTiming.live, _ => (), ZioOptions(), clientOptions)(use)
-
-  /** Reuse these owned-client settings for every newly acquired connection generation. */
-  def run[A](
-    config:        ObsConfig,
-    policy:        ReconnectPolicy,
-    timing:        ReconnectTiming,
-    onNotice:      ReconnectNotice => Unit,
-    options:       ZioOptions,
-    clientOptions: JdkClientOptions,
+    timing:        ReconnectTiming = ReconnectTiming.live,
+    onNotice:      ReconnectNotice => Unit = _ => (),
+    options:       ZioOptions = ZioOptions(),
+    clientOptions: JdkClientOptions = JdkClientOptions(),
   )(use: (ConnectionGeneration, ObsSession) => ReconnectDecision[A]): Either[ObsError, A] =
     options.validate.flatMap: validOptions =>
       Reconnect.run(

@@ -5,6 +5,7 @@
 ### Breaking
 
 - `ObsDiagnosticsSubscription.next()` returns `Next[SessionDiagnostic]`. Was `Either[ObsError, SessionDiagnostic]`. Migrate: `Right(d)` → `Next.Item(d)`, `Left(ObsError.Closed)` → `Next.Ended`, `Left(e)` → `Next.Failed(e)`. `flow` unchanged. See [ADR-006](docs/decisions/006-pre-stable-api-alignment.md).
+- `ZioReconnectingObsClient.run` / `Fs2ReconnectingObsClient.run`: one overload, `clientOptions: JdkClientOptions = JdkClientOptions()` last and defaulted, same as sttp. 5-arg and 3-arg overloads gone. Named and 5-arg calls compile unchanged; positional `run(config, policy, clientOptions)` must name it: `clientOptions = c`. Binary signatures change. Pekko unchanged (no `JdkClientOptions`). See ADR-006.
 
 ### Fixed
 
