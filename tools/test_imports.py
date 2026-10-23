@@ -16,6 +16,8 @@ class ImportSafetyTests(unittest.TestCase):
             "check_coverage",
             "dependency_report",
             "check_dependencies",
+            "validate_release",
+            "verify_published",
         ):
             with self.subTest(module=name):
                 path = Path(__file__).with_name(name + ".py")
