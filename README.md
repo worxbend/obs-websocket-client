@@ -12,10 +12,9 @@
   <a href="LICENSE">MIT</a>
 </p>
 
-**Implemented, unreleased.** The library builds and passes local protocol, concurrency,
-WebSocket, HTTP, packaging, and coverage checks. No Maven Central release or Pages
-deployment has been performed. An isolated OBS 30.2.3 smoke test passed; see the
-[compatibility matrix](docs/compatibility.md) for its tested scope.
+**Pre-1.0, early-semver.** From `v0.3.0` each release tag publishes to Maven Central and
+GitHub Packages after full CI; see [releases](docs/releases.md). An isolated OBS 30.2.3 smoke
+test passed; see the [compatibility matrix](docs/compatibility.md) for its tested scope.
 
 ## Typed control, bounded concurrency
 
@@ -56,8 +55,12 @@ same client over Tapir/Netty with Swagger.
 
 ## Artifacts
 
-Seven modules publish independently; coordinates are provisional until the first
-release. Pick exactly one backend adapter — it brings `core` and `protocol` along:
+Seven modules publish to Maven Central under group `com.worxbend` (Scala package stays `com.worxbend.obs.websocket.client`).
+Pick exactly one backend adapter — it brings `core` and `protocol` along:
+
+```text
+mvn"com.worxbend::obs-websocket-client-sttp:0.3.0"
+```
 
 | Artifact | Choose this when |
 | --- | --- |
@@ -94,7 +97,7 @@ PureConfig, with `OBS_WS_URL`, `OBS_WS_PASSWORD`, `HTTP_HOST`, and `HTTP_PORT`
 overrides. It binds locally by default; Swagger is at `http://127.0.0.1:8080/docs/`.
 `--no-server` avoids a Mill worker-reuse failure observed in this development environment.
 
-Published coordinates will be documented after the first release. For development,
+Release coordinates: [Artifacts](#artifacts). For development,
 `./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishLocal'` installs
 local snapshots. The isolated consumer smoke test validates transitive dependencies
 from packaged artifacts.
@@ -108,7 +111,7 @@ inconsistent evidence. It does not establish real OBS compatibility or certify a
 CI run; fresh measurements are produced by `tools/coverage.sh` and archived as CI artifacts.
 
 CI workflows cover validation, documentation, compatibility checks, disposable OBS
-checks, and explicit release preflight/publication.
+checks, and tag-driven Maven Central / GitHub Packages publication.
 
 ## Contributing and licensing
 

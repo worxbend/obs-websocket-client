@@ -14,7 +14,7 @@ keywords:
   - "pekko"
 ---
 
-The session engine lives in `core` behind the blocking `ObsTransport` seam; each published backend adapter implements that seam and presents the identical `ObsSession` API. Declare exactly one adapter. The coordinates below are provisional — nothing is published to Maven Central yet.
+The session engine lives in `core` behind the blocking `ObsTransport` seam; each published backend adapter implements that seam and presents the identical `ObsSession` API. Declare exactly one adapter. Coordinates below are Maven Central releases; a `-SNAPSHOT` from `publishLocal` works the same.
 
 ## Pick an artifact
 
@@ -28,12 +28,12 @@ The session engine lives in `core` behind the blocking `ObsTransport` seam; each
 
 ```text
 // Mill, default backend:
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-sttp:0.3.0-SNAPSHOT"
+mvn"com.worxbend::obs-websocket-client-sttp:0.3.0"
 // Alternatives:
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-okhttp:0.3.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-zio:0.3.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-fs2:0.3.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-pekko:0.3.0-SNAPSHOT"
+mvn"com.worxbend::obs-websocket-client-okhttp:0.3.0"
+mvn"com.worxbend::obs-websocket-client-zio:0.3.0"
+mvn"com.worxbend::obs-websocket-client-fs2:0.3.0"
+mvn"com.worxbend::obs-websocket-client-pekko:0.3.0"
 ```
 
 Every adapter brings `core` and `protocol` transitively. The effect adapters pull their runtime (ZIO, cats-effect/fs2, Pekko) transitively but keep it internal: the public API stays the blocking direct-style one on every backend.

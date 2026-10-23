@@ -21,7 +21,7 @@ Reading an OBS instance's version and scene catalog through a raw WebSocket requ
 
 Enable OBS Studio's WebSocket server in the Tools menu and obtain its connection password. The usual local address is `ws://localhost:4455`. Export `OBS_WS_PASSWORD` in the environment of the shell that will run the example, using your shell's secure input or secret-management facility. Keep the password out of source files and command arguments. If authentication is disabled, leave the variable unset; the example treats a blank value as absent.
 
-This repository is unreleased; there is no published Maven Central version to install. Its wrapper pins Mill 1.1.10 and Java 25.0.3, and the build uses Scala 3.9.0. The first run may download the pinned tools and dependencies. Run all commands from the repository root:
+This guide runs the in-repo example, so it builds from a checkout rather than a Maven Central release. Its wrapper pins Mill 1.1.10 and Java 25.0.3, and the build uses Scala 3.9.0. The first run may download the pinned tools and dependencies. Run all commands from the repository root:
 
 ```sh
 git clone https://github.com/worxbend/obs-websocket-client.git

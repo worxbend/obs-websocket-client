@@ -1,6 +1,6 @@
 # Getting started
 
-This is an unreleased Scala 3 library for OBS WebSocket 5.x / RPC 1. Java 25 is required. No Maven Central version has been published.
+Scala 3 library for OBS WebSocket 5.x / RPC 1. Java 25 is required. Released versions are on Maven Central; see [backends](guides/backends.md) for coordinates and [releases](releases.md) for status.
 
 For a complete read-only workflow with a runnable companion, see [Connect to OBS and read version and scenes](guides/read-version-and-scenes.md).
 
@@ -15,7 +15,7 @@ Enable the WebSocket server in OBS Studio's Tools menu and obtain its password. 
 ./mill --no-server examples.run
 ```
 
-The wrapper downloads pinned Mill and Java versions. Set `OBS_WS_PASSWORD` for the example. Pass a URL as an argument to `examples.run` to override localhost. Local publication installs snapshot artifacts in your local Ivy repository; it does not publish a public release. The Maven coordinates shown in this documentation are provisional and not yet published to Maven Central.
+The wrapper downloads pinned Mill and Java versions. Set `OBS_WS_PASSWORD` for the example. Pass a URL as an argument to `examples.run` to override localhost. Local publication installs snapshot artifacts in your local Ivy repository; it does not publish a public release.
 
 ## Make a typed request
 

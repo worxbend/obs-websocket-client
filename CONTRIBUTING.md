@@ -2,7 +2,7 @@
 
 Start with [the contributor guide](docs/contributing.md).
 
-Run `tools/coverage.sh` for a fresh instrumented test run and exact coverage enforcement. Run `tools/consumer_smoke.sh` to verify locally packaged artifacts from a separate project. Neither command publishes externally.
+Run `tools/coverage.sh` for a fresh instrumented test run and exact coverage enforcement. Run `tools/consumer_smoke.sh` to verify locally packaged artifacts from a separate project. Neither command publishes externally; release publication is tag-driven, see [releases](docs/releases.md).
 
 Use `./mill --no-server site.build` to build guides and API documentation. Ordinary tests need no OBS installation. Real OBS checks are opt-in and require a disposable setup; see [compatibility](docs/compatibility.md).
 

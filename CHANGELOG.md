@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-24
+
+First Maven Central / GitHub Packages release: tag runs full Validate, then signed
+publish, remote hash check and consumer build (see docs/releases.md). Pre-stable
+breaking API changes below: recompile consumers. Live OBS and Windows/macOS
+verification of this revision pending.
+
 ### Breaking
 
 - `ObsDiagnosticsSubscription.next()` returns `Next[SessionDiagnostic]`. Was `Either[ObsError, SessionDiagnostic]`. Migrate: `Right(d)` → `Next.Item(d)`, `Left(ObsError.Closed)` → `Next.Ended`, `Left(e)` → `Next.Failed(e)`. `flow` unchanged. See [ADR-006](docs/decisions/006-pre-stable-api-alignment.md).
@@ -13,13 +20,22 @@
 - `close()` after failure keeps `state` at `Failed`. Was overwritten to `Closed`, hiding failure.
 - `droppedDiagnostics` keeps its count after scope exit or session close. Was 0 once the registry entry or actor was gone.
 - sttp sync: failed JDK send (`ExecutionException(IOException)`) maps to `"WebSocket I/O failed"`, same as zio/fs2. Was `"WebSocket operation failed"`. `ExecutionException(WebSocketClosed)` keeps close code. Other causes unchanged.
-
 - Server sample: SIGTERM/SIGINT stops Netty. `Main` is `OxApp`; hook interrupts root scope, `useInScope` release runs `stop()`. Was skipped: no hook.
 
 ### Changed
 
 - POMs of all seven libraries drop `jsoniter-scala-macros` (runtime dep, never used). `protocol` keeps `jsoniter-scala-core`. Consumers deriving own codecs add macros themselves.
 - `PekkoReconnectingObsClient.run` keeps one private `ActorSystem` for all generations. Was created and terminated per attempt. System terminates (bounded 5 s) when `run` returns. Invalid config or options allocate none.
+
+- Release: tag `vX.Y.Z` publishes to Maven Central (`release.yml`) and GitHub Packages (`publish-packages.yml`). Both reuse `validate.yml` on the tag commit. Old manual preflight dispatch gone. POMs declare `early-semver`.
+- Maven group `com.worxbend` (was provisional `com.worxbend.obs.websocket.client`, never published). Artifact names and Scala packages unchanged.
+
+### Internal
+
+- Perf, measured with new envelope/dispatch/assembler JMH benches: one-pass array decode, no copy for lone final fragment, session stats off actor `State`.
+- `SessionLogic` handshake rules split out; shared actor ask/tell helpers; shared adapter deadline validation.
+- Codegen templates: named macros plus emitted-Scala sketch per template. Generated output byte-identical.
+- Tooling: Ruff + mypy on gate scripts, pinned Python for all tools, weekly OSV scan of codegen locks, release preflight runs every Validate gate.
 
 ## 0.2.0 — 2026-10-11
 
