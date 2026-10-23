@@ -16,6 +16,7 @@
 
 ### Changed
 
+- POMs of all seven libraries drop `jsoniter-scala-macros` (runtime dep, never used). `protocol` keeps `jsoniter-scala-core`. Consumers deriving own codecs add macros themselves.
 - `PekkoReconnectingObsClient.run` keeps one private `ActorSystem` for all generations. Was created and terminated per attempt. System terminates (bounded 5 s) when `run` returns. Invalid config or options allocate none.
 
 ## 0.2.0 — 2026-10-11

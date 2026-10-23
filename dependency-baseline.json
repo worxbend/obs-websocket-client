@@ -16,19 +16,6 @@
         "license_status": "declared-in-pom"
       },
       {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
         "coordinate": "com.softwaremill.jox:channels:1.1.2",
         "file": "channels-1.1.2.jar",
         "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
@@ -143,19 +130,6 @@
             "name": "MIT License",
             "url": "https://opensource.org/licenses/mit-license.html",
             "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
           }
         ],
         "license_status": "declared-in-pom"
@@ -480,19 +454,6 @@
         "license_status": "declared-in-pom"
       },
       {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
         "coordinate": "com.softwaremill.jox:channels:1.1.2",
         "file": "channels-1.1.2.jar",
         "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
@@ -698,19 +659,6 @@
             "name": "MIT License",
             "url": "https://opensource.org/licenses/mit-license.html",
             "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
           }
         ],
         "license_status": "declared-in-pom"
@@ -986,19 +934,6 @@
             "name": "MIT License",
             "url": "https://opensource.org/licenses/mit-license.html",
             "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
           }
         ],
         "license_status": "declared-in-pom"
@@ -2409,19 +2344,6 @@
         "license_status": "declared-in-pom"
       },
       {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
         "coordinate": "com.softwaremill.jox:channels:1.1.2",
         "file": "channels-1.1.2.jar",
         "sha256": "69e0a4de6a55f522e28548f24d2e5afb1476c527d965e649b09bcaedc87eaa31",
@@ -2536,19 +2458,6 @@
             "name": "MIT License",
             "url": "https://opensource.org/licenses/mit-license.html",
             "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-core_3/2.41.2/jsoniter-scala-core_3-2.41.2.pom"
-          }
-        ],
-        "license_status": "declared-in-pom"
-      },
-      {
-        "coordinate": "com.github.plokhotnyuk.jsoniter-scala:jsoniter-scala-macros_3:2.41.2",
-        "file": "jsoniter-scala-macros_3-2.41.2.jar",
-        "sha256": "7a8e8a99e36ef299731efd47a5f0003918325596a3e29f7a8c451ae92364e287",
-        "licenses": [
-          {
-            "name": "MIT License",
-            "url": "https://opensource.org/licenses/mit-license.html",
-            "pom": "com/github/plokhotnyuk/jsoniter-scala/jsoniter-scala-macros_3/2.41.2/jsoniter-scala-macros_3-2.41.2.pom"
           }
         ],
         "license_status": "declared-in-pom"

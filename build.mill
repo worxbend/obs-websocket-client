@@ -32,10 +32,9 @@ object Versions:
     version
 
 object Deps:
-  val jsoniter = Seq(
-    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-core:${Versions.jsoniter}",
-    mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}",
-  )
+  val jsoniterCore = mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-core:${Versions.jsoniter}"
+  // Codec derivation macros: server only. Published libraries hand-write codecs, so POMs skip it.
+  val jsoniterMacros = mvn"com.github.plokhotnyuk.jsoniter-scala::jsoniter-scala-macros:${Versions.jsoniter}"
 
 /** Shared toolchain contract: pinned Scala and the Java 25 assertion every module compiles/tests/runs with.
   * The requirement fails fast with an actionable message when Mill itself runs on a different JDK.
@@ -209,7 +208,7 @@ object protocol extends LibraryModule:
     // Keep Python bytecode caches outside the registered Scala tree and preserve inherited roots.
     super.generatedSources() ++ Seq(PathRef(output))
   def artifactName = "obs-websocket-client-protocol"
-  def mvnDeps      = Deps.jsoniter
+  def mvnDeps      = Seq(Deps.jsoniterCore)
   object test extends Tests
 
 object core extends LibraryModule:
@@ -286,6 +285,7 @@ object server extends ProjectModule:
     mvn"com.softwaremill.sttp.tapir::tapir-jsoniter-scala:${Versions.tapir}",
     mvn"ch.qos.logback:logback-classic:${Versions.logback}",
     mvn"com.github.pureconfig::pureconfig-core:${Versions.pureconfig}",
+    Deps.jsoniterMacros,
   )
   def mainClass        = Some("com.worxbend.obs.websocket.client.server.Main")
   def generatedSources = Task:
