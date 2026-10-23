@@ -144,12 +144,14 @@ object codegen extends PinnedPython:
       Seq.empty[Unit]
     // Explicit roots are essential: native mypy/Ruff check this module, not moduleDeps.
     def toolSources = Task { codegen.sources() ++ sources() }
+    // Gate scripts (tools/*.py): Ruff lint + format too.
+    def gateScripts = Task.Source(mill.api.BuildCtx.workspaceRoot / "tools")
     def lint        = Task:
       runner().run(Seq("-m", "ruff", "check", "--no-cache", "--config", codegen.config().path.toString) ++
-        toolSources().map(_.path.toString))
+        (toolSources() :+ gateScripts()).map(_.path.toString))
     def formatCheck = Task:
       runner().run(Seq("-m", "ruff", "format", "--check", "--no-cache", "--config", codegen.config().path.toString) ++
-        toolSources().map(_.path.toString))
+        (toolSources() :+ gateScripts()).map(_.path.toString))
     override def typeCheck = Task:
       runner().run(Seq(
         "-m",
