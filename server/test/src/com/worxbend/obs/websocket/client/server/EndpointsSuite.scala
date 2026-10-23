@@ -128,8 +128,9 @@ class EndpointsSuite extends munit.FunSuite:
           appender.start()
           logger.addAppender(appender)
           try
+            // run, not main: OxApp.main calls System.exit when interrupted, which would kill the test JVM.
             val application = ox.forkCancellable:
-              Main.main(args = Array(source.toString))
+              ox.supervised(Main.run(args = Vector(source.toString)))
             val port = startupPorts.receive()
             try assertHealth(port = port)
             finally

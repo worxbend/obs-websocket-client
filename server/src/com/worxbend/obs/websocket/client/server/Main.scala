@@ -7,13 +7,17 @@ import org.slf4j.LoggerFactory
 import pureconfig.ConfigSource
 import _root_.sttp.tapir.server.netty.sync.NettySyncServer
 
-/** Local HTTP sample with a loopback bind by default. */
-object Main:
+/** Local HTTP sample with a loopback bind by default.
+  *
+  * `OxApp`: SIGINT/SIGTERM hook interrupts root scope, so `useInScope` release stops Netty before JVM exit.
+  */
+object Main extends OxApp:
   private val logger = LoggerFactory.getLogger(getClass)
 
   /** An optional first argument names a HOCON configuration file; the standard source applies otherwise. */
-  def main(args: Array[String]): Unit = ox.supervised:
-    serve(config = Configuration.read(source = configSource(args = args)))
+  def run(args: Vector[String])(using Ox): ExitCode =
+    serve(config = Configuration.read(source = configSource(args = args.toArray)))
+    ExitCode.Success
 
   private[server] def configSource(args: Array[String]): ConfigSource =
     if args.isEmpty then ConfigSource.default else ConfigSource.file(Paths.get(args(0)))

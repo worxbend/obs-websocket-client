@@ -14,6 +14,8 @@
 - `droppedDiagnostics` keeps its count after scope exit or session close. Was 0 once the registry entry or actor was gone.
 - sttp sync: failed JDK send (`ExecutionException(IOException)`) maps to `"WebSocket I/O failed"`, same as zio/fs2. Was `"WebSocket operation failed"`. `ExecutionException(WebSocketClosed)` keeps close code. Other causes unchanged.
 
+- Server sample: SIGTERM/SIGINT stops Netty. `Main` is `OxApp`; hook interrupts root scope, `useInScope` release runs `stop()`. Was skipped: no hook.
+
 ### Changed
 
 - POMs of all seven libraries drop `jsoniter-scala-macros` (runtime dep, never used). `protocol` keeps `jsoniter-scala-core`. Consumers deriving own codecs add macros themselves.
