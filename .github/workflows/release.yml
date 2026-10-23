@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Stable release version (for example 0.1.0)
+        description: Stable release version (for example 0.3.0)
         required: true
         type: string
       publish:

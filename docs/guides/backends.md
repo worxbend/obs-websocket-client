@@ -28,12 +28,12 @@ The session engine lives in `core` behind the blocking `ObsTransport` seam; each
 
 ```text
 // Mill, default backend:
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-sttp:0.1.0-SNAPSHOT"
+mvn"com.worxbend.obs.websocket.client::obs-websocket-client-sttp:0.3.0-SNAPSHOT"
 // Alternatives:
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-okhttp:0.1.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-zio:0.1.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-fs2:0.1.0-SNAPSHOT"
-mvn"com.worxbend.obs.websocket.client::obs-websocket-client-pekko:0.1.0-SNAPSHOT"
+mvn"com.worxbend.obs.websocket.client::obs-websocket-client-okhttp:0.3.0-SNAPSHOT"
+mvn"com.worxbend.obs.websocket.client::obs-websocket-client-zio:0.3.0-SNAPSHOT"
+mvn"com.worxbend.obs.websocket.client::obs-websocket-client-fs2:0.3.0-SNAPSHOT"
+mvn"com.worxbend.obs.websocket.client::obs-websocket-client-pekko:0.3.0-SNAPSHOT"
 ```
 
 Every adapter brings `core` and `protocol` transitively. The effect adapters pull their runtime (ZIO, cats-effect/fs2, Pekko) transitively but keep it internal: the public API stays the blocking direct-style one on every backend.

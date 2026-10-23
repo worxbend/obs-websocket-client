@@ -36,7 +36,7 @@ It checks transitive dependency resolution and Java 25 execution for each adapte
 the temporary repository. It performs no remote publication.
 
 `OBS_RELEASE_VERSION` selects a stable `x.y.z` version; otherwise artifacts use
-`0.1.0-SNAPSHOT`. The manual `Release preflight and publish` workflow defaults
+`0.3.0-SNAPSHOT`. The manual `Release preflight and publish` workflow defaults
 to preflight only. It checks exact fresh coverage, formatting, generation,
 packaging, a separate consumer, and documentation before its publication step.
 A successful publish also creates the GitHub Release for the tag with generated
