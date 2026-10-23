@@ -181,28 +181,29 @@ final class ObsSession private[client] (
   private def subscribe[A](eventTypes: Set[String], policy: OverflowPolicy, representation: EventRepresentation)(
     use: ObsSubscription => A
   ): Either[ObsError, A] =
-    val id      = dependencies.nextRequestId()
-    val channel = Channel.buffered[Event](config.subscriptionCapacity)
-    val dropped = new AtomicLong(0L)
-    try
-      ask(f =
-        _.subscribe(
-          id             = id,
-          channel        = channel,
-          types          = eventTypes,
-          policy         = policy,
-          representation = representation,
-          dropped        = dropped,
-        )
-      ).map: _ =>
-        use(
-          new ObsSubscription(
-            channel = channel,
-            () => dropped.get(),
-            nanoTime = dependencies.nanoTime,
+    // Seeds are not wire IDs: a repeated seed must still yield a unique subscription key.
+    ids.next(seed = dependencies.nextRequestId()).flatMap: id =>
+      val channel = Channel.buffered[Event](config.subscriptionCapacity)
+      val dropped = new AtomicLong(0L)
+      try
+        ask(f =
+          _.subscribe(
+            id             = id,
+            channel        = channel,
+            types          = eventTypes,
+            policy         = policy,
+            representation = representation,
+            dropped        = dropped,
           )
-        )
-    finally uninterruptible(tellSafely(f = _.unsubscribe(id = id, owner = channel)))
+        ).map: _ =>
+          use(
+            new ObsSubscription(
+              channel = channel,
+              () => dropped.get(),
+              nanoTime = dependencies.nanoTime,
+            )
+          )
+      finally uninterruptible(tellSafely(f = _.unsubscribe(id = id, owner = channel)))
 
   /** Execute heterogeneous requests, preserving raw response data and each submitted position. Typed entries are
     * capability-checked like [[request]]; `RawRequest` entries bypass that check.
@@ -275,17 +276,17 @@ final class ObsSession private[client] (
   def withDiagnostics[A](capacity: Int = 128)(use: ObsDiagnosticsSubscription => A): Either[ObsError, A] =
     if capacity <= 0 then Left(ObsError.InvalidConfiguration(message = "Diagnostic capacity must be positive"))
     else
-      val id      = dependencies.nextRequestId()
-      val channel = Channel.buffered[SessionDiagnostic](capacity)
-      try
-        ask(f = _.subscribeDiagnostics(id = id, channel = channel)).map: _ =>
-          use(
-            new ObsDiagnosticsSubscription(
-              channel = channel,
-              () => logic.ask(_.diagnosticLosses(id = id)).catching[ChannelClosedException].getOrElse(0L),
+      ids.next(seed = dependencies.nextRequestId()).flatMap: id =>
+        val channel = Channel.buffered[SessionDiagnostic](capacity)
+        try
+          ask(f = _.subscribeDiagnostics(id = id, channel = channel)).map: _ =>
+            use(
+              new ObsDiagnosticsSubscription(
+                channel = channel,
+                () => logic.ask(_.diagnosticLosses(id = id)).catching[ChannelClosedException].getOrElse(0L),
+              )
             )
-          )
-      finally uninterruptible(tellSafely(f = _.unsubscribeDiagnostics(id = id, owner = channel)))
+        finally uninterruptible(tellSafely(f = _.unsubscribeDiagnostics(id = id, owner = channel)))
 
   /** The current connection phase, for observing lifecycle transitions without subscribing to diagnostics. */
   def state: Either[ObsError, ConnectionState] = ask(s => Right(s.phase))

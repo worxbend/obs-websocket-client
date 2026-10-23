@@ -90,7 +90,9 @@ class SessionSuite extends FunSuite:
       ),
     )
 
-  private def connected[A](cfg: ObsConfig = config)(script: Peer => Unit)(
+  private def connected[A](cfg: ObsConfig = config, deps: SessionDependencies = SessionDependencies.live)(
+    script: Peer => Unit
+  )(
     use: (ObsSession, Peer) => A
   ): Either[ObsError, A] =
     supervised:
@@ -100,7 +102,8 @@ class SessionSuite extends FunSuite:
         peer.identify().discard
         peer.discover()
         script(peer)
-      val result = ObsClient.withTransport(transport = peer, config = cfg)(session => use(session, peer))
+      val result =
+        ObsClient.withTransport(transport = peer, config = cfg, dependencies = deps)(session => use(session, peer))
       assert(peer.closed.tryReceive().nonEmpty)
       result
 
@@ -1043,6 +1046,14 @@ class SessionSuite extends FunSuite:
         subscription
     }.toOption.get.toOption.get
     assertEquals(escaped.droppedEvents, 1L)
+
+  test("repeated ID seeds still give nested event and diagnostic scopes distinct IDs"):
+    val result = connected(deps = SessionDependencies(nextRequestId = () => "x"))(_ => ()) { (session, _) =>
+      val events      = session.withEvents()(_ => session.withEvents()(_ => ()))
+      val diagnostics = session.withDiagnostics()(_ => session.withDiagnostics()(_ => ()))
+      (events, diagnostics)
+    }
+    assertEquals(result, Right((Right(Right(())), Right(Right(())))))
 
   test("diagnostics subscribers observe the concrete session failure once before completion"):
     val failure = ObsError.Transport(message = "Peer closed", closeCode = Some(1006))
