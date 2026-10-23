@@ -4,11 +4,18 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Release workflows run the full gate on the tag commit before any credential is used.
+  workflow_call:
+    outputs:
+      validated-sha:
+        description: Exact commit that passed every Validate gate
+        value: ${{ jobs.validated.outputs.sha }}
 permissions:
   contents: read
 concurrency:
-  group: validate-${{ github.ref }}
-  cancel-in-progress: true
+  # github.workflow is the caller's name under workflow_call: Central and Packages runs on one tag don't cancel each other.
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   validate:
     runs-on: ubuntu-24.04
@@ -93,6 +100,21 @@ jobs:
             ~/.cache/coursier
             out/
           key: ${{ runner.os }}-${{ runner.arch }}-mill-python-${{ hashFiles('build.mill', '.mill-version', '.python-version', 'codegen/requirements*.lock') }}
+  validated:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - id: commit
+        run: |
+          actual=$(git rev-parse HEAD)
+          test "$actual" = "$GITHUB_SHA"
+          printf 'sha=%s\n' "$actual" >> "$GITHUB_OUTPUT"
   pages:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate
