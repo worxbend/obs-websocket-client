@@ -1,6 +1,18 @@
+{#
+  -> RequestApi.scala. One facade class per category, one method per request:
+
+  trait RequestApi[E] extends RequestExecutor[E]:
+    val scenes: ScenesRequests[E] = new ScenesRequests(this)
+    ...
+
+  final class ScenesRequests[E] private[protocol] (executor: RequestExecutor[E]):
+    def getSceneList(<params>): Either[E, requests.GetSceneListResponse] =
+      executor.request(requests.GetSceneList(<args>))
+#}
 {% import 'macros/source.j2' as source %}
 {% import 'macros/fields.j2' as fields %}
-{{ source.header(base, provenance) }}/** Minimal execution seam for category facades; implementations own request policy. */
+{{ source.header(base, provenance) -}}
+/** Minimal execution seam for category facades; implementations own request policy. */
 trait RequestExecutor[E]:
   def request[A](request: Request[A]): Either[E, A]
 
@@ -18,10 +30,12 @@ final class {{ category.class_name }}[E] private[protocol] (executor: RequestExe
   def {{ request.method_name }}({{ fields.parameters(request.request_fields) }}): Either[E, requests.{{ request.name }}Response] =
     executor.request(requests.{{ request.name }}({{ fields.arguments(request.request_fields) }}))
 {% if not loop.last %}
+{# blank line between methods #}
 
 {% endif %}
 {% endfor %}
 {% if not loop.last %}
+{# blank line between classes #}
 
 {% endif %}
 {% endfor %}

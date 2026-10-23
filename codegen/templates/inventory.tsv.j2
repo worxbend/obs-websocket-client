@@ -1,6 +1,10 @@
+{#
+  -> catalog-inventory.tsv. One row per request/event, stable sort, tab separated.
+#}
 kind	name	initial-version	status	restrictions
 {% for entry in schema.inventory | sort(attribute='kind,name,initial_version,restrictions', case_sensitive=true) %}
 {{ entry.kind }}	{{ entry.name }}	{{ entry.initial_version }}	generated; live OBS verification deferred	{{ entry.restrictions | collapse }}
 {% else %}
+{# no entries: blank line keeps output stable #}
 
 {% endfor %}

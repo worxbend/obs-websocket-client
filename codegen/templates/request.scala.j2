@@ -1,17 +1,45 @@
+{#
+  -> requests/<Name>.scala. Four declarations:
+
+  final case class Name(<params>) extends Request[NameResponse]:
+    def requestType: String = "Name"
+    def requestData: JsonObject = <encode>
+    def decodeResponse(data: JsonObject) = NameResponse.decode(data)
+
+  object Name:
+    private[protocol] def minimal: Name = Name(<required args only>)
+    def decode(data: JsonObject): Either[ProtocolError, Name] = <decode>
+
+  final case class NameResponse(<params>):
+    def toJson: JsonObject = <encode>
+
+  object NameResponse:
+    def decode(data: JsonObject): Either[ProtocolError, NameResponse] = <decode>
+
+  <params>/<encode>/<decode>: macros/fields.j2.
+#}
 {% import 'macros/source.j2' as source %}
 {% import 'macros/fields.j2' as fields %}
-{{ source.header(base ~ '.requests', provenance, true) }}{{ source.documentation(request.documentation, request.name, provenance, request.request_fields) }}final case class {{ request.name }}({{ fields.parameters(request.request_fields) }}) extends Request[{{ request.name }}Response]:
-  def requestType: String = {{ request.name | quote }}
+{% set name = request.name %}
+{% set response = name ~ 'Response' %}
+{{ source.header(base ~ '.requests', provenance, true) -}}
+
+{{ source.documentation(request.documentation, name, provenance, request.request_fields) -}}
+final case class {{ name }}({{ fields.parameters(request.request_fields) }}) extends Request[{{ response }}]:
+  def requestType: String = {{ name | quote }}
   def requestData: JsonObject = {{ fields.encode(request.request_fields) }}
-  def decodeResponse(data: JsonObject): Either[ProtocolError, {{ request.name }}Response] = {{ request.name }}Response.decode(data)
+  def decodeResponse(data: JsonObject): Either[ProtocolError, {{ response }}] = {{ response }}.decode(data)
 
-{{ source.see_doc('JSON decoder for [[' ~ request.name ~ ']] requests.', request.name, request.name, provenance) }}object {{ request.name }}:
+{{ source.see_doc('JSON decoder for [[' ~ name ~ ']] requests.', name, name, provenance) -}}
+object {{ name }}:
   // Baseline request with every optional field omitted; exercises the constructor defaults.
-  private[protocol] def minimal: {{ request.name }} = {{ request.name }}({{ fields.minimal_arguments(request.request_fields) }})
-  def decode(data: JsonObject): Either[ProtocolError, {{ request.name }}] = {{ fields.decode(request.name, request.request_fields) }}
+  private[protocol] def minimal: {{ name }} = {{ name }}({{ fields.minimal_arguments(request.request_fields) }})
+  def decode(data: JsonObject): Either[ProtocolError, {{ name }}] = {{ fields.decode(name, request.request_fields) }}
 
-{{ source.see_doc('Response payload for [[' ~ request.name ~ ']].', request.name ~ 'Response', request.name, provenance, request.response_fields) }}final case class {{ request.name }}Response({{ fields.parameters(request.response_fields) }}):
+{{ source.see_doc('Response payload for [[' ~ name ~ ']].', response, name, provenance, request.response_fields) -}}
+final case class {{ response }}({{ fields.parameters(request.response_fields) }}):
   def toJson: JsonObject = {{ fields.encode(request.response_fields) }}
 
-{{ source.see_doc('JSON decoder for [[' ~ request.name ~ 'Response]].', request.name ~ 'Response', request.name, provenance) }}object {{ request.name }}Response:
-  def decode(data: JsonObject): Either[ProtocolError, {{ request.name }}Response] = {{ fields.decode(request.name ~ 'Response', request.response_fields) }}
+{{ source.see_doc('JSON decoder for [[' ~ response ~ ']].', response, name, provenance) -}}
+object {{ response }}:
+  def decode(data: JsonObject): Either[ProtocolError, {{ response }}] = {{ fields.decode(response, request.response_fields) }}

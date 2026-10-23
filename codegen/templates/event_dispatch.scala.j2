@@ -1,5 +1,15 @@
+{#
+  -> Event.scala. Event trait, UnknownEvent, and eventType -> decoder match:
+
+  object Event:
+    def decode(eventType: String, data: JsonObject): Either[ProtocolError, Event] = eventType match
+      case "A" => events.A.decode(data)
+      ...
+      case _ => Right(UnknownEvent(eventType, data))
+#}
 {% import 'macros/source.j2' as source %}
-{{ source.header(base, provenance) }}/** Typed OBS event with its decoded payload. */
+{{ source.header(base, provenance) -}}
+/** Typed OBS event with its decoded payload. */
 trait Event:
   def eventType: String
   def eventData: JsonObject
@@ -13,6 +23,7 @@ object Event:
 {% for event in schema.events %}
     case {{ event.name | quote }} => events.{{ event.name }}.decode(data)
 {% else %}
+{# no events: blank line keeps output stable #}
 
 {% endfor %}
     case _ => Right(UnknownEvent(eventType, data))

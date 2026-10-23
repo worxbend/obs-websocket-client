@@ -1,11 +1,31 @@
+{#
+  -> events/<Name>.scala
+
+  final case class Name(<params>) extends Event:
+    def eventType: String = "Name"
+    def eventData: JsonObject = <encode>
+
+  object Name:
+    val selector: EventSelector[Name] = EventSelector("Name"):   typed subscription filter
+      case event: Name => Some(event)
+      case _ => None
+    def decode(data: JsonObject): Either[ProtocolError, Name] = <decode>
+
+  <params>/<encode>/<decode>: macros/fields.j2.
+#}
 {% import 'macros/source.j2' as source %}
 {% import 'macros/fields.j2' as fields %}
-{{ source.header(base ~ '.events', provenance, true) }}{{ source.documentation(event.documentation, event.name, provenance, event.fields) }}final case class {{ event.name }}({{ fields.parameters(event.fields) }}) extends Event:
-  def eventType: String = {{ event.name | quote }}
+{% set name = event.name %}
+{{ source.header(base ~ '.events', provenance, true) -}}
+
+{{ source.documentation(event.documentation, name, provenance, event.fields) -}}
+final case class {{ name }}({{ fields.parameters(event.fields) }}) extends Event:
+  def eventType: String = {{ name | quote }}
   def eventData: JsonObject = {{ fields.encode(event.fields) }}
 
-{{ source.see_doc('JSON decoder for [[' ~ event.name ~ ']] events.', event.name, event.name, provenance) }}object {{ event.name }}:
-  val selector: EventSelector[{{ event.name }}] = EventSelector({{ event.name | quote }}):
-    case event: {{ event.name }} => Some(event)
+{{ source.see_doc('JSON decoder for [[' ~ name ~ ']] events.', name, name, provenance) -}}
+object {{ name }}:
+  val selector: EventSelector[{{ name }}] = EventSelector({{ name | quote }}):
+    case event: {{ name }} => Some(event)
     case _ => None
-  def decode(data: JsonObject): Either[ProtocolError, {{ event.name }}] = {{ fields.decode(event.name, event.fields) }}
+  def decode(data: JsonObject): Either[ProtocolError, {{ name }}] = {{ fields.decode(name, event.fields) }}

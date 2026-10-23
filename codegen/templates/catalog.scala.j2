@@ -1,13 +1,39 @@
+{#
+  -> Catalog.scala
+
+  object Catalog:
+    val requestNames: Vector[String] = Vector("A", "B", ...)
+    private[protocol] val minimalRequests: Vector[Request[?]] = Vector(requests.A.minimal, ...)
+    <dispatch decodeRequest>        typed request decoders, RawRequest fallback
+    <dispatch roundTripResponse>    response decode -> toJson, tests only
+#}
 {% import 'macros/source.j2' as source %}
+{#
+  Name -> decoder table. Split in Maps of 24 so no method passes JVM size limit:
+
+    private val <m>Decoders: Map[...] = <m>0 ++ <m>1 ++ ...     (Map.empty if no requests)
+    def <m>(name: String, data: JsonObject): Either[ProtocolError, R] =
+      <m>Decoders.get(name).fold(...)(<fallback>)(_(data))
+    private def <m>0: Map[...] = Map(
+      "A" -> ((data: JsonObject) => requests.A.decode(data)),
+      ...
+    )
+#}
 {% macro dispatch(method, result, fallback, response=false) %}
-  private val {{ method }}Decoders: Map[String, JsonObject => Either[ProtocolError, {{ result }}]] = {% for group in schema.requests | batch(24) %}{{ method }}{{ loop.index0 }}{{ ' ++ ' if not loop.last else '' }}{% else %}Map.empty{% endfor %}
+{% set chunks = schema.requests | batch(24) | list %}
+{% set decoder_type = "Map[String, JsonObject => Either[ProtocolError, " ~ result ~ "]]" %}
+  private val {{ method }}Decoders: {{ decoder_type }} = {% for chunk in chunks %}{{ method }}{{ loop.index0 }}{{ ' ++ ' if not loop.last else '' }}{% else %}Map.empty{% endfor %}
 
   {{ 'private[protocol] ' if response else '' }}def {{ method }}(name: String, data: JsonObject): Either[ProtocolError, {{ result }}] =
     {{ method }}Decoders.get(name).fold[Either[ProtocolError, {{ result }}]]({{ fallback }})(_(data))
-{% for group in schema.requests | batch(24) %}
-  private def {{ method }}{{ loop.index0 }}: Map[String, JsonObject => Either[ProtocolError, {{ result }}]] = Map(
-{% for request in group %}
-    {{ request.name | quote }} -> ((data: JsonObject) => requests.{{ request.name }}{% if response %}Response{% endif %}.decode(data){% if response %}.map(_.toJson){% endif %}){{ ',' if not loop.last else '' }}
+{% for chunk in chunks %}
+  private def {{ method }}{{ loop.index0 }}: {{ decoder_type }} = Map(
+{% for request in chunk %}
+{% if response %}
+    {{ request.name | quote }} -> ((data: JsonObject) => requests.{{ request.name }}Response.decode(data).map(_.toJson)){{ ',' if not loop.last else '' }}
+{% else %}
+    {{ request.name | quote }} -> ((data: JsonObject) => requests.{{ request.name }}.decode(data)){{ ',' if not loop.last else '' }}
+{% endif %}
 {% endfor %}
   )
 {% if not loop.last %}
@@ -17,6 +43,6 @@
 {% endmacro %}
 {{ source.header(base, provenance) }}/** Generated catalog of the pinned request types with typed decoders and raw fallbacks. */
 object Catalog:
-  val requestNames: Vector[String] = Vector({% for request in schema.requests %}{{ request.name | quote }}{{ ', ' if not loop.last else '' }}{% endfor %})
+  val requestNames: Vector[String] = Vector({{ schema.requests | map(attribute='name') | map('quote') | join(', ') }})
   private[protocol] val minimalRequests: Vector[Request[?]] = Vector({% for request in schema.requests %}requests.{{ request.name }}.minimal{{ ', ' if not loop.last else '' }}{% endfor %})
 {{ dispatch('decodeRequest', 'Request[?]', 'Right(RawRequest(name, data))') }}{{ dispatch('roundTripResponse', 'JsonObject', 'Right(data)', true) -}}

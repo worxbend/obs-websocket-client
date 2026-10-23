@@ -52,7 +52,7 @@ The parser/normalizer do not depend on templates. Templates do not read files or
 
 ## Editing templates
 
-`codegen/templates/` contains complete-file Jinja templates for request/response, event, enum, event dispatch, catalog, request API, and inventory output. Shared macros handle repeated source/field syntax; keep full declarations readable in their output-family template rather than assembling opaque whole-class fragments in Python.
+`codegen/templates/` contains complete-file Jinja templates for request/response, event, enum, event dispatch, catalog, request API, and inventory output. Shared macros handle repeated source/field syntax; keep full declarations readable in their output-family template rather than assembling opaque whole-class fragments in Python. Each template opens with a Jinja comment that sketches the Scala it emits; change sketch with template. Templates are layout-only refactor targets: goldens and `catalog-sha256.json` must stay byte-identical.
 
 Jinja runs with StrictUndefined, HTML autoescaping disabled, explicit LF output, and preserved trailing newlines. Keep whitespace intentional. Do not trim complete rendered files or change golden expectations merely to silence a formatting difference. Semantic decisions belong in normalization; layout belongs in templates.
 
