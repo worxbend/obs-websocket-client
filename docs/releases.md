@@ -59,6 +59,11 @@ Token: [Central Portal → Generate User Token](https://central.sonatype.org/pub
 with publish rights on verified namespace `com.worxbend`. Public key must be
 on a [Sonatype-supported keyserver](https://central.sonatype.org/publish/requirements/gpg/).
 
+Signing key: dedicated RSA-4096, created 2026-10-24, expires 2028-10-23, fingerprint
+`1FF2F8D54E25E358343415EE015BFB96A0962033`. Public key: [`tools/release-signing-key.asc`](../tools/release-signing-key.asc),
+also on `hkps://keyserver.ubuntu.com`. Private key and passphrase live only in repo secrets and
+maintainer backup, never in git. Rotation:
+
 ```sh
 gh secret set MILL_SONATYPE_USERNAME --repo worxbend/obs-websocket-client
 gh secret set MILL_SONATYPE_PASSWORD --repo worxbend/obs-websocket-client
