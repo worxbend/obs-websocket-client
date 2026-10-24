@@ -83,6 +83,7 @@ jobs:
           java-version: 25.0.3
       - name: Tag, changelog and all seven publish versions agree
         run: python3 tools/validate_release.py
+      # One bundle = one Central deployment: all seven release or none (was one deployment per module).
       - name: Publish signed libraries to Maven Central
         timeout-minutes: 30
         env:
@@ -93,6 +94,7 @@ jobs:
         run: >-
           ./mill --no-server mill.javalib.SonatypeCentralPublishModule/
           --publishArtifacts '{protocol,core,sttp,okhttp,zio,fs2,pekko}.publishArtifacts'
+          --bundleName "obs-websocket-client-$OBS_RELEASE_VERSION"
           --shouldRelease true --awaitTimeout 1200000
       - name: Verify all 28 public Central files against built artifacts
         timeout-minutes: 35

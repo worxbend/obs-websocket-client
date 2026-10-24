@@ -1,0 +1,134 @@
+# Finish a partially released version: publish only the modules Central lacks.
+# Use when release.yml uploaded some modules and failed on others (pre-bundle releases).
+# Tag commit must already have passed Validate in its tag run; this does not rebuild that proof.
+name: Recover partial Central release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag already pushed, e.g. v0.3.0
+        required: true
+        type: string
+      modules:
+        description: Comma-separated missing modules, e.g. core,pekko
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: central-refs/tags/${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag }}
+      MODULES: ${{ inputs.modules }}
+      CENTRAL: https://repo.maven.apache.org/maven2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - name: Inputs name a stable tag, its exact commit, and known modules
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$MODULES" =~ ^(protocol|core|sttp|okhttp|zio|fs2|pekko)(,(protocol|core|sttp|okhttp|zio|fs2|pekko))*$ ]]
+          git fetch --no-tags origin "+refs/tags/$TAG:refs/tags/$TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$TAG^{commit}")"
+          printf 'OBS_RELEASE_VERSION=%s\n' "${TAG#v}" >> "$GITHUB_ENV"
+      - name: Requested modules are absent from Central, all others present
+        run: |
+          for m in protocol core sttp okhttp zio fs2 pekko; do
+            pom="$CENTRAL/com/worxbend/obs-websocket-client-${m}_3/$OBS_RELEASE_VERSION/obs-websocket-client-${m}_3-$OBS_RELEASE_VERSION.pom"
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$pom")
+            if [[ ",$MODULES," == *",$m,"* ]]; then want=404; else want=200; fi
+            if [ "$code" != "$want" ]; then
+              echo "::error::$m: Central returned $code, expected $want. Never re-upload a released module."
+              exit 1
+            fi
+          done
+      - name: Publishing credentials are present
+        env:
+          MILL_SONATYPE_USERNAME: ${{ secrets.MILL_SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.MILL_SONATYPE_PASSWORD }}
+          MILL_PGP_SECRET_BASE64: ${{ secrets.MILL_PGP_SECRET_BASE64 }}
+        run: |
+          for variable in MILL_SONATYPE_USERNAME MILL_SONATYPE_PASSWORD MILL_PGP_SECRET_BASE64; do
+            [ -n "${!variable}" ] || { echo "::error::Missing secret $variable"; exit 1; }
+          done
+      - name: Provision pinned codegen Python
+        id: python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version-file: .python-version
+      - name: Select provisioned interpreter
+        run: printf '%s\n' 'OBS_CODEGEN_PYTHON=${{ steps.python.outputs.python-path }}' >> "$GITHUB_ENV"
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 25.0.3
+      - name: All seven publish versions equal the tag
+        run: |
+          for m in protocol core sttp okhttp zio fs2 pekko; do
+            test "$(./mill --no-server --ticker false show "$m.publishVersion" | tr -d '"')" = "$OBS_RELEASE_VERSION"
+          done
+      - name: Publish missing modules to Maven Central as one bundle
+        timeout-minutes: 30
+        env:
+          MILL_SONATYPE_USERNAME: ${{ secrets.MILL_SONATYPE_USERNAME }}
+          MILL_SONATYPE_PASSWORD: ${{ secrets.MILL_SONATYPE_PASSWORD }}
+          MILL_PGP_SECRET_BASE64: ${{ secrets.MILL_PGP_SECRET_BASE64 }}
+          MILL_PGP_PASSPHRASE: ${{ secrets.MILL_PGP_PASSPHRASE }}
+        run: >-
+          ./mill --no-server mill.javalib.SonatypeCentralPublishModule/
+          --publishArtifacts "{$MODULES}.publishArtifacts"
+          --bundleName "obs-websocket-client-$OBS_RELEASE_VERSION-recover"
+          --shouldRelease true --awaitTimeout 1200000
+      - name: Hash-check recovered files; all 28 files public
+        timeout-minutes: 35
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, subprocess, sys, time, urllib.request
+          sys.path.insert(0, "tools")
+          import verify_published as vp
+          version, modules = os.environ["OBS_RELEASE_VERSION"], os.environ["MODULES"].split(",")
+          files = []
+          for m in modules:
+              shown = subprocess.check_output(["./mill", "--no-server", "--ticker", "false", "show", f"{m}.publishArtifacts"], text=True)
+              files += vp.artifact_files(json.loads(shown), m, version)
+          vp.verify(files, vp.CENTRAL, {}, open_url=urllib.request.urlopen, clock=time.monotonic, sleep=time.sleep)
+          deadline = time.monotonic() + 1800
+          for m in vp.LIBRARIES:
+              for suffix in vp.SUFFIXES:
+                  artifact = f"obs-websocket-client-{m}_3"
+                  url = f"{vp.CENTRAL}/com/worxbend/{artifact}/{version}/{artifact}-{version}{suffix}"
+                  vp.fetch(urllib.request.Request(url), deadline, open_url=urllib.request.urlopen, clock=time.monotonic, sleep=time.sleep)
+                  print(f"Present {url}", flush=True)
+          PYTHON
+      - name: Attest the recovered jars
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: out/*/*jar.dest/out.jar
+      - name: Isolated consumer resolves every artifact from Central
+        timeout-minutes: 20
+        run: tools/consumer_smoke.sh "$OBS_RELEASE_VERSION" "$CENTRAL"
+  release:
+    name: Announce verified Central release
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub Release for the tag unless it exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --generate-notes

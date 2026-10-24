@@ -21,7 +21,7 @@ Pushing tag `vX.Y.Z` starts two independent workflows (same shape as glyphora an
 
 | Workflow | Destination | Steps after full Validate on tag commit |
 |---|---|---|
-| `release.yml` | Maven Central (`central.sonatype.com`) | credential + licence-review check → `validate_release.py` → signed publish, auto-release → hash-check 28 public files → attest jars → isolated consumer from Central → GitHub Release |
+| `release.yml` | Maven Central (`central.sonatype.com`) | credential + licence-review check → `validate_release.py` → signed publish as one bundle, auto-release → hash-check 28 public files → attest jars → isolated consumer from Central → GitHub Release |
 | `publish-packages.yml` | `https://maven.pkg.github.com/worxbend/obs-websocket-client` | `validate_release.py` → publish with `GITHUB_TOKEN` → hash-check 28 files → isolated consumer |
 
 Both call `validate.yml` through `workflow_call`, so every gate (exact coverage, formatting,
@@ -108,6 +108,18 @@ locks only — JVM advisories need manual review before release.
 Both workflows accept `workflow_dispatch` with a **tag** selected; branches fail first job. Runs
 for one tag and destination serialize, never cancel an upload mid-way. Missing secret or licence
 variable fails before any upload: set it, then rerun failed jobs.
+
+**Partial release** (before `--bundleName`, each module was its own Central deployment, so some
+could release while others failed validation — v0.3.0 hit this: key not yet on keyserver).
+Released modules can't be dropped or re-uploaded. Run `release-recover.yml` with the tag and the
+missing modules (`gh workflow run release-recover.yml -f tag=v0.3.0 -f modules=core,pekko`). It
+refuses modules already on Central, requires the rest present, publishes the missing set as one
+bundle, hash-checks it, confirms all 28 files public, runs the Central consumer, then creates the
+GitHub Release. It does not re-run Validate: tag commit must already have passed it. Failed
+deployments left in the Central Portal can be dropped there; that is cosmetic.
+
+New signing key: upload to `keyserver.ubuntu.com` **and** `keys.openpgp.org`, and wait until both
+return it by fingerprint before tagging.
 
 Maven coordinates are immutable. After partial upload, inspect the Central Portal deployment
 before rerunning. If upload succeeded but verification or consumer step failed, rerun only that
