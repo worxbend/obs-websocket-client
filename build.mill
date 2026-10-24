@@ -23,8 +23,8 @@ object Versions:
   val pureconfig = "0.17.10"
   val logback    = "1.6.5"
 
-  // Next minor after the latest tag (v0.2.0); snapshot must sort above every released version.
-  val snapshot = "0.3.0-SNAPSHOT"
+  // Next minor after the latest tag (v0.3.0); snapshot must sort above every released version.
+  val snapshot = "0.4.0-SNAPSHOT"
 
   def release(environment: Map[String, String]): String =
     val version = environment.getOrElse("OBS_RELEASE_VERSION", snapshot)
