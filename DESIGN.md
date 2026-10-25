@@ -60,7 +60,7 @@ This is a published open-source library on Maven Central with (soon) external co
 | Q2 | Is there real demand, and for which adapters and JVM baselines? | ADR-009 (adapter portfolio), ADR-010 (JVM/Scala baseline), and whether to go to 1.0 at all. |
 | Q3 | Does upstream obs-websocket plan a breaking protocol (RPC 2 / 6.x) **[verify]**? | Timing of the 1.0 freeze and the shape of a multi-schema catalog. |
 | Q4 | Does the Central Portal expose per-artifact download stats to namespace owners **[verify]**? | Instrument for the demand probe; otherwise use GitHub signals only. |
-| Q5 | Does TASTy-MiMa (scalacenter) and a MiMa plugin exist for Mill 1.x **[verify]**? | How ADR-008 is implemented (plugin vs. a custom Mill task). |
+| Q5 | ~~Does TASTy-MiMa and a MiMa plugin exist for Mill 1.x?~~ **Answered 2026-10-25:** `mill-mima_mill1` 0.2.2 works on Mill 1.1.10 and is wired in (report-only). TASTy-MiMa 1.4.1 exists as a library only; no Mill plugin. | ADR-008: MiMa via plugin now; TASTy-MiMa needs a small custom Mill task (M2). |
 
 ---
 
@@ -486,7 +486,7 @@ The library holds no persistent data. **[F]**
 **Schema evolution.**
 - Wire to library: forward-compatible by design (unknown fields retained, unknown events preserved, enums keep unknown values).
 - Library to consumer: governed by ADR-008.
-- Adding an upstream field to a generated case class changes its constructor and `copy`, which is **binary-breaking** for consumers who construct or pattern-match it. **[D]** Generated *response* and *event* types are stable for reading (field accessors) but not for construction or exhaustive matching. Document this in the stability policy and configure the gate to allow new fields there. Request constructors use defaulted `Field.Missing` parameters **[verify current codegen shape]** so new optional request fields stay source-compatible. **[Q]** Whether binary compatibility can be kept for request constructors needs E4-style spike work under the compat gate (see risk R6).
+- Adding an upstream field to a generated case class changes its constructor and `copy`, which is **binary-breaking** for consumers who construct or pattern-match it. **[D]** Generated *response* and *event* types are stable for reading (field accessors) but not for construction or exhaustive matching. Document this in the stability policy and configure the gate to allow new fields there. The M0 spike showed that today's generated case classes break binary compatibility on *any* added field, including optional request fields. ADR-014 changes the generated shapes before 1.0.
 
 Retention: n/a. There is no stored data.
 
@@ -638,6 +638,19 @@ A library has no SLOs of its own. It owes consumers **SLIs they can compute** pl
 - **Door:** two-way.
 - **Drivers:** QA2, QA3.
 
+### ADR-014: Generated types evolve additively
+- **Status:** Proposed. Comes from the M0 compatibility spike (R6).
+- **Context:** Generated requests and responses are case classes, and category facades expand request fields into parameters. Any upstream field addition changes their constructor, `apply`, `copy` and facade signatures, which is a binary break. ADR-008 would then force a major release for routine schema bumps.
+- **Decision:** Before 1.0, change the codegen templates so that adding fields is binary-compatible:
+  - Requests: final classes with a private constructor, a no-arg or required-fields-only `apply`, and `withX` setters for optional fields. A new optional field adds a `withX` method and nothing else.
+  - Responses and events: final classes with accessors only; no public constructor, `copy` or `unapply`. Tests and fixtures construct them through a package-private factory.
+  - Facades: take the request value (`scenes.setCurrentProgramScene(SetCurrentProgramScene("Live"))`) instead of expanded fields, or keep one overload per historical arity. Prefer the request value: smaller surface, no history needed.
+  - A new *required* request field is still a break. That is correct: old calls would fail on the server.
+- **Consequences:** + Schema bumps become minors. − Source-breaking for pattern matching and positional construction (one-time, in 0.4.0). − Larger template change; the 100% coverage gate applies.
+- **Alternatives:** Keep case classes and filter MiMa (hides real breaks from users). Version `protocol` independently of the engine (core compiles against generated types such as `GetVersionResponse`, so the break propagates anyway).
+- **Door:** one-way at 1.0.
+- **Drivers:** QA2, UC4, UC8.
+
 ### Deferred decisions and their triggers
 
 | Decision | Trigger that forces it |
@@ -674,7 +687,7 @@ A library has no SLOs of its own. It owes consumers **SLIs they can compute** pl
 | R3 | Maintainer toil and burnout | Medium | High | Lockstep automation, Renovate/Scala Steward-style bumps **[verify Mill support]**, adapter demotion policy | Maintainer | Dependency PRs open > 30 days |
 | R4 | OBS behavior drift | Medium | Medium | ADR-012 matrix; scheduled schema diff | CI | Weekly matrix red; upstream revision moves |
 | R5 | Flaky container OBS tests block releases | Medium | Medium | Retry once; pin image digests; manual override with a recorded reason | Maintainer | > 1 flaky failure/month |
-| R6 | Codegen output is binary-incompatible on each schema bump | High | Medium | §9.5 policy; compat gate filters for generated types; test on the first schema bump after 1.0 | Maintainer | Compat gate red on a schema-only PR |
+| R6 | Codegen output is binary-incompatible on each schema bump. **Confirmed by spike 2026-10-25:** adding one optional request field and one response field gave 9 MiMa breaks (constructors, `apply`, `copy`, and the category facade method) | Certain | High | §9.5 policy; compat gate filters for generated types; test on the first schema bump after 1.0 | Maintainer | Compat gate red on a schema-only PR |
 | R7 | Bus factor 1 (signing key, Central namespace) | Medium | High | Second key holder or escrow; document the recovery path | Maintainer | — (structural) |
 | R8 | Backend ecosystem breaks (Pekko/ZIO/CE majors) | Low-Medium | Medium | Adapters isolated; contract suite; demotion policy | Maintainer | Upstream major announced |
 
@@ -710,7 +723,7 @@ A library has no SLOs of its own. It owes consumers **SLIs they can compute** pl
 | Milestone | Scope | Exit criteria | Validates |
 |---|---|---|---|
 | **M0: Validate (≈ 4 weeks)** | E1 RFC, E2 licence query, E3 matrix spike, compat-gate spike against 0.3.0 | Licence determination recorded or a fallback chosen; demand signal measured; matrix green remotely on 2 OBS lines; compat gate runs in CI (report-only) | Riskiest assumptions #1, #2, #4 |
-| **M1: Audit and narrow → 0.4.0** | ADR-009 audit; remove reserved states; unify reconnect `run`; `@unstable` annotation; `Catalog.revision`; redaction and leak tests; supervisor recipe in docs | 0.4.0 released; the CHANGELOG lists every break with a migration | #3; API shape |
+| **M1: Audit and narrow → 0.4.0** | ADR-014 codegen change (additive generated types); ADR-009 audit; remove reserved states; unify reconnect `run`; `@unstable` annotation; `Catalog.revision`; redaction and leak tests; supervisor recipe in docs | 0.4.0 released; the CHANGELOG lists every break with a migration | #3; API shape |
 | **M2: Gates → 1.0.0-RC1** | Compat gate enforcing against 0.4.0; real-OBS required on tags; adapter keep/demote decision; stability policy page; migration guide | RC1 on Central; no compat-gate violations between RC1 and the final release; ≥ 1 external consumer upgrades from 0.3/0.4 **[A]** | QA2, QA4; real upgrade path |
 | **M3: 1.0.0** | Fixes from RC feedback only | 4 weeks of RC without a breaking change; licence gate green; matrix green | Stability promise |
 | **M4: 1.x by evidence** | Whichever deferred trigger fires first: supervisor module, Java 21 baseline, Windows/macOS runner | Per-feature ADR | Adoption growth |

@@ -63,6 +63,10 @@ jobs:
         run: python3 tools/check_generation.py
       - name: Resolved dependency baseline
         run: python3 tools/check_dependencies.py
+      # Report-only until 1.0.0-RC1: the 0.4.0 API audit breaks on purpose (DESIGN.md ADR-008, M2).
+      - name: Binary compatibility report against Versions.compatBaseline
+        continue-on-error: true
+        run: ./mill --no-server '{protocol,core,sttp,okhttp,zio,fs2,pekko}.mimaReportBinaryIssues'
       - name: Documentation and isolated local consumer
         run: tools/consumer_smoke.sh
       - name: Documentation and repository base path checks
