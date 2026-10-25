@@ -21,8 +21,8 @@ _PRECEDENCE = {"|": 1, "&": 2, "<<": 3}
 @dataclass(frozen=True, slots=True)
 class Binary:
     operator: str
-    left: "Expression"
-    right: "Expression"
+    left: Expression
+    right: Expression
 
 
 type Expression = int | str | Binary

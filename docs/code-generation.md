@@ -4,16 +4,16 @@ The `codegen` Mill module is a Python/Jinja offline schema compiler. It is the o
 
 ## Toolchain and build invocation
 
-Provision Python **3.12.12**, recorded in `.python-version`. Set `OBS_CODEGEN_PYTHON` to its command or absolute executable path when it is not the default `python3`. Mill checks the exact version before generation and creates isolated virtual environments under `out/`. It installs checked-in hash-locked requirements, never into the host interpreter.
+Provision Python **3.14.8**, recorded in `.python-version`. Set `OBS_CODEGEN_PYTHON` to its command or absolute executable path when it is not the default `python3`. Mill checks the exact version before generation and creates isolated virtual environments under `out/`. It installs checked-in hash-locked requirements, never into the host interpreter.
 
 ```sh
-export OBS_CODEGEN_PYTHON=/absolute/path/to/python3.12
+export OBS_CODEGEN_PYTHON=/absolute/path/to/python3.14
 ./mill --no-server protocol.generatedSources
 ./mill --no-server show protocol.generatedSources
 ./mill --no-server protocol.compile
 ```
 
-The export is an example: replace the path with your installed Python 3.12.12 executable. On PowerShell set `$env:OBS_CODEGEN_PYTHON` and use `.\mill.bat`. The build uses platform-specific virtualenv executable paths; Linux is locally verified, while macOS/Windows remain covered by the compatibility workflow rather than a claim of local execution.
+The export is an example: replace the path with your installed Python 3.14.8 executable. On PowerShell set `$env:OBS_CODEGEN_PYTHON` and use `.\mill.bat`. The build uses platform-specific virtualenv executable paths; Linux is locally verified, while macOS/Windows remain covered by the compatibility workflow rather than a claim of local execution.
 
 `protocol.generatedSources` invokes `codegen/src/main.py` through native Mill `PythonModule.runner`. It passes four positional arguments:
 

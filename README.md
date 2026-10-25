@@ -79,7 +79,7 @@ and per-backend behavioral differences.
 ## Build and run
 
 The checked-in wrapper pins **Mill 1.1.10, Scala 3.9.0, and Temurin Java 25.0.3**.
-Building from source also requires **Python 3.12.12** for the Jinja generator. Provision that interpreter and set
+Building from source also requires **Python 3.14.8** for the Jinja generator. Provision that interpreter and set
 `OBS_CODEGEN_PYTHON` to its executable if it is not your `python3`. Mill creates isolated, hash-locked environments;
 Python is not a runtime dependency of published Scala artifacts. See [code generation](docs/code-generation.md).
 

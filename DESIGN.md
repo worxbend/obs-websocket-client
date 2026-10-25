@@ -29,7 +29,7 @@ This is a published open-source library on Maven Central with (soon) external co
 | # | Fact |
 |---|---|
 | F1 | Modules: `protocol`, `core`, `sttp`, `okhttp`, `zio`, `fs2`, and `pekko` are published. `codegen`, `examples`, and `server` are not. Dependency direction is `protocol ← core ← {sttp, zio, fs2, pekko}` and `sttp ← okhttp`. |
-| F2 | Toolchain pins: Scala 3.9.0, Java 25 (`-release:25`), Mill 1.1.10, Ox 1.0.9, sttp 4.0.27, and jsoniter-scala 2.41.2. Python 3.12 is used for codegen only. |
+| F2 | Toolchain pins: Scala 3.9.0, Java 25 (`-release:25`), Mill 1.1.10, Ox 1.0.9, sttp 4.0.27, and jsoniter-scala 2.41.2. Python 3.14 is used for codegen only. |
 | F3 | One `SessionLogic` actor owns all connection state. There is one reader, one serialized writer, bounded queues everywhere, and callback-scoped ownership (ADR-002). |
 | F4 | The async adapters (zio/fs2/pekko) bridge into the same blocking `ObsSession` API. Effect-native facades were explicitly deferred (ADR-005). |
 | F5 | A `private[client]` seam spans artifacts (`TransportFrame`, `AbstractObsTransport`, `MessageAssembler`, `HandshakeHeaders`, `JdkClientOptions`, and `reconnect.*`). Artifacts therefore release in lockstep. |

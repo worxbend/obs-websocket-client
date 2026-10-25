@@ -6,7 +6,7 @@ Status: production migration implemented. The research and task checklist below 
 
 - `codegen` is now a native Mill Python module. `protocol.generatedSources` runs Python/Jinja and compiles its output into the Scala protocol module.
 - The Scala generator and its Scala tests have been removed. Scala files under the golden fixture directory are expected output, not a second implementation.
-- Python 3.12.12 is pinned in `.python-version`. Set `OBS_CODEGEN_PYTHON` to that interpreter when the host `python3` differs; runtime and developer requirements use exact versions and hashes.
+- Python 3.14.8 is pinned in `.python-version`. Set `OBS_CODEGEN_PYTHON` to that interpreter when the host `python3` differs; runtime and developer requirements use exact versions and hashes.
 - The new generator preserves all 218 baseline paths and bytes, including the unchanged miniature fixtures. A durable full-catalog SHA-256 fixture guards parity.
 - Gates: `./mill --no-server codegen.test` plus Ruff, strict mypy, `tools/check_generation.py`, downstream Scala tests, doc snippets/site, package and dependency reports. Live counts and commands: [docs/code-generation.md](docs/code-generation.md). No frozen test count here; it went stale.
 - CI uses the new generator on Linux/macOS/Windows; only Linux has been executed locally. Platform path support is implemented, not evidence of a remote CI pass.
@@ -265,7 +265,7 @@ The spike used native `mill.pythonlib.PythonModule` from **Mill 1.1.10**, not a 
 
 Executed configuration:
 
-- Python 3.12.12, externally provisioned.
+- Python 3.14.8, externally provisioned.
 - Jinja2 3.1.6 and MarkupSafe 3.0.3 with pinned distribution hashes.
 - Generated Scala 3.9.0 compiled and executed under Java 25.
 - Two stdlib unittest tests passed.

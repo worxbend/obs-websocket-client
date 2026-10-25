@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Build
+
+- Codegen and build tools need Python 3.14.8 (was 3.12.12). Update `OBS_CODEGEN_PYTHON`. Locked dependency versions and hashes unchanged; Ruff and mypy target 3.14. Published artifacts unaffected.
+
 ## 0.3.0 — 2026-10-24
 
 First Maven Central / GitHub Packages release: tag runs full Validate, then signed

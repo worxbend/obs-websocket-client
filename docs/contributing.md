@@ -1,6 +1,6 @@
 # Contributing
 
-Mill is the only maintained build. The native module layout is `<module>/src` and `<module>/test/src`. Library code follows direct-style Scala: synchronous calls, Ox for concurrency and scoped resources, and `Either` for expected errors. The build-time generator is Python/Jinja; provision Python 3.12.12 and set `OBS_CODEGEN_PYTHON` when needed, as described in [code generation](code-generation.md).
+Mill is the only maintained build. The native module layout is `<module>/src` and `<module>/test/src`. Library code follows direct-style Scala: synchronous calls, Ox for concurrency and scoped resources, and `Either` for expected errors. The build-time generator is Python/Jinja; provision Python 3.14.8 and set `OBS_CODEGEN_PYTHON` when needed, as described in [code generation](code-generation.md).
 
 ## Module boundaries
 
