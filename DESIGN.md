@@ -13,7 +13,7 @@ Labels used throughout: **[F]** fact from the repository, **[A]** assumption, **
 - **For whom:** JVM/Scala developers who automate live production: stream tooling, studio dashboards, bots, and event control rooms. **[A]**
 - **Chosen direction:** *Stabilize, then grow only on evidence.* Freeze a deliberately narrowed public surface for 1.0, enforce it mechanically, prove real-OBS compatibility, and keep new capabilities (supervised sessions, effect-native facades, agent gateway) behind demand triggers.
 - **Architecture style:** keep the existing **modular monolith library** (layered `protocol ← core ← adapters`, hexagonal transport seam, single actor-confined engine). No new runtime modules for 1.0.
-- **Top 3 risks:** (1) adoption is too small to justify a 7-artifact, 100%-coverage maintenance load for one maintainer; (2) licensing of bindings derived from the GPL-2.0 schema is unresolved; (3) real-OBS compatibility rests on one manual smoke run (OBS 30.2.3, Linux).
+- **Top 3 risks:** (1) adoption is too small to justify a 7-artifact, 100%-coverage maintenance load for one maintainer; (2) licensing of bindings derived from the GPL-2.0 schema is unresolved; (3) real-OBS compatibility evidence is narrow: 4 scenarios on Linux containers only (OBS 29, 30, 32).
 - **First next step:** run the two cheap validations in parallel, both within 4 weeks. The **demand probe** is a 1.0 RFC plus Central download stats. The **licence determination** is a written question to upstream plus a maintainer review. Then start the API audit (M1).
 
 ---
@@ -36,7 +36,7 @@ This is a published open-source library on Maven Central with (soon) external co
 | F6 | Gates: exact 100% statement and branch coverage across 9 Scala modules plus the generator, `-Werror`, deterministic regeneration, a dependency baseline, an isolated consumer smoke test, and compiled doc snippets. |
 | F7 | Release: a `vX.Y.Z` tag publishes to Central and GitHub Packages after full Validate, then runs a remote hash check and a consumer build. `release-recover.yml` exists for partial releases. |
 | F8 | No binary/source-compatibility checker (MiMa or TASTy-MiMa) is configured. ADR-006 broke APIs in place, with "no stable baseline promised". |
-| F9 | Real-OBS evidence covers OBS 30.2.3 / obs-websocket 5.5.2, Linux container, 4 scenarios. `real-obs.yml` is scheduled weekly but "has not yet run remotely". Windows/macOS have not been verified. |
+| F9 | Real-OBS evidence: OBS 30.2.3 / obs-websocket 5.5.2 passes the weekly `real-obs.yml` job on GitHub (green since 2026-10-05). Local runs on 2026-10-25 also pass on OBS 29.0.2 (Debian 12) and 32.2.2 (Debian forky); the workflow now runs all three. Linux containers only, 4 scenarios; Windows/macOS have not been verified. *(Corrected 2026-10-25: earlier docs said the workflow had never run remotely.)* |
 | F10 | The schema `protocol.json` is GPL-2.0 upstream. Publishing to Central is gated on the repo variable `SCHEMA_LICENSE_REVIEWED`. First-party code is MIT. |
 | F11 | Out of scope by statement: OBS 4.x, MessagePack, Scala 2, Scala.js, Scala Native, and automatic replay of uncertain writes. |
 | F12 | The HTTP sample opens a fresh OBS connection per HTTP request. There is no shared long-lived session. |

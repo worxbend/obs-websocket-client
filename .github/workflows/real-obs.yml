@@ -10,8 +10,15 @@ concurrency:
   cancel-in-progress: true
 jobs:
   isolated-obs:
+    name: isolated-obs (${{ matrix.image }})
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # Debian's obs-studio package per release: 12 → OBS 29.0.x, 13 → 30.2.x,
+        # forky (testing, moving) → newest packaged line (32.2.x on 2026-10-25).
+        image: ['debian:12-slim', 'debian:13-slim', 'debian:forky-slim']
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Provision pinned codegen Python
@@ -23,11 +30,13 @@ jobs:
         shell: bash
         run: printf '%s\n' 'OBS_CODEGEN_PYTHON=${{ steps.python.outputs.python-path }}' >> "$GITHUB_ENV"
       - name: Authenticated OBS scene, event and restart smoke
+        env:
+          OBS_DOCKER_IMAGE: ${{ matrix.image }}
         run: tools/real_obs_smoke.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: real-obs-evidence-${{ github.sha }}
+          name: real-obs-evidence-${{ github.sha }}-${{ strategy.job-index }}
           path: |
             out/real-obs-smoke/
             out/integration/test/testForked.dest/

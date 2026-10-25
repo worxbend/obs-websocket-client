@@ -14,13 +14,15 @@ Scala 3.9.0, Mill 1.1.10, Java 25 (Temurin 25.0.3), Ox 1.0.9, sttp 4.0.27, jsoni
 
 ## Tested servers
 
-The following local smoke checks ran on 2026-10-04. This matrix records exercised operations; it does not certify every generated request on these servers.
+The 30.2.3 row was first checked locally on 2026-10-04 and has passed the weekly GitHub workflow since 2026-10-05. The 29.0.2 and 32.2.2 rows are local runs on 2026-10-25. This matrix records exercised operations; it does not certify every generated request on these servers.
 
 | OBS Studio | obs-websocket | Environment | Executed checks |
 | --- | --- | --- | --- |
+| 29.0.2 | 5.1.0 | Debian 12 container, private Xvfb, no host mounts | Same four tests, before and after restart |
 | 30.2.3 | 5.5.2 | Debian 13 container, private Xvfb, no host mounts | Wrong-password rejection (4009); authenticated discovery; acknowledges subscription updates without disconnecting; scene create/switch/event/restore/remove; all four tests repeated after stopping and restarting OBS |
+| 32.2.2 | not recorded | Debian forky (testing) container, private Xvfb, no host mounts | Same four tests, before and after restart |
 
-Run `tools/real_obs_smoke.sh` with Docker available to reproduce the isolated check. It installs OBS inside a disposable Debian container, uses a generated password and a localhost-only port, writes evidence under `out/real-obs-smoke/`, and removes its container before recording success. The final local run used the official `debian:13-slim` image (`sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a`); all eight test executions passed with no skips. `OBS_DOCKER_IMAGE` can select a Debian-compatible base; evidence records the resolved image and OBS package version. The manual/scheduled GitHub workflow invokes this launcher, but has not yet run remotely.
+Run `tools/real_obs_smoke.sh` with Docker available to reproduce the isolated check. It installs OBS inside a disposable Debian container, uses a generated password and a localhost-only port, writes evidence under `out/real-obs-smoke/`, and removes its container before recording success. The final local run used the official `debian:13-slim` image (`sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a`); all eight test executions passed with no skips. `OBS_DOCKER_IMAGE` can select a Debian-compatible base; evidence records the resolved image and OBS package version. The manual/scheduled GitHub workflow runs this launcher once per Debian base in its matrix: `debian:12-slim`, `debian:13-slim`, and `debian:forky-slim`. Forky is Debian testing, so its OBS version moves; the evidence records the resolved package. In the local 29.0.2 and 32.2.2 runs all eight test executions passed, but container removal exceeded the launcher's former 30-second limit, so those runs wrote no `evidence.json`; the limit is now 120 seconds.
 
 The restart smoke uses fresh scoped connections. In-flight disconnect races and opt-in reconnect behavior are covered by deterministic tests. The pinned catalog also contains newer fields and operations unavailable in OBS 30.2.3; check discovered request capabilities and the operation's server requirements. No broad OBS 5.x version guarantee is made.
 

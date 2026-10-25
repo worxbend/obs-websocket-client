@@ -198,7 +198,8 @@ def remove_container(name):
     finally:
         removed = subprocess.run(
             ["docker", "rm", "--force", name],
-            timeout=30,
+            # Force-removing a stopped OBS container can exceed 30 s on loaded Docker hosts.
+            timeout=120,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
